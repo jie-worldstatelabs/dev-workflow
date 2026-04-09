@@ -15,29 +15,39 @@ The entire execute→review→gate loop runs **autonomously** after you confirm 
 
 ## Installation
 
+Add the GitHub repo as a marketplace, then install the plugin:
+
 ```bash
-claude plugin add /path/to/dev-workflow
+claude plugin marketplace add https://github.com/jie-worldstatelabs/dev-workflow
+claude plugin install dev-workflow
 ```
 
-Or clone this repo and add it as a local plugin:
+Or for a single session, use `--plugin-dir`:
 
 ```bash
 git clone https://github.com/jie-worldstatelabs/dev-workflow.git ~/.claude/plugins/dev-workflow
-claude plugin add ~/.claude/plugins/dev-workflow
+claude --plugin-dir ~/.claude/plugins/dev-workflow
 ```
 
 ## Usage
 
 ```
-/dev Build a REST API with user authentication
-/dev Fix the race condition in the payment processing module
-/dev Add dark mode support to the dashboard
+/dev-workflow:dev Build a REST API with user authentication
+/dev-workflow:dev Fix the race condition in the payment processing module
+/dev-workflow:dev Add dark mode support to the dashboard
+```
+
+To cancel a running workflow:
+
+```
+/dev-workflow:cancel
 ```
 
 ## Prerequisites
 
 - [Claude Code](https://claude.ai/claude-code) CLI
-- (Optional) [Codex CLI](https://github.com/openai/codex) for adversarial reviews — the plugin falls back to `oh-my-claudecode:code-reviewer` if Codex is not configured
+- (Optional) [Codex CLI](https://github.com/openai/codex) for adversarial reviews
+- (Optional) [oh-my-claudecode](https://github.com/anthropics/oh-my-claudecode) — used as fallback reviewer when Codex is not configured
 
 ## Architecture
 

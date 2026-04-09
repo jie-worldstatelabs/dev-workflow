@@ -161,6 +161,7 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    ```
    Execute the implementation plan. Run autonomously — do not stop to ask questions.
 
+   - Project directory: <absolute path to project root — all code MUST be written here, not in a subdirectory>
    - Plan: <absolute path to plan file>
    - Round: <N>
    - Reviewer feedback: <absolute path to previous review file, or "none" if round 1>

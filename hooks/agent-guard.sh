@@ -57,7 +57,7 @@ Ensure this agent is launched with:
   - model: opus
   - mode: bypassPermissions
   - Prompt must include: plan path ($PLAN_FILE), round ($ROUND), and output report path (.dev-workflow/${TOPIC}-round-${ROUND}-report.md)
-Also remember to run: update-status.sh --status executing (if not already done)
+Also remember to run: "\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status executing (if not already done)
 EOF
     ;;
   reviewing)
@@ -68,7 +68,7 @@ Ensure this agent is launched with:
   - subagent_type: "dev-workflow:workflow-reviewer"
   - mode: bypassPermissions
   - Prompt must include: project directory, plan path ($PLAN_FILE), execution report (.dev-workflow/${TOPIC}-round-${ROUND}-report.md), review output path (.dev-workflow/${TOPIC}-round-${ROUND}-review.md), round ($ROUND)
-Also remember to run: update-status.sh --status reviewing (if not already done)
+Also remember to run: "\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status reviewing (if not already done)
 EOF
     ;;
   gating)
@@ -76,7 +76,7 @@ EOF
 [dev-workflow] Active workflow detected (round $ROUND, phase: gating — derived from artifacts).
 Both report and review exist. You should be making a gate decision, not launching an agent.
 If you need to re-execute after a FAIL verdict, update status first:
-  update-status.sh --status executing --round <next-round>
+  "\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status executing --round <next-round>
 EOF
     ;;
 esac

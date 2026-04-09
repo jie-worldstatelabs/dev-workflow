@@ -122,8 +122,8 @@ When executor finishes, verify report at .dev-workflow/${TOPIC}-round-${ROUND}-r
 Then update status to reviewing and launch the workflow-reviewer agent.
 Then evaluate PASS/FAIL.
 
-If PASS or round >= $MAX_ROUNDS: run update-status.sh --status complete (or escalated), then you may stop.
-If FAIL and round < $MAX_ROUNDS: run update-status.sh --status executing --round $NEXT_ROUND, then continue.
+If PASS or round >= $MAX_ROUNDS: run \"\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status complete (or escalated), then you may stop.
+If FAIL and round < $MAX_ROUNDS: run \"\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status executing --round $NEXT_ROUND, then continue.
 
 DO NOT STOP until status is complete or escalated."
     ;;
@@ -136,8 +136,8 @@ You MUST now:
 1. Launch the workflow-reviewer agent (subagent_type: dev-workflow:workflow-reviewer, mode: bypassPermissions)
    Include in prompt: project directory, plan path ($PLAN_FILE), execution report (.dev-workflow/${TOPIC}-round-${ROUND}-report.md), review output path (.dev-workflow/${TOPIC}-round-${ROUND}-review.md), round ($ROUND)
 2. Parse the verdict from the agent's response (look for ---VERDICT--- block)
-3. If PASS or round >= $MAX_ROUNDS: run update-status.sh --status complete (or escalated)
-4. If FAIL and round < $MAX_ROUNDS: run update-status.sh --status executing --round $NEXT_ROUND, then continue executing
+3. If PASS or round >= $MAX_ROUNDS: run \"\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status complete (or escalated)
+4. If FAIL and round < $MAX_ROUNDS: run \"\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status executing --round $NEXT_ROUND, then continue executing
 
 DO NOT STOP until status is complete or escalated."
     ;;

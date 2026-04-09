@@ -4,7 +4,7 @@ A Claude Code plugin that orchestrates a complete development cycle: **brainstor
 
 ## What It Does
 
-`/dev <task>` kicks off a self-contained workflow:
+`/dev-workflow:dev <task>` kicks off a self-contained workflow:
 
 1. **Brainstorm & Plan** — Claude asks clarifying questions, proposes approaches, presents a design, and writes an implementation plan. You confirm before anything gets built.
 2. **Execute** — A dedicated executor agent (Opus) implements the plan step-by-step with TDD, tests, and incremental commits.
@@ -85,6 +85,20 @@ scripts/
 | Max review rounds | 3 | Execute→review cycles before escalation |
 | Executor model | opus | Model for the implementation agent |
 | State file | `.dev-workflow/state.md` | Workflow state (auto-managed) |
+
+## Project Setup
+
+Add `.dev-workflow/` to your project's `.gitignore` to avoid committing workflow artifacts:
+
+```bash
+echo '/.dev-workflow/' >> .gitignore
+```
+
+Workflow artifacts (plans, reports, reviews) persist in `.dev-workflow/` after completion. Delete them when no longer needed:
+
+```bash
+rm -rf .dev-workflow/
+```
 
 ## License
 

@@ -27,6 +27,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     *)
+      echo "Warning: unknown argument: $1" >&2
       shift
       ;;
   esac

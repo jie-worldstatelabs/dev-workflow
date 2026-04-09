@@ -185,13 +185,7 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    ```
    Extract: `topic`, `round`, `plan_file` from the YAML frontmatter.
 
-3. **Resolve the Codex script path** (best-effort, before launching the reviewer):
-   ```bash
-   CODEX_SCRIPT=$(find ~/.claude/plugins/cache -path "*/codex/*/scripts/codex-companion.mjs" 2>/dev/null | head -1)
-   ```
-   If found, include it in the reviewer prompt. If not found, omit it — the reviewer will try `codex` CLI or fall back.
-
-4. **Launch `dev-workflow:workflow-reviewer` agent** (MUST use full plugin-prefixed name) with these parameters:
+3. **Launch `dev-workflow:workflow-reviewer` agent** (MUST use full plugin-prefixed name) with these parameters:
    - `subagent_type: dev-workflow:workflow-reviewer`
    - `mode: bypassPermissions`
    - Prompt:
@@ -204,9 +198,8 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    - Execution report: <absolute path to .dev-workflow/<topic>-round-<N>-report.md>
    - Review output path: <absolute path to .dev-workflow/<topic>-round-<N>-review.md>
    - Round: <N>
-   - Codex script path: <absolute path to codex-companion.mjs, or "not available">
 
-   Run the Codex adversarial review, save the output, and return a verdict.
+   Run the review, save the output, and return a verdict.
    ```
 
 5. **When the reviewer completes**, parse the `---VERDICT---` block from the agent's response:

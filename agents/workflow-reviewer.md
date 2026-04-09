@@ -38,19 +38,13 @@ ISSUES: <comma-separated list of key issues, or "none">
 
 Try the following in order until one succeeds:
 
-1. If a **Codex script path** was provided in the prompt, use it:
+1. **Native Codex CLI** (preferred — the companion script's app-server broker hangs):
    ```bash
-   cd <project-directory> && node "<codex-script-path>" adversarial-review --wait --scope auto "<focus-text>"
+   cd <project-directory> && codex review --uncommitted "<focus-text>" 2>&1
    ```
+   Use a 3-minute timeout (`timeout: 180000`). If codex is not installed or fails, proceed to Step 3.
 
-2. Otherwise, try the system-installed Codex CLI:
-   ```bash
-   cd <project-directory> && codex adversarial-review --wait --scope auto "<focus-text>"
-   ```
-
-3. If neither works, proceed to Step 3 (Fallback).
-
-Use a 5-minute timeout (`timeout: 300000`).
+2. If neither works, proceed to Step 3 (Fallback).
 
 ### Step 3: Fallback (if Codex fails)
 

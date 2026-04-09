@@ -37,10 +37,13 @@ if [[ -z "$TOPIC" ]] || [[ -z "$PLAN_FILE" ]]; then
   exit 1
 fi
 
-# Create state file
-mkdir -p .dev-workflow
+# Resolve absolute project root (prevents CWD drift issues in hooks)
+PROJECT_ROOT="$(pwd)"
 
-cat > .dev-workflow/state.md <<EOF
+# Create state file with absolute paths
+mkdir -p "${PROJECT_ROOT}/.dev-workflow"
+
+cat > "${PROJECT_ROOT}/.dev-workflow/state.md" <<EOF
 ---
 active: true
 status: executing
@@ -48,10 +51,14 @@ round: 1
 max_rounds: $MAX_ROUNDS
 topic: "$TOPIC"
 plan_file: "$PLAN_FILE"
+project_root: "$PROJECT_ROOT"
 session_id: ${CLAUDE_CODE_SESSION_ID:-}
 started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ---
 EOF
+
+# Breadcrumb for cross-directory state discovery
+echo "${PROJECT_ROOT}/.dev-workflow/state.md" > "${HOME}/.dev-workflow-active"
 
 echo "🔄 Dev workflow loop activated!"
 echo ""

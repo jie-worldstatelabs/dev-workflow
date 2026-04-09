@@ -18,10 +18,12 @@ set -euo pipefail
 
 HOOK_INPUT=$(cat)
 
-STATE_FILE=".dev-workflow/state.md"
+# Resolve state file (handles CWD drift)
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$(dirname "$HOOK_DIR")/scripts/lib.sh"
 
 # No active workflow — allow exit
-if [[ ! -f "$STATE_FILE" ]]; then
+if ! resolve_state; then
   exit 0
 fi
 
@@ -70,8 +72,8 @@ fi
 # DERIVE actual phase from artifacts on disk (don't trust STATUS)
 # ──────────────────────────────────────────────────────────────
 
-REPORT_FILE=".dev-workflow/${TOPIC}-round-${ROUND}-report.md"
-REVIEW_FILE=".dev-workflow/${TOPIC}-round-${ROUND}-review.md"
+REPORT_FILE="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-${ROUND}-report.md"
+REVIEW_FILE="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-${ROUND}-review.md"
 
 if [[ -f "$REVIEW_FILE" ]]; then
   # Review file exists → executor AND review both done → should be gating
@@ -93,7 +95,7 @@ fi
 # For all completed previous rounds, check if the latest review was a pass
 # that Claude failed to act on. Scan back from current round.
 for ((r = ROUND; r >= 1; r--)); do
-  PREV_REVIEW=".dev-workflow/${TOPIC}-round-${r}-review.md"
+  PREV_REVIEW="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-${r}-review.md"
   if [[ -f "$PREV_REVIEW" ]]; then
     # Check for pass signals (case insensitive)
     if grep -qi -E '(LGTM|no major issues|implementation is sound|approved|all.*(look|check).*good|pass)' "$PREV_REVIEW" 2>/dev/null; then

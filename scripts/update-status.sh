@@ -6,9 +6,11 @@
 
 set -euo pipefail
 
-STATE_FILE=".dev-workflow/state.md"
+# Resolve state file (handles CWD drift)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "${SCRIPT_DIR}/lib.sh"
 
-if [[ ! -f "$STATE_FILE" ]]; then
+if ! resolve_state; then
   echo "⚠️  No active dev workflow" >&2
   exit 1
 fi

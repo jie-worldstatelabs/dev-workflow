@@ -13,10 +13,12 @@
 
 set -euo pipefail
 
-STATE_FILE=".dev-workflow/state.md"
+# Resolve state file (handles CWD drift)
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$(dirname "$HOOK_DIR")/scripts/lib.sh"
 
 # No active workflow — pass through
-if [[ ! -f "$STATE_FILE" ]]; then
+if ! resolve_state; then
   exit 0
 fi
 
@@ -37,8 +39,8 @@ esac
 # DERIVE actual phase from artifacts on disk (same logic as stop-hook.sh)
 # ──────────────────────────────────────────────────────────────
 
-REPORT_FILE=".dev-workflow/${TOPIC}-round-${ROUND}-report.md"
-REVIEW_FILE=".dev-workflow/${TOPIC}-round-${ROUND}-review.md"
+REPORT_FILE="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-${ROUND}-report.md"
+REVIEW_FILE="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-${ROUND}-review.md"
 
 if [[ -f "$REVIEW_FILE" ]]; then
   ACTUAL_PHASE="gating"

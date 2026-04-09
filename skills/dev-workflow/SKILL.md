@@ -21,7 +21,7 @@ External skills will HIJACK the flow and never return control here. All phases (
 
 ## How It Works
 
-This workflow uses a **Stop hook** to guarantee the execute-review loop runs to completion. Once the user confirms the plan, a state file (`.claude/dev-workflow.local.md`) is created. The Stop hook reads this file and **blocks Claude from exiting** as long as the workflow status is `executing`, `reviewing`, or `gating`.
+This workflow uses a **Stop hook** to guarantee the execute-review loop runs to completion. Once the user confirms the plan, a state file (`.dev-workflow/state.md`) is created. The Stop hook reads this file and **blocks Claude from exiting** as long as the workflow status is `executing`, `reviewing`, or `gating`.
 
 ```
 Step 1: Brainstorm & Plan  → inline Q&A → design → save plan → ⏸️ user confirms
@@ -36,10 +36,10 @@ Step 4: Gate               → PASS? done. FAIL + round < 3? back to Step 2.
 
 | Setting | Value |
 |---------|-------|
-| Plan directory | `.plans/` in project root |
+| Plan directory | `.dev-workflow/` in project root |
 | Max review rounds | 3 |
 | Executor model | opus |
-| State file | `.claude/dev-workflow.local.md` |
+| State file | `.dev-workflow/state.md` |
 | Reviewer agent | `dev-workflow:workflow-reviewer` (Codex CLI + fallback) |
 
 ---
@@ -88,8 +88,8 @@ Present the design incrementally:
 
 After the user approves the design, write a concrete implementation plan:
 
-1. Create `.plans/` directory if it doesn't exist
-2. Write the plan to `.plans/YYYY-MM-DD-<topic>.md` with this structure:
+1. Create `.dev-workflow/` directory if it doesn't exist
+2. Write the plan to `.dev-workflow/YYYY-MM-DD-<topic>.md` with this structure:
 
 ```markdown
 # Implementation Plan: <Topic>
@@ -115,7 +115,7 @@ After the user approves the design, write a concrete implementation plan:
 ```
 
 3. Present the plan to the user:
-   > "Plan saved to `.plans/<filename>`. Please review and confirm to start execution, or request changes."
+   > "Plan saved to `.dev-workflow/<filename>`. Please review and confirm to start execution, or request changes."
 4. **Wait for explicit user approval** before proceeding to Step 2.
 
 ---
@@ -128,7 +128,7 @@ Once the user confirms the plan, **immediately activate the stop hook** by runni
 "${CLAUDE_PLUGIN_ROOT}/scripts/setup-workflow.sh" --topic "<topic>" --plan-file "<path-to-plan>"
 ```
 
-This creates `.claude/dev-workflow.local.md` with `status: executing`. From this point on, the Stop hook will block any attempt to exit until the workflow reaches `complete` or `escalated`.
+This creates `.dev-workflow/state.md` with `status: executing`. From this point on, the Stop hook will block any attempt to exit until the workflow reaches `complete` or `escalated`.
 
 ---
 
@@ -153,7 +153,7 @@ This creates `.claude/dev-workflow.local.md` with `status: executing`. From this
    - Reviewer feedback: <absolute path to previous review file, or "none" if round 1>
 
    Read the plan, implement all items, run tests, and write your execution report to:
-   <absolute path to .plans/<topic>-round-<N>-report.md>
+   <absolute path to .dev-workflow/<topic>-round-<N>-report.md>
    ```
 
 3. **When the executor completes**, verify the report file exists, then immediately proceed to Step 3.
@@ -175,8 +175,8 @@ This creates `.claude/dev-workflow.local.md` with `status: executing`. From this
 
    - Project directory: <absolute path to project root>
    - Plan file: <absolute path to plan file>
-   - Execution report: <absolute path to .plans/<topic>-round-<N>-report.md>
-   - Review output path: <absolute path to .plans/<topic>-round-<N>-review.md>
+   - Execution report: <absolute path to .dev-workflow/<topic>-round-<N>-report.md>
+   - Review output path: <absolute path to .dev-workflow/<topic>-round-<N>-review.md>
    - Round: <N>
 
    Run the Codex adversarial review, save the output, and return a verdict.
@@ -237,5 +237,5 @@ This creates `.claude/dev-workflow.local.md` with `status: executing`. From this
 - **Always update status** before each phase transition via `update-status.sh`
 - **Always set status to `complete` or `escalated`** when done to release the stop hook
 - **Never self-approve** — only the reviewer agent (Codex / fallback reviewer) or the user can approve
-- **Always save artifacts** (plans, reports, reviews) to `.plans/` for traceability
+- **Always save artifacts** (plans, reports, reviews) to `.dev-workflow/` for traceability
 - **To cancel manually**: user runs `/dev-workflow:cancel`

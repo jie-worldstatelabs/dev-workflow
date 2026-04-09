@@ -81,10 +81,10 @@ scripts/
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Plan directory | `.plans/` | Where plans, reports, and reviews are saved |
+| Plan directory | `.dev-workflow/` | Where plans, reports, and reviews are saved |
 | Max review rounds | 3 | Execute→review cycles before escalation |
 | Executor model | opus | Model for the implementation agent |
-| State file | `.claude/dev-workflow.local.md` | Workflow state (auto-managed) |
+| State file | `.dev-workflow/state.md` | Workflow state (auto-managed) |
 
 ## License
 

@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-STATE_FILE=".claude/dev-workflow.local.md"
+STATE_FILE=".dev-workflow/state.md"
 
 # No active workflow — pass through
 if [[ ! -f "$STATE_FILE" ]]; then
@@ -37,8 +37,8 @@ esac
 # DERIVE actual phase from artifacts on disk (same logic as stop-hook.sh)
 # ──────────────────────────────────────────────────────────────
 
-REPORT_FILE=".plans/${TOPIC}-round-${ROUND}-report.md"
-REVIEW_FILE=".plans/${TOPIC}-round-${ROUND}-review.md"
+REPORT_FILE=".dev-workflow/${TOPIC}-round-${ROUND}-report.md"
+REVIEW_FILE=".dev-workflow/${TOPIC}-round-${ROUND}-review.md"
 
 if [[ -f "$REVIEW_FILE" ]]; then
   ACTUAL_PHASE="gating"
@@ -56,18 +56,18 @@ Ensure this agent is launched with:
   - subagent_type: "dev-workflow:workflow-executor"
   - model: opus
   - mode: bypassPermissions
-  - Prompt must include: plan path ($PLAN_FILE), round ($ROUND), and output report path (.plans/${TOPIC}-round-${ROUND}-report.md)
+  - Prompt must include: plan path ($PLAN_FILE), round ($ROUND), and output report path (.dev-workflow/${TOPIC}-round-${ROUND}-report.md)
 Also remember to run: update-status.sh --status executing (if not already done)
 EOF
     ;;
   reviewing)
     cat <<EOF
 [dev-workflow] Active workflow detected (round $ROUND, phase: reviewing — derived from artifacts).
-Execution report exists at .plans/${TOPIC}-round-${ROUND}-report.md
+Execution report exists at .dev-workflow/${TOPIC}-round-${ROUND}-report.md
 Ensure this agent is launched with:
   - subagent_type: "dev-workflow:workflow-reviewer"
   - mode: bypassPermissions
-  - Prompt must include: project directory, plan path ($PLAN_FILE), execution report (.plans/${TOPIC}-round-${ROUND}-report.md), review output path (.plans/${TOPIC}-round-${ROUND}-review.md), round ($ROUND)
+  - Prompt must include: project directory, plan path ($PLAN_FILE), execution report (.dev-workflow/${TOPIC}-round-${ROUND}-report.md), review output path (.dev-workflow/${TOPIC}-round-${ROUND}-review.md), round ($ROUND)
 Also remember to run: update-status.sh --status reviewing (if not already done)
 EOF
     ;;

@@ -7,8 +7,8 @@
 # This means even if Claude forgets to call update-status.sh, the hook still
 # knows the real state by checking which files exist:
 #
-#   .plans/<topic>-round-N-report.md exists + review doesn't  → reviewing
-#   .plans/<topic>-round-N-review.md exists                   → gating
+#   .dev-workflow/<topic>-round-N-report.md exists + review doesn't  → reviewing
+#   .dev-workflow/<topic>-round-N-review.md exists                   → gating
 #   neither exists                                            → executing
 #
 # The status field in the state file is only trusted for terminal states
@@ -18,7 +18,7 @@ set -euo pipefail
 
 HOOK_INPUT=$(cat)
 
-STATE_FILE=".claude/dev-workflow.local.md"
+STATE_FILE=".dev-workflow/state.md"
 
 # No active workflow — allow exit
 if [[ ! -f "$STATE_FILE" ]]; then
@@ -70,8 +70,8 @@ fi
 # DERIVE actual phase from artifacts on disk (don't trust STATUS)
 # ──────────────────────────────────────────────────────────────
 
-REPORT_FILE=".plans/${TOPIC}-round-${ROUND}-report.md"
-REVIEW_FILE=".plans/${TOPIC}-round-${ROUND}-review.md"
+REPORT_FILE=".dev-workflow/${TOPIC}-round-${ROUND}-report.md"
+REVIEW_FILE=".dev-workflow/${TOPIC}-round-${ROUND}-review.md"
 
 if [[ -f "$REVIEW_FILE" ]]; then
   # Review file exists → executor AND review both done → should be gating
@@ -86,14 +86,14 @@ fi
 
 # ──────────────────────────────────────────────────────────────
 # Also check: did a PREVIOUS round's review already pass?
-# If .plans/<topic>-round-<N>-review.md contains pass signals
+# If .dev-workflow/<topic>-round-<N>-review.md contains pass signals
 # but Claude forgot to mark complete, check for that too.
 # ──────────────────────────────────────────────────────────────
 
 # For all completed previous rounds, check if the latest review was a pass
 # that Claude failed to act on. Scan back from current round.
 for ((r = ROUND; r >= 1; r--)); do
-  PREV_REVIEW=".plans/${TOPIC}-round-${r}-review.md"
+  PREV_REVIEW=".dev-workflow/${TOPIC}-round-${r}-review.md"
   if [[ -f "$PREV_REVIEW" ]]; then
     # Check for pass signals (case insensitive)
     if grep -qi -E '(LGTM|no major issues|implementation is sound|approved|all.*(look|check).*good|pass)' "$PREV_REVIEW" 2>/dev/null; then
@@ -118,7 +118,7 @@ case "$ACTUAL_PHASE" in
 
 You MUST continue executing the plan: $PLAN_FILE
 Launch the workflow-executor agent (subagent_type: dev-workflow:workflow-executor, model: opus, mode: bypassPermissions).
-When executor finishes, verify report at .plans/${TOPIC}-round-${ROUND}-report.md
+When executor finishes, verify report at .dev-workflow/${TOPIC}-round-${ROUND}-report.md
 Then update status to reviewing and launch the workflow-reviewer agent.
 Then evaluate PASS/FAIL.
 
@@ -130,11 +130,11 @@ DO NOT STOP until status is complete or escalated."
   reviewing)
     CONTINUE_PROMPT="[dev-workflow] BLOCKED EXIT — workflow in progress (round $ROUND/$MAX_ROUNDS, phase: reviewing).
 
-Execution report exists at .plans/${TOPIC}-round-${ROUND}-report.md but review is missing.
+Execution report exists at .dev-workflow/${TOPIC}-round-${ROUND}-report.md but review is missing.
 
 You MUST now:
 1. Launch the workflow-reviewer agent (subagent_type: dev-workflow:workflow-reviewer, mode: bypassPermissions)
-   Include in prompt: project directory, plan path ($PLAN_FILE), execution report (.plans/${TOPIC}-round-${ROUND}-report.md), review output path (.plans/${TOPIC}-round-${ROUND}-review.md), round ($ROUND)
+   Include in prompt: project directory, plan path ($PLAN_FILE), execution report (.dev-workflow/${TOPIC}-round-${ROUND}-report.md), review output path (.dev-workflow/${TOPIC}-round-${ROUND}-review.md), round ($ROUND)
 2. Parse the verdict from the agent's response (look for ---VERDICT--- block)
 3. If PASS or round >= $MAX_ROUNDS: run update-status.sh --status complete (or escalated)
 4. If FAIL and round < $MAX_ROUNDS: run update-status.sh --status executing --round $NEXT_ROUND, then continue executing
@@ -146,7 +146,7 @@ DO NOT STOP until status is complete or escalated."
 
 Both report and review exist for round $ROUND. You MUST now make the gate decision:
 
-1. Read .plans/${TOPIC}-round-${ROUND}-review.md
+1. Read .dev-workflow/${TOPIC}-round-${ROUND}-review.md
 2. Determine PASS or FAIL
 3. If PASS: run \"\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status complete, then announce completion
 4. If FAIL + round < $MAX_ROUNDS: run \"\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status executing --round $NEXT_ROUND, then start next execution round

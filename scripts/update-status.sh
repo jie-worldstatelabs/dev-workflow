@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-STATE_FILE=".claude/dev-workflow.local.md"
+STATE_FILE=".dev-workflow/state.md"
 
 if [[ ! -f "$STATE_FILE" ]]; then
   echo "⚠️  No active dev workflow" >&2

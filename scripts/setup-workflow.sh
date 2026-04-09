@@ -38,9 +38,9 @@ if [[ -z "$TOPIC" ]] || [[ -z "$PLAN_FILE" ]]; then
 fi
 
 # Create state file
-mkdir -p .claude
+mkdir -p .dev-workflow
 
-cat > .claude/dev-workflow.local.md <<EOF
+cat > .dev-workflow/state.md <<EOF
 ---
 active: true
 status: executing

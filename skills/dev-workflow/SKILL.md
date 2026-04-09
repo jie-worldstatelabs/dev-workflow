@@ -139,7 +139,13 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status executing
    ```
 
-2. **Launch `dev-workflow:workflow-executor` agent** (MUST use full plugin-prefixed name) with these parameters:
+2. **Read state file to resolve variables** (critical for context recovery after compaction):
+   ```bash
+   cat .dev-workflow/state.md
+   ```
+   Extract: `topic`, `round`, `plan_file` from the YAML frontmatter. Use these to construct all paths below.
+
+3. **Launch `dev-workflow:workflow-executor` agent** (MUST use full plugin-prefixed name) with these parameters:
    - `subagent_type: dev-workflow:workflow-executor`
    - `model: opus`
    - `mode: bypassPermissions`
@@ -156,7 +162,7 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    <absolute path to .dev-workflow/<topic>-round-<N>-report.md>
    ```
 
-3. **When the executor completes**, verify the report file exists, then immediately proceed to Step 3.
+4. **When the executor completes**, verify the report file exists, then immediately proceed to Step 3.
 
 ## Step 3: Review
 
@@ -165,13 +171,19 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status reviewing
    ```
 
-2. **Resolve the Codex script path** (best-effort, before launching the reviewer):
+2. **Read state file to resolve variables** (if not already in context):
+   ```bash
+   cat .dev-workflow/state.md
+   ```
+   Extract: `topic`, `round`, `plan_file` from the YAML frontmatter.
+
+3. **Resolve the Codex script path** (best-effort, before launching the reviewer):
    ```bash
    CODEX_SCRIPT=$(find ~/.claude/plugins/cache -path "*/codex/*/scripts/codex-companion.mjs" 2>/dev/null | head -1)
    ```
    If found, include it in the reviewer prompt. If not found, omit it — the reviewer will try `codex` CLI or fall back.
 
-3. **Launch `dev-workflow:workflow-reviewer` agent** (MUST use full plugin-prefixed name) with these parameters:
+4. **Launch `dev-workflow:workflow-reviewer` agent** (MUST use full plugin-prefixed name) with these parameters:
    - `subagent_type: dev-workflow:workflow-reviewer`
    - `mode: bypassPermissions`
    - Prompt:
@@ -189,11 +201,11 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    Run the Codex adversarial review, save the output, and return a verdict.
    ```
 
-4. **When the reviewer completes**, parse the `---VERDICT---` block from the agent's response:
+5. **When the reviewer completes**, parse the `---VERDICT---` block from the agent's response:
    - Extract `verdict` (PASS or FAIL), `summary`, and `issues` (if FAIL)
    - If no verdict block found, treat as FAIL with summary "Review agent did not return a structured verdict"
 
-5. Immediately proceed to Step 4.
+6. Immediately proceed to Step 4.
 
 ## Step 4: Gate
 

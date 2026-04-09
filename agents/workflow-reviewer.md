@@ -19,17 +19,17 @@ You will receive:
 
 ## Review Protocol
 
-### Step 1: Read Context and Build Focus Text
+### Step 1: Read Context
 
-1. Read the plan file — extract the **Acceptance Criteria** and **Testing Strategy** sections.
-2. Read the execution report — note any open questions or partial implementations.
-3. Build a **focus text** summary (max ~500 chars) for Codex, for example:
-   ```
-   Review against plan: <one-line goal>. Acceptance criteria: <comma-separated list>. Testing: <coverage target>.
-   ```
-   This focus text will be passed to Codex so it reviews the code changes against the plan's intent, not just general code quality.
+Read the plan file and execution report to understand what was implemented. Note the plan path and report path — you will pass these to Codex.
 
 ### Step 2: Run Codex Adversarial Review
+
+Build a focus text that tells Codex to read the plan and report files directly (Codex runs in a read-only sandbox with file access):
+
+```
+Review against the implementation plan at <plan-file-path> and execution report at <execution-report-path>. Read both files. Verify all acceptance criteria are met, test coverage is adequate, and the implementation matches the design.
+```
 
 Try the following in order until one succeeds:
 
@@ -46,8 +46,6 @@ Try the following in order until one succeeds:
 3. If neither works, proceed to Step 3 (Fallback).
 
 Use a 5-minute timeout (`timeout: 300000`).
-
-**Important:** Always pass the focus text as the last positional argument so Codex knows what the implementation is trying to achieve.
 
 ### Step 3: Fallback (if Codex fails)
 

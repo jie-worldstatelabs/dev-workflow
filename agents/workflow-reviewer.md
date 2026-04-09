@@ -25,10 +25,15 @@ Read the plan file and execution report to understand what was implemented. Note
 
 ### Step 2: Run Codex Adversarial Review
 
-Build a focus text that tells Codex to read the plan and report files directly (Codex runs in a read-only sandbox with file access):
+Build a focus text that tells Codex to read the plan and report files directly (Codex runs in a read-only sandbox with file access), and to output a structured verdict:
 
 ```
 Review against the implementation plan at <plan-file-path> and execution report at <execution-report-path>. Read both files. Verify all acceptance criteria are met, test coverage is adequate, and the implementation matches the design.
+
+End your review with exactly this format:
+VERDICT: PASS or FAIL
+SUMMARY: <one-line summary>
+ISSUES: <comma-separated list of key issues, or "none">
 ```
 
 Try the following in order until one succeeds:
@@ -55,11 +60,15 @@ If the Codex script fails (not installed, not authenticated, network error, time
 Review the code changes in <project-directory> against the implementation plan.
 
 Plan file: <plan-file-path>
-Acceptance criteria: <extracted from plan>
 Execution report: <execution-report-path>
 
-Focus on: correctness against the plan, design decisions, edge cases, test coverage, and potential regressions.
+Read both files. Focus on: correctness against the plan, design decisions, edge cases, test coverage, and potential regressions.
 Report findings as CRITICAL / HIGH / MEDIUM / LOW.
+
+End your review with exactly this format:
+VERDICT: PASS or FAIL
+SUMMARY: <one-line summary>
+ISSUES: <comma-separated list of key issues, or "none">
 ```
 
 ### Step 4: Save Review
@@ -68,11 +77,19 @@ Write the full review output (from Codex or fallback) to the specified review ou
 
 ### Step 5: Parse Verdict
 
-Analyze the review output and determine:
+Look for the structured verdict at the end of the review output:
 
-- **PASS** signals: "no major issues", "implementation is sound", "approved", "LGTM", no specific issues raised, all findings are LOW/MEDIUM only
-- **FAIL** signals: CRITICAL or HIGH issues raised, "should be changed", "incorrect", "missing", specific bugs or design flaws identified
-- If ambiguous, treat as **FAIL**
+```
+VERDICT: PASS (or FAIL)
+SUMMARY: ...
+ISSUES: ...
+```
+
+1. If the structured format is found, extract `VERDICT`, `SUMMARY`, and `ISSUES` directly.
+2. If the structured format is NOT found (Codex may not always follow instructions), fall back to heuristics:
+   - **PASS** signals: "no major issues", "implementation is sound", "approved", "LGTM", all findings are LOW/MEDIUM only
+   - **FAIL** signals: CRITICAL or HIGH issues raised, "should be changed", "incorrect", "missing", specific bugs identified
+3. If ambiguous, treat as **FAIL**.
 
 ### Step 6: Return Result
 

@@ -15,6 +15,7 @@ You will receive:
 3. **Execution report path** — the report from the executor
 4. **Review output path** — where to save the review
 5. **Round number** — which review round this is
+6. **Codex script path** (optional) — absolute path to codex-companion.mjs, if available
 
 ## Review Protocol
 
@@ -24,11 +25,19 @@ Read the plan file and execution report to understand what was implemented.
 
 ### Step 2: Run Codex Adversarial Review
 
-Run the Codex CLI directly:
+Try the following in order until one succeeds:
 
-```bash
-cd <project-directory> && node "/Users/jie/.claude/plugins/cache/openai-codex/codex/1.0.0/scripts/codex-companion.mjs" adversarial-review --wait --scope working-tree
-```
+1. If a **Codex script path** was provided in the prompt, use it:
+   ```bash
+   cd <project-directory> && node "<codex-script-path>" adversarial-review --wait --scope working-tree
+   ```
+
+2. Otherwise, try the system-installed Codex CLI:
+   ```bash
+   cd <project-directory> && codex adversarial-review --wait --scope working-tree
+   ```
+
+3. If neither works, proceed to Step 3 (Fallback).
 
 Use a 5-minute timeout (`timeout: 300000`).
 

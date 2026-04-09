@@ -165,7 +165,13 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status reviewing
    ```
 
-2. **Launch `dev-workflow:workflow-reviewer` agent** (MUST use full plugin-prefixed name) with these parameters:
+2. **Resolve the Codex script path** (best-effort, before launching the reviewer):
+   ```bash
+   CODEX_SCRIPT=$(find ~/.claude/plugins/cache -path "*/codex/*/scripts/codex-companion.mjs" 2>/dev/null | head -1)
+   ```
+   If found, include it in the reviewer prompt. If not found, omit it — the reviewer will try `codex` CLI or fall back.
+
+3. **Launch `dev-workflow:workflow-reviewer` agent** (MUST use full plugin-prefixed name) with these parameters:
    - `subagent_type: dev-workflow:workflow-reviewer`
    - `mode: bypassPermissions`
    - Prompt:
@@ -178,15 +184,16 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    - Execution report: <absolute path to .dev-workflow/<topic>-round-<N>-report.md>
    - Review output path: <absolute path to .dev-workflow/<topic>-round-<N>-review.md>
    - Round: <N>
+   - Codex script path: <absolute path to codex-companion.mjs, or "not available">
 
    Run the Codex adversarial review, save the output, and return a verdict.
    ```
 
-3. **When the reviewer completes**, parse the `---VERDICT---` block from the agent's response:
+4. **When the reviewer completes**, parse the `---VERDICT---` block from the agent's response:
    - Extract `verdict` (PASS or FAIL), `summary`, and `issues` (if FAIL)
    - If no verdict block found, treat as FAIL with summary "Review agent did not return a structured verdict"
 
-4. Immediately proceed to Step 4.
+5. Immediately proceed to Step 4.
 
 ## Step 4: Gate
 

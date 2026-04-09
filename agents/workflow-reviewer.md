@@ -35,12 +35,12 @@ Try the following in order until one succeeds:
 
 1. If a **Codex script path** was provided in the prompt, use it:
    ```bash
-   cd <project-directory> && node "<codex-script-path>" adversarial-review --wait --scope working-tree "<focus-text>"
+   cd <project-directory> && node "<codex-script-path>" adversarial-review --wait --scope auto "<focus-text>"
    ```
 
 2. Otherwise, try the system-installed Codex CLI:
    ```bash
-   cd <project-directory> && codex adversarial-review --wait --scope working-tree "<focus-text>"
+   cd <project-directory> && codex adversarial-review --wait --scope auto "<focus-text>"
    ```
 
 3. If neither works, proceed to Step 3 (Fallback).

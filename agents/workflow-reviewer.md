@@ -19,9 +19,15 @@ You will receive:
 
 ## Review Protocol
 
-### Step 1: Read Context
+### Step 1: Read Context and Build Focus Text
 
-Read the plan file and execution report to understand what was implemented.
+1. Read the plan file — extract the **Acceptance Criteria** and **Testing Strategy** sections.
+2. Read the execution report — note any open questions or partial implementations.
+3. Build a **focus text** summary (max ~500 chars) for Codex, for example:
+   ```
+   Review against plan: <one-line goal>. Acceptance criteria: <comma-separated list>. Testing: <coverage target>.
+   ```
+   This focus text will be passed to Codex so it reviews the code changes against the plan's intent, not just general code quality.
 
 ### Step 2: Run Codex Adversarial Review
 
@@ -29,25 +35,32 @@ Try the following in order until one succeeds:
 
 1. If a **Codex script path** was provided in the prompt, use it:
    ```bash
-   cd <project-directory> && node "<codex-script-path>" adversarial-review --wait --scope working-tree
+   cd <project-directory> && node "<codex-script-path>" adversarial-review --wait --scope working-tree "<focus-text>"
    ```
 
 2. Otherwise, try the system-installed Codex CLI:
    ```bash
-   cd <project-directory> && codex adversarial-review --wait --scope working-tree
+   cd <project-directory> && codex adversarial-review --wait --scope working-tree "<focus-text>"
    ```
 
 3. If neither works, proceed to Step 3 (Fallback).
 
 Use a 5-minute timeout (`timeout: 300000`).
 
+**Important:** Always pass the focus text as the last positional argument so Codex knows what the implementation is trying to achieve.
+
 ### Step 3: Fallback (if Codex fails)
 
-If the Codex script fails (not installed, not authenticated, network error, timeout, etc.), fall back to launching an `oh-my-claudecode:code-reviewer` agent:
+If the Codex script fails (not installed, not authenticated, network error, timeout, etc.), fall back to launching an `oh-my-claudecode:code-reviewer` agent with the plan context:
 
 ```
-Review the code changes in <project-directory> against the plan at <plan-file-path>.
-Focus on: correctness, design decisions, edge cases, test coverage, and potential regressions.
+Review the code changes in <project-directory> against the implementation plan.
+
+Plan file: <plan-file-path>
+Acceptance criteria: <extracted from plan>
+Execution report: <execution-report-path>
+
+Focus on: correctness against the plan, design decisions, edge cases, test coverage, and potential regressions.
 Report findings as CRITICAL / HIGH / MEDIUM / LOW.
 ```
 

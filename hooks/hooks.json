@@ -1,0 +1,26 @@
+{
+  "description": "Dev workflow hooks - stop hook prevents exit, agent guard steers executor launch",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/stop-hook.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/agent-guard.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

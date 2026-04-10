@@ -60,6 +60,9 @@ EOF
 # Breadcrumb for cross-directory state discovery
 echo "${PROJECT_ROOT}/.dev-workflow/state.md" > "${HOME}/.dev-workflow-active"
 
+# Clean up stale baselines from previous workflows with the same topic
+rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-baseline"
+
 # Record baseline commit for round 1 (reviewer diffs against this)
 git -C "${PROJECT_ROOT}" rev-parse HEAD > "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-1-baseline" 2>/dev/null || echo "EMPTY" > "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-1-baseline"
 

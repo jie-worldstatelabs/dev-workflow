@@ -14,8 +14,8 @@ You will receive:
 2. **Plan file path** — the implementation plan being reviewed
 3. **Execution report path** — the report from the executor
 4. **Review output path** — where to save the review
-5. **Round number** — which review round this is
-6. **Codex script path** (optional) — absolute path to codex-companion.mjs, if available
+5. **Baseline file** — file containing the git commit hash from before the executor ran. Read this file to get the hash.
+6. **Round number** — which review round this is
 
 ## Review Protocol
 
@@ -38,10 +38,17 @@ ISSUES: <comma-separated list of key issues, or "none">
 
 Try the following in order until one succeeds:
 
-1. **Native Codex CLI** (preferred — the companion script's app-server broker hangs):
-   ```bash
-   cd <project-directory> && codex review --uncommitted "<focus-text>" 2>&1
-   ```
+1. **Read the baseline file** to get the commit hash (e.g. `cat <baseline-file>`).
+
+2. **Native Codex CLI** (preferred — the companion script's app-server broker hangs):
+   - If baseline is a valid commit hash:
+     ```bash
+     cd <project-directory> && codex review --base <baseline-hash> "<focus-text>" 2>&1
+     ```
+   - If baseline is "EMPTY" (no prior commits):
+     ```bash
+     cd <project-directory> && codex review --uncommitted "<focus-text>" 2>&1
+     ```
    Use a 3-minute timeout (`timeout: 180000`). If codex is not installed or fails, proceed to Step 3.
 
 2. If neither works, proceed to Step 3 (Fallback).

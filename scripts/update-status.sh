@@ -47,4 +47,15 @@ if [[ -n "$NEW_ROUND" ]]; then
   mv "$TEMP_FILE" "$STATE_FILE"
 fi
 
+# When entering 'executing' status, record baseline commit for the reviewer
+if [[ "$NEW_STATUS" == "executing" ]]; then
+  TOPIC=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$STATE_FILE" | grep '^topic:' | sed 's/topic: *//' | sed 's/^"\(.*\)"$/\1/')
+  ROUND="${NEW_ROUND}"
+  if [[ -z "$ROUND" ]]; then
+    ROUND=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$STATE_FILE" | grep '^round:' | sed 's/round: *//')
+  fi
+  BASELINE_FILE="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-${ROUND}-baseline"
+  git -C "${PROJECT_ROOT}" rev-parse HEAD > "$BASELINE_FILE" 2>/dev/null || echo "EMPTY" > "$BASELINE_FILE"
+fi
+
 echo "[dev-workflow] Status updated: ${NEW_STATUS:-unchanged} | Round: ${NEW_ROUND:-unchanged}"

@@ -152,12 +152,7 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    ```
    Extract: `topic`, `round`, `plan_file` from the YAML frontmatter. Use these to construct all paths below.
 
-3. **Record baseline commit** (so the reviewer diffs only this round's changes):
-   ```bash
-   git rev-parse HEAD > .dev-workflow/<topic>-round-<N>-baseline 2>/dev/null || echo "EMPTY" > .dev-workflow/<topic>-round-<N>-baseline
-   ```
-
-4. **Launch `dev-workflow:workflow-executor` agent** (MUST use full plugin-prefixed name) with these parameters:
+3. **Launch `dev-workflow:workflow-executor` agent** (MUST use full plugin-prefixed name) with these parameters:
    - `subagent_type: dev-workflow:workflow-executor`
    - `model: opus`
    - `mode: bypassPermissions`
@@ -175,7 +170,7 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    <absolute path to .dev-workflow/<topic>-round-<N>-report.md>
    ```
 
-5. **When the executor completes**, verify the report file exists, then immediately proceed to Step 3.
+4. **When the executor completes**, verify the report file exists, then immediately proceed to Step 3.
 
 ## Step 3: Review
 

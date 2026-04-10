@@ -50,6 +50,14 @@ else
   ACTUAL_PHASE="executing"
 fi
 
+# ──────────────────────────────────────────────────────────────
+# Auto-record baseline if missing (hard guarantee — Claude may skip scripts)
+# ──────────────────────────────────────────────────────────────
+BASELINE_FILE="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-${ROUND}-baseline"
+if [[ "$ACTUAL_PHASE" == "executing" ]] && [[ ! -f "$BASELINE_FILE" ]]; then
+  git -C "${PROJECT_ROOT}" rev-parse HEAD > "$BASELINE_FILE" 2>/dev/null || echo "EMPTY" > "$BASELINE_FILE"
+fi
+
 case "$ACTUAL_PHASE" in
   executing)
     cat <<EOF

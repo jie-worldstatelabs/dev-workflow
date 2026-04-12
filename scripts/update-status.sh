@@ -60,18 +60,10 @@ mv "$TEMP_FILE" "$STATE_FILE"
 # With the epoch mechanism this is defense-in-depth — even without deletion,
 # stale artifacts would be caught by epoch mismatch. But deletion keeps the
 # file system state simple and avoids partial-write edge cases.
+# Unified naming: {topic}-{stage}-report.md
 case "$NEW_STATUS" in
-  executing)
-    rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-report.md"
-    ;;
-  verifying)
-    rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-verify.md"
-    ;;
-  reviewing)
-    rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-review.md"
-    ;;
-  qa-ing)
-    rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-qa-report.md"
+  executing|verifying|reviewing|qa-ing)
+    rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-${NEW_STATUS}-report.md"
     ;;
 esac
 

@@ -53,13 +53,17 @@ started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 EOF
 
 # Clean up ALL stale artifacts from previous workflows with the same topic.
-# Flat artifact names (no round suffix) — prevents stop hook from misreading state.
 rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-baseline"
+# Unified naming (v1.6+): {topic}-{stage}-report.md
+for stage in executing verifying reviewing qa-ing; do
+  rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-${stage}-report.md"
+done
+# Legacy flat names (v1.4–v1.5)
 rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-report.md"
 rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-verify.md"
 rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-review.md"
 rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-qa-report.md"
-# Also clean up any legacy round-numbered artifacts from pre-v1.4 workflows
+# Legacy round-numbered (pre-v1.4)
 rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-baseline"
 rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-report.md"
 rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-verify.md"

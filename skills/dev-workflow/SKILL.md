@@ -36,12 +36,12 @@ This workflow uses a **Stop hook** to guarantee the execute-review loop runs to 
 ```
 Step 1: Brainstorm & Plan  → inline Q&A → design → save plan → ⏸️ user confirms
                              ── stop hook activated ──
-Step 2: Execute            → workflow-executor → report.md (result: done) → verifying
-Step 2.5: Verify           → run tests inline → verify.md (result: PASS/FAIL/SKIPPED)
+Step 2: Execute            → workflow-executor → executing-report.md (result: done)
+Step 2.5: Verify           → run tests inline → verifying-report.md (result: PASS/FAIL/SKIPPED)
                              FAIL → executing | PASS/SKIPPED → reviewing
-Step 3: Review             → workflow-reviewer → review.md (result: PASS/FAIL)
+Step 3: Review             → workflow-reviewer → reviewing-report.md (result: PASS/FAIL)
                              FAIL → executing | PASS → qa-ing
-Step 3.5: QA               → workflow-qa → qa-report.md (result: PASS/FAIL)
+Step 3.5: QA               → workflow-qa → qa-ing-report.md (result: PASS/FAIL)
                              FAIL → executing | PASS → complete
                              ── stop hook deactivated ──
 ```
@@ -173,15 +173,19 @@ result: <PASS|FAIL|done|SKIPPED>
 The `epoch` tells the stop hook "this artifact is fresh." The `result` drives transitions:
 
 ```
-executing  → report.md     done    → verifying
-verifying  → verify.md     PASS    → reviewing
-                           FAIL    → executing
-                           SKIPPED → reviewing
-reviewing  → review.md     PASS    → qa-ing
-                           FAIL    → executing
-qa-ing     → qa-report.md  PASS    → complete
-                           FAIL    → executing
+Stage       Artifact filename                     result    → next status
+─────────   ───────────────────────────────────   ─────────────────────────
+executing   {topic}-executing-report.md           done      → verifying
+verifying   {topic}-verifying-report.md           PASS      → reviewing
+                                                  FAIL      → executing
+                                                  SKIPPED   → reviewing
+reviewing   {topic}-reviewing-report.md           PASS      → qa-ing
+                                                  FAIL      → executing
+qa-ing      {topic}-qa-ing-report.md              PASS      → complete
+                                                  FAIL      → executing
 ```
+
+Artifact naming is uniform: `{topic}-{stage}-report.md` where `{stage}` is the exact `status` value.
 
 `update-status.sh` does three things atomically on every call: increment epoch, update status, delete the new stage's artifact (clean slate).
 
@@ -216,10 +220,10 @@ Extract `topic`, `plan_file`, and `epoch` from the YAML frontmatter. Use `epoch`
    - Project directory: <absolute path to project root — all code MUST be written here>
    - Plan: <absolute path to plan file>
    - Epoch: <epoch from state.md — write this into your report's frontmatter>
-   - Report output: <absolute path to .dev-workflow/<topic>-report.md>
-   - Reviewer feedback: <absolute path to .dev-workflow/<topic>-review.md if it exists, otherwise "none">
-   - QA feedback: <absolute path to .dev-workflow/<topic>-qa-report.md if it exists, otherwise "none">
-   - Quick test failures: <.dev-workflow/<topic>-verify.md if it exists and result=FAIL, otherwise "none">
+   - Report output: <absolute path to .dev-workflow/<topic>-executing-report.md>
+   - Reviewer feedback: <absolute path to .dev-workflow/<topic>-reviewing-report.md if it exists, otherwise "none">
+   - QA feedback: <absolute path to .dev-workflow/<topic>-qa-ing-report.md if it exists, otherwise "none">
+   - Quick test failures: <.dev-workflow/<topic>-verifying-report.md if it exists and result=FAIL, otherwise "none">
 
    Implement the plan. Write your execution report to the Report output path with frontmatter:
    ---
@@ -236,7 +240,7 @@ Extract `topic`, `plan_file`, and `epoch` from the YAML frontmatter. Use `epoch`
    ```bash
    "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status verifying
    ```
-   This increments epoch and deletes `.dev-workflow/<topic>-verify.md`.
+   This increments epoch and deletes `.dev-workflow/<topic>-verifying-report.md`.
 
 2. **Re-read state.md** to get the new `epoch`.
 
@@ -254,7 +258,7 @@ Extract `topic`, `plan_file`, and `epoch` from the YAML frontmatter. Use `epoch`
    ```
    3-minute timeout (`timeout: 180000`). Capture the full output.
 
-5. **Write verify report** to `.dev-workflow/<topic>-verify.md` with frontmatter:
+5. **Write verify report** to `.dev-workflow/<topic>-verifying-report.md` with frontmatter:
    ```markdown
    ---
    epoch: <current epoch from state.md>
@@ -290,11 +294,11 @@ Extract `topic`, `plan_file`, and `epoch` from the YAML frontmatter. Use `epoch`
    - Project directory: <absolute path to project root>
    - Plan file: <absolute path to plan file>
    - Epoch: <epoch from state.md — write this into your review's frontmatter>
-   - Execution report: <absolute path to .dev-workflow/<topic>-report.md>
-   - Verify report: <absolute path to .dev-workflow/<topic>-verify.md>
-   - Review output: <absolute path to .dev-workflow/<topic>-review.md>
+   - Execution report: <absolute path to .dev-workflow/<topic>-executing-report.md>
+   - Verify report: <absolute path to .dev-workflow/<topic>-verifying-report.md>
+   - Review output: <absolute path to .dev-workflow/<topic>-reviewing-report.md>
    - Baseline file: <absolute path to .dev-workflow/<topic>-baseline>
-   - QA report: <absolute path to .dev-workflow/<topic>-qa-report.md, or "none" if it does not exist>
+   - QA report: <absolute path to .dev-workflow/<topic>-qa-ing-report.md, or "none" if it does not exist>
 
    Review code changes against the plan. Write the review with frontmatter:
    ---
@@ -303,7 +307,7 @@ Extract `topic`, `plan_file`, and `epoch` from the YAML frontmatter. Use `epoch`
    ---
    ```
 
-4. **When the reviewer completes**, read `result` from `review.md`'s frontmatter.
+4. **When the reviewer completes**, read `result` from `{topic}-reviewing-report.md`'s frontmatter.
 
 5. **Transition based on result:**
    - `result: FAIL` → `update-status.sh --status executing`, go back to Step 2. Announce: "Code review failed. Starting next execution..."
@@ -311,7 +315,7 @@ Extract `topic`, `plan_file`, and `epoch` from the YAML frontmatter. Use `epoch`
 
 ## Step 3.5: QA (Journey Tests)
 
-1. **You already called `update-status.sh --status qa-ing`** at the end of Step 3. Epoch incremented, `qa-report.md` deleted.
+1. **You already called `update-status.sh --status qa-ing`** at the end of Step 3. Epoch incremented, `{topic}-qa-ing-report.md` deleted.
 
 2. **Re-read state.md** to get the new `epoch`.
 
@@ -326,7 +330,7 @@ Extract `topic`, `plan_file`, and `epoch` from the YAML frontmatter. Use `epoch`
    - Project directory: <absolute path to project root>
    - Plan file: <absolute path to plan file>
    - Epoch: <epoch from state.md — write this into your QA report's frontmatter>
-   - QA report output: <absolute path to .dev-workflow/<topic>-qa-report.md>
+   - QA report output: <absolute path to .dev-workflow/<topic>-qa-ing-report.md>
    - Journey test state file: <absolute path to .dev-workflow/<topic>-journey-tests.md>
 
    Run journey tests. Write the QA report with frontmatter:
@@ -336,7 +340,7 @@ Extract `topic`, `plan_file`, and `epoch` from the YAML frontmatter. Use `epoch`
    ---
    ```
 
-4. **When the QA agent completes**, read `result` from `qa-report.md`'s frontmatter.
+4. **When the QA agent completes**, read `result` from `{topic}-qa-ing-report.md`'s frontmatter.
 
 5. **Transition based on result:**
    - `result: PASS` → `update-status.sh --status complete`. Announce: "Dev workflow complete. All changes reviewed and QA-passed."

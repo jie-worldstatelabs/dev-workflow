@@ -36,10 +36,11 @@ case "$STATUS" in
     ;;
 esac
 
-REPORT="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-report.md"
-VERIFY="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-verify.md"
-REVIEW="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-review.md"
-QAREPORT="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-qa-report.md"
+# All stage artifacts follow: {topic}-{stage}-report.md
+REPORT="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-executing-report.md"
+VERIFY="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-verifying-report.md"
+REVIEW="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-reviewing-report.md"
+QAREPORT="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-qa-ing-report.md"
 BASELINE="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-baseline"
 JOURNEY="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-journey-tests.md"
 

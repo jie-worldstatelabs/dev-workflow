@@ -61,12 +61,12 @@ fi
 
 # ──────────────────────────────────────────────────────────────
 # Map STATUS to the artifact it produces
+# Unified naming: {topic}-{stage}-report.md
 # ──────────────────────────────────────────────────────────────
 case "$STATUS" in
-  executing) ARTIFACT="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-report.md" ;;
-  verifying) ARTIFACT="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-verify.md" ;;
-  reviewing) ARTIFACT="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-review.md" ;;
-  qa-ing)    ARTIFACT="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-qa-report.md" ;;
+  executing|verifying|reviewing|qa-ing)
+    ARTIFACT="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-${STATUS}-report.md"
+    ;;
   *)
     # Unknown active status — allow exit rather than block in weird state
     exit 0
@@ -102,10 +102,11 @@ next_status() {
 }
 
 # Per-stage work instructions (for "not done" case)
-REPORT="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-report.md"
-VERIFY="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-verify.md"
-REVIEW="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-review.md"
-QAREPORT="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-qa-report.md"
+# All stage artifacts follow: {topic}-{stage}-report.md
+REPORT="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-executing-report.md"
+VERIFY="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-verifying-report.md"
+REVIEW="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-reviewing-report.md"
+QAREPORT="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-qa-ing-report.md"
 BASELINE="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-baseline"
 JOURNEY="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-journey-tests.md"
 

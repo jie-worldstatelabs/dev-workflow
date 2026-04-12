@@ -12,9 +12,8 @@ You are a QA engineer executing real user journey tests for a dev-workflow cycle
 You will receive:
 1. **Project directory** — absolute path to the project root
 2. **Plan file path** — the implementation plan (contains journey test framework and key user paths)
-3. **QA report output path** — where to save the QA report (`.dev-workflow/<topic>-round-N-qa-report.md`)
-4. **Journey test state file** — path to `.dev-workflow/<topic>-journey-tests.md` (may not exist on round 1; you write/update it at the end)
-5. **Round number** — which QA round this is
+3. **QA report output path** — where to save the QA report (`.dev-workflow/<topic>-qa-report.md`)
+4. **Journey test state file** — path to `.dev-workflow/<topic>-journey-tests.md` (may not exist on the first iteration; you write/update it at the end)
 
 ---
 
@@ -31,9 +30,9 @@ Read the plan file's `## Testing Strategy` → `### Journey Tests` section.
 
 If the journey test state file exists, read it. It contains:
 - Which user paths have tests and their current coverage status
-- Test bugs found and fixed in previous rounds
+- Test bugs found and fixed in previous iterations
 - Unresolved/uncertain failures that couldn't be classified before
-- Coverage gaps noted for this round to address
+- Coverage gaps noted for this iteration to address
 
 Use this as your starting context. Re-examine previous "unresolved" failures — the implementation may have changed.
 
@@ -123,16 +122,16 @@ Write/update the state file at the **journey test state file path** provided as 
 ```markdown
 # Journey Test State — <Topic>
 
-_Last updated: Round <N>_
+_Last updated: <date>_
 
 ## Test Suite Overview
 
 | User Path | Test File | Coverage Status |
 |-----------|-----------|----------------|
-| <path 1> | <file or "—"> | Covered / Added this round / Not covered |
+| <path 1> | <file or "—"> | Covered / Added this iteration / Not covered |
 | <path 2> | ... | ... |
 
-## Round <N> Activity
+## Latest Activity
 
 ### Tests Added or Modified
 - `<file:line>` — <what was added or changed and why>
@@ -166,7 +165,7 @@ _Last updated: Round <N>_
 Write the QA report to the specified QA report output path. **This report contains only confirmed app bugs** — test setup issues and uncertain failures belong in the state file only.
 
 ```markdown
-# QA Report — Round <N>
+# QA Report
 
 ## Journey Test Framework
 <framework name, or "none">

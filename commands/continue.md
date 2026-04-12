@@ -30,7 +30,7 @@ Run the continue script:
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/continue-workflow.sh"
 ```
 
-Read the output carefully. It tells you: **Topic**, **Round**, and **Phase** (the phase at which the workflow was interrupted).
+Read the output carefully. It tells you: **Topic** and **Phase** (the phase at which the workflow was interrupted).
 
 ## Step 2: Load Workflow Definition
 
@@ -40,7 +40,7 @@ Use `Skill("dev-workflow:dev")` to load the workflow definition.
 
 ## Step 3: Resume From Detected Phase
 
-Read `.dev-workflow/state.md` to confirm: `topic`, `round`, `plan_file`.
+Read `.dev-workflow/state.md` to confirm: `topic`, `plan_file`.
 
 Based on the **Phase** reported by the continue script, jump directly to the right step — do NOT restart from Step 1 (brainstorming):
 

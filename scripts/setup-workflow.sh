@@ -42,7 +42,7 @@ cat > "${PROJECT_ROOT}/.dev-workflow/state.md" <<EOF
 ---
 active: true
 status: executing
-round: 1
+resume_status:
 topic: "$TOPIC"
 plan_file: "$PLAN_FILE"
 project_root: "$PROJECT_ROOT"
@@ -51,23 +51,28 @@ started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ---
 EOF
 
-# Clean up ALL stale artifacts from previous workflows with the same topic
-# (reports, verifies, reviews, qa-reports — prevents hooks from deriving wrong phase)
-rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-baseline"
+# Clean up ALL stale artifacts from previous workflows with the same topic.
+# Flat artifact names (no round suffix) — prevents stop hook from misreading state.
 rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-baseline"
+rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-report.md"
+rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-verify.md"
+rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-review.md"
+rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-qa-report.md"
+# Also clean up any legacy round-numbered artifacts from pre-v1.4 workflows
+rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-baseline"
 rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-report.md"
 rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-verify.md"
 rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-review.md"
 rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-qa-report.md"
 
-# Record baseline commit once — reviewer always diffs against this across all rounds
+# Record baseline commit once — reviewer always diffs against this across all iterations
 git -C "${PROJECT_ROOT}" rev-parse HEAD > "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-baseline" 2>/dev/null || echo "EMPTY" > "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-baseline"
 
 echo "🔄 Dev workflow loop activated!"
 echo ""
 echo "   Topic: $TOPIC"
 echo "   Plan: $PLAN_FILE"
-echo "   Status: executing (round 1)"
+echo "   Status: executing"
 echo ""
 echo "   The loop runs until the review passes."
 echo "   To pause: /dev-workflow:interrupt"

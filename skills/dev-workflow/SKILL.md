@@ -38,11 +38,11 @@ Step 1: Brainstorm & Plan  → inline Q&A → design → save plan → ⏸️ us
                              ── stop hook activated ──
 Step 2: Execute            → workflow-executor agent → execution report
 Step 2.5: Verify           → run quick tests inline → verify report
-                             (FAIL → back to Step 2 next round)
+                             (FAIL → back to Step 2)
 Step 3: Review             → workflow-reviewer agent → code review → review report
-                             (FAIL → back to Step 2 next round)
+                             (FAIL → back to Step 2)
 Step 3.5: QA               → workflow-qa agent → journey tests → QA report
-                             (FAIL → back to Step 2 next round)
+                             (FAIL → back to Step 2)
 Step 4: Gate               → QA PASS? done. (infinite loop until PASS)
                              ── stop hook deactivated ──
 ```
@@ -171,7 +171,7 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    ```bash
    cat .dev-workflow/state.md
    ```
-   Extract: `topic`, `round`, `plan_file` from the YAML frontmatter. Use these to construct all paths below.
+   Extract: `topic`, `plan_file` from the YAML frontmatter. Use these to construct all paths below.
 
 3. **Launch `dev-workflow:workflow-executor` agent** (MUST use full plugin-prefixed name) with these parameters:
    - `subagent_type: dev-workflow:workflow-executor`
@@ -184,13 +184,12 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
 
    - Project directory: <absolute path to project root — all code MUST be written here, not in a subdirectory>
    - Plan: <absolute path to plan file>
-   - Round: <N>
-   - Reviewer feedback: <absolute path to .dev-workflow/<topic>-round-<N-1>-review.md, or "none" if no review yet>
-   - QA feedback: <absolute path to .dev-workflow/<topic>-round-<N-1>-qa-report.md, or "none" if no QA yet>
-   - Quick test failures: <check .dev-workflow/<topic>-round-<N-1>-verify.md — if it says "Result: FAIL", pass its absolute path; otherwise "none">
+   - Reviewer feedback: <absolute path to .dev-workflow/<topic>-review.md if it exists, otherwise "none">
+   - QA feedback: <absolute path to .dev-workflow/<topic>-qa-report.md if it exists, otherwise "none">
+   - Quick test failures: <check .dev-workflow/<topic>-verify.md — if it exists and says "Result: FAIL", pass its absolute path; otherwise "none">
 
    Read the plan, implement all items, run tests, and write your execution report to:
-   <absolute path to .dev-workflow/<topic>-round-<N>-report.md>
+   <absolute path to .dev-workflow/<topic>-report.md>
    ```
 
 4. **When the executor completes**, verify the report file exists, then immediately proceed to Step 2.5.
@@ -216,9 +215,9 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    ```
    Use a 3-minute timeout (`timeout: 180000`). Capture the full output.
 
-4. **Write verify report** to `.dev-workflow/<topic>-round-<N>-verify.md`:
+4. **Write verify report** to `.dev-workflow/<topic>-verify.md`:
    ```markdown
-   # Verify Report — Round <N>
+   # Verify Report
 
    ## Test Command
    <command used, or "SKIPPED — no test command detected">
@@ -231,11 +230,11 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    ```
 
 5. **If quick tests FAIL:**
-   - Increment round and update status:
+   - Update status (this deletes verify.md, signalling loop-back):
      ```bash
-     "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status executing --round <N+1>
+     "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status executing
      ```
-   - Announce: "Quick tests failed (round <N>). Starting round <N+1>..."
+   - Announce: "Quick tests failed. Starting next execution..."
    - Go back to Step 2. Pass the verify report path as "Quick test failures" context to the executor.
 
 6. **If quick tests PASS or SKIPPED:** proceed to Step 3.
@@ -251,7 +250,7 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    ```bash
    cat .dev-workflow/state.md
    ```
-   Extract: `topic`, `round`, `plan_file` from the YAML frontmatter.
+   Extract: `topic`, `plan_file` from the YAML frontmatter.
 
 3. **Launch `dev-workflow:workflow-reviewer` agent** (MUST use full plugin-prefixed name) with these parameters:
    - `subagent_type: dev-workflow:workflow-reviewer`
@@ -263,12 +262,11 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
 
    - Project directory: <absolute path to project root>
    - Plan file: <absolute path to plan file>
-   - Execution report: <absolute path to .dev-workflow/<topic>-round-<N>-report.md>
-   - Verify report: <absolute path to .dev-workflow/<topic>-round-<N>-verify.md>
-   - Review output path: <absolute path to .dev-workflow/<topic>-round-<N>-review.md>
+   - Execution report: <absolute path to .dev-workflow/<topic>-report.md>
+   - Verify report: <absolute path to .dev-workflow/<topic>-verify.md>
+   - Review output path: <absolute path to .dev-workflow/<topic>-review.md>
    - Baseline file: <absolute path to .dev-workflow/<topic>-baseline>
-   - QA report: <absolute path to .dev-workflow/<topic>-round-<N-1>-qa-report.md, or "none" if no QA ran yet>
-   - Round: <N>
+   - QA report: <absolute path to .dev-workflow/<topic>-qa-report.md, or "none" if the file does not exist>
 
    Read the baseline file to get the git commit hash from before the executor ran.
    Review the code changes against the plan and return a verdict.
@@ -278,11 +276,11 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    - Extract `verdict` (PASS or FAIL), `summary`, and `issues` (if FAIL)
    - If no verdict block found, treat as FAIL with summary "Review agent did not return a structured verdict"
 
-5. **If reviewer verdict = FAIL** → increment round and go back to Step 2:
+5. **If reviewer verdict = FAIL** → loop back to Step 2:
    ```bash
-   "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status executing --round <N+1>
+   "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status executing
    ```
-   Announce: "Code review failed (round <N>). Starting round <N+1>..."
+   Announce: "Code review failed. Starting next execution..."
 
 6. **If reviewer verdict = PASS** → proceed to Step 3.5.
 
@@ -308,9 +306,8 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
 
    - Project directory: <absolute path to project root>
    - Plan file: <absolute path to plan file>
-   - QA report output: <absolute path to .dev-workflow/<topic>-round-<N>-qa-report.md>
+   - QA report output: <absolute path to .dev-workflow/<topic>-qa-report.md>
    - Journey test state file: <absolute path to .dev-workflow/<topic>-journey-tests.md>
-   - Round: <N>
    ```
 
 4. **When the QA agent completes**, parse the `---VERDICT---` block from the agent's response:
@@ -335,14 +332,14 @@ The verdict being evaluated here is the **QA agent's verdict** from Step 3.5.
      "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status complete
      ```
      Then announce:
-     > "Dev workflow complete after <N> round(s). All changes reviewed and QA-passed."
+     > "Dev workflow complete. All changes reviewed and QA-passed."
 
-   - **FAIL** → Increment round and loop back:
+   - **FAIL** → Loop back to execute:
      ```bash
-     "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status executing --round <N+1>
+     "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status executing
      ```
      Print one-line status:
-     > "QA round <N>: app bugs found. Starting round <N+1>..."
+     > "QA failed: app bugs found. Starting next execution..."
      Then **immediately go back to Step 2**.
 
      The loop continues indefinitely until QA passes. The user can pause with `/dev-workflow:interrupt` or cancel with `/dev-workflow:cancel`.

@@ -15,9 +15,8 @@ You will receive:
 3. **Execution report path** — the report from the executor
 4. **Verify report path** — the quick-test verification report (may say "SKIPPED")
 5. **Review output path** — where to save the review report
-6. **Baseline file** — file containing the git commit hash from before the executor ran
-7. **Round number** — which review round this is
-8. **QA report path** (optional) — the QA report from the previous round, if QA was run. Contains confirmed app bugs found via journey tests.
+6. **Baseline file** — file containing the git commit hash from before the workflow started
+7. **QA report path** (optional) — the QA report from the previous iteration, if QA was run. Contains confirmed app bugs found via journey tests.
 
 ---
 
@@ -72,7 +71,7 @@ Review the code changes against the plan. Be thorough and adversarial — your j
 Write the review report to the specified review output path:
 
 ```markdown
-# Review Report — Round <N>
+# Review Report
 
 ## Summary
 <Brief overview of what was reviewed and overall assessment>

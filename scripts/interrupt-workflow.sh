@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Dev Workflow Interrupt Script
-# Pauses the loop at the current round WITHOUT clearing state.
+# Pauses the loop at the current phase WITHOUT clearing state.
 # Resume with: /dev-workflow:continue
 # Cancel entirely with: /dev-workflow:cancel
 
@@ -17,11 +17,10 @@ fi
 
 FRONTMATTER=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$STATE_FILE")
 STATUS=$(echo "$FRONTMATTER" | grep '^status:' | sed 's/status: *//')
-ROUND=$(echo "$FRONTMATTER" | grep '^round:' | sed 's/round: *//')
 TOPIC=$(echo "$FRONTMATTER" | grep '^topic:' | sed 's/topic: *//' | sed 's/^"\(.*\)"$/\1/')
 
 if [[ "$STATUS" == "interrupted" ]]; then
-  echo "⚠️  Workflow is already interrupted (round $ROUND, topic: $TOPIC)." >&2
+  echo "⚠️  Workflow is already interrupted (topic: $TOPIC)." >&2
   echo "   Resume with: /dev-workflow:continue" >&2
   echo "   Cancel with: /dev-workflow:cancel" >&2
   exit 0
@@ -32,14 +31,17 @@ if [[ "$STATUS" == "complete" ]] || [[ "$STATUS" == "escalated" ]]; then
   exit 1
 fi
 
+# Save current status as resume_status, then set interrupted.
+# continue-workflow.sh reads resume_status to know where to pick back up.
 TEMP_FILE="${STATE_FILE}.tmp.$$"
-sed "s/^status: .*/status: interrupted/" "$STATE_FILE" > "$TEMP_FILE"
+sed "s/^status: .*/status: interrupted/" "$STATE_FILE" | \
+  sed "s/^resume_status: .*/resume_status: $STATUS/" > "$TEMP_FILE"
 mv "$TEMP_FILE" "$STATE_FILE"
 
 echo "⏸️  Dev workflow interrupted."
 echo ""
 echo "   Topic: $TOPIC"
-echo "   Round: $ROUND"
+echo "   Phase: $STATUS (saved as resume_status)"
 echo "   State preserved at: $STATE_FILE"
 echo ""
 echo "   Resume with: /dev-workflow:continue"

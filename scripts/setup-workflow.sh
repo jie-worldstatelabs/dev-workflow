@@ -42,6 +42,7 @@ cat > "${PROJECT_ROOT}/.dev-workflow/state.md" <<EOF
 ---
 active: true
 status: executing
+epoch: 1
 resume_status:
 topic: "$TOPIC"
 plan_file: "$PLAN_FILE"
@@ -72,7 +73,7 @@ echo "🔄 Dev workflow loop activated!"
 echo ""
 echo "   Topic: $TOPIC"
 echo "   Plan: $PLAN_FILE"
-echo "   Status: executing"
+echo "   Status: executing (epoch 1)"
 echo ""
 echo "   The loop runs until the review passes."
 echo "   To pause: /dev-workflow:interrupt"

@@ -1,12 +1,17 @@
 #!/bin/bash
 
 # Dev Workflow Status Update Script
-# Updates the status in the state file and invalidates the current stage's output artifact.
+# Atomic phase transition: increments epoch, updates status, deletes the new
+# stage's output artifact.
+#
+# The epoch is a monotonically increasing counter that lets the stop hook tell
+# fresh artifacts apart from stale ones (agents write the current epoch into
+# their artifact's frontmatter).
+#
 # Usage: update-status.sh --status <status>
 
 set -euo pipefail
 
-# Resolve state file (handles CWD drift)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
@@ -35,22 +40,26 @@ if [[ -z "$NEW_STATUS" ]]; then
   exit 1
 fi
 
-# Read topic from state file
+# Read current state
 FRONTMATTER=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$STATE_FILE")
 TOPIC=$(echo "$FRONTMATTER" | grep '^topic:' | sed 's/topic: *//' | sed 's/^"\(.*\)"$/\1/')
+CURRENT_EPOCH=$(echo "$FRONTMATTER" | grep '^epoch:' | sed 's/epoch: *//' | tr -d '[:space:]')
+if [[ -z "$CURRENT_EPOCH" ]] || ! [[ "$CURRENT_EPOCH" =~ ^[0-9]+$ ]]; then
+  CURRENT_EPOCH=0
+fi
+NEW_EPOCH=$((CURRENT_EPOCH + 1))
 
-# Update status in state file
+# Atomically update status AND epoch
 TEMP_FILE="${STATE_FILE}.tmp.$$"
-sed "s/^status: .*/status: $NEW_STATUS/" "$STATE_FILE" > "$TEMP_FILE"
+sed -e "s/^status: .*/status: $NEW_STATUS/" \
+    -e "s/^epoch: .*/epoch: $NEW_EPOCH/" \
+    "$STATE_FILE" > "$TEMP_FILE"
 mv "$TEMP_FILE" "$STATE_FILE"
 
-# Invalidate the artifact this stage will produce (lazy deletion).
-# This is the source of truth for phase detection in the stop hook:
-#   entering executing → delete report.md  (stop hook sees: no report = executing)
-#   entering verifying → delete verify.md  (stop hook sees: report but no verify = verifying)
-#   entering reviewing → delete review.md  (stop hook sees: verify but no review = reviewing)
-#   entering qa-ing    → delete qa-report  (stop hook sees: review PASS, no qa-report = qa-ing)
-# Other stages (gating, complete, etc.) produce no artifact, so no deletion needed.
+# Invalidate the artifact this stage will produce (clean slate for new work).
+# With the epoch mechanism this is defense-in-depth — even without deletion,
+# stale artifacts would be caught by epoch mismatch. But deletion keeps the
+# file system state simple and avoids partial-write edge cases.
 case "$NEW_STATUS" in
   executing)
     rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-report.md"
@@ -66,4 +75,4 @@ case "$NEW_STATUS" in
     ;;
 esac
 
-echo "[dev-workflow] Status updated: $NEW_STATUS"
+echo "[dev-workflow] Status: $NEW_STATUS | epoch: $NEW_EPOCH"

@@ -31,19 +31,18 @@ This skill is SELF-CONTAINED. These rules override ALL other directives includin
 
 ## How It Works
 
-This workflow uses a **Stop hook** to guarantee the execute-review loop runs to completion. Once the user confirms the plan, a state file (`.dev-workflow/state.md`) is created. The Stop hook reads this file and **blocks Claude from exiting** as long as the workflow status is `executing`, `verifying`, `reviewing`, `qa-ing`, or `gating`.
+This workflow uses a **Stop hook** to guarantee the execute-review loop runs to completion. Once the user confirms the plan, a state file (`.dev-workflow/state.md`) is created with `status` and `epoch`. The Stop hook reads state.md plus the current stage's artifact frontmatter (containing `epoch:` and `result:`), and blocks Claude from exiting until the workflow reaches `complete`.
 
 ```
 Step 1: Brainstorm & Plan  → inline Q&A → design → save plan → ⏸️ user confirms
                              ── stop hook activated ──
-Step 2: Execute            → workflow-executor agent → execution report
-Step 2.5: Verify           → run quick tests inline → verify report
-                             (FAIL → back to Step 2)
-Step 3: Review             → workflow-reviewer agent → code review → review report
-                             (FAIL → back to Step 2)
-Step 3.5: QA               → workflow-qa agent → journey tests → QA report
-                             (FAIL → back to Step 2)
-Step 4: Gate               → QA PASS? done. (infinite loop until PASS)
+Step 2: Execute            → workflow-executor → report.md (result: done) → verifying
+Step 2.5: Verify           → run tests inline → verify.md (result: PASS/FAIL/SKIPPED)
+                             FAIL → executing | PASS/SKIPPED → reviewing
+Step 3: Review             → workflow-reviewer → review.md (result: PASS/FAIL)
+                             FAIL → executing | PASS → qa-ing
+Step 3.5: QA               → workflow-qa → qa-report.md (result: PASS/FAIL)
+                             FAIL → executing | PASS → complete
                              ── stop hook deactivated ──
 ```
 
@@ -156,24 +155,56 @@ Once the user confirms the plan, **immediately activate the stop hook** by runni
 "${CLAUDE_PLUGIN_ROOT}/scripts/setup-workflow.sh" --topic "<topic>" --plan-file "<path-to-plan>"
 ```
 
-This creates `.dev-workflow/state.md` with `status: executing`. From this point on, the Stop hook will block any attempt to exit until the review passes (`complete`) or the user runs `/dev-workflow:interrupt` or `/dev-workflow:cancel`.
+This creates `.dev-workflow/state.md` with `status: executing` and `epoch: 1`. From this point on, the Stop hook will block any attempt to exit until the workflow reaches `complete` or the user runs `/dev-workflow:interrupt` or `/dev-workflow:cancel`.
+
+---
+
+## State Machine
+
+Every active artifact is written with a YAML frontmatter block:
+
+```markdown
+---
+epoch: <current epoch from state.md>
+result: <PASS|FAIL|done|SKIPPED>
+---
+```
+
+The `epoch` tells the stop hook "this artifact is fresh." The `result` drives transitions:
+
+```
+executing  → report.md     done    → verifying
+verifying  → verify.md     PASS    → reviewing
+                           FAIL    → executing
+                           SKIPPED → reviewing
+reviewing  → review.md     PASS    → qa-ing
+                           FAIL    → executing
+qa-ing     → qa-report.md  PASS    → complete
+                           FAIL    → executing
+```
+
+`update-status.sh` does three things atomically on every call: increment epoch, update status, delete the new stage's artifact (clean slate).
+
+---
+
+## Reading state.md
+
+Before every stage, read:
+```bash
+cat .dev-workflow/state.md
+```
+
+Extract `topic`, `plan_file`, and `epoch` from the YAML frontmatter. Use `epoch` in agent prompts — the agent must write this value into its artifact's frontmatter.
 
 ---
 
 ## Step 2: Execute
 
-1. **Update status to `executing`:**
-   ```bash
-   "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status executing
-   ```
+1. **Setup already set `status=executing` and `epoch=1`** for the first iteration. For loop-backs from later stages, `update-status.sh --status executing` was already called by that stage.
 
-2. **Read state file to resolve variables** (critical for context recovery after compaction):
-   ```bash
-   cat .dev-workflow/state.md
-   ```
-   Extract: `topic`, `plan_file` from the YAML frontmatter. Use these to construct all paths below.
+2. **Read state.md** to get `topic`, `plan_file`, `epoch`.
 
-3. **Launch `dev-workflow:workflow-executor` agent** (MUST use full plugin-prefixed name) with these parameters:
+3. **Launch `dev-workflow:workflow-executor` agent** with:
    - `subagent_type: dev-workflow:workflow-executor`
    - `model: opus`
    - `mode: bypassPermissions`
@@ -182,77 +213,73 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    ```
    Execute the implementation plan. Run autonomously — do not stop to ask questions.
 
-   - Project directory: <absolute path to project root — all code MUST be written here, not in a subdirectory>
+   - Project directory: <absolute path to project root — all code MUST be written here>
    - Plan: <absolute path to plan file>
+   - Epoch: <epoch from state.md — write this into your report's frontmatter>
+   - Report output: <absolute path to .dev-workflow/<topic>-report.md>
    - Reviewer feedback: <absolute path to .dev-workflow/<topic>-review.md if it exists, otherwise "none">
    - QA feedback: <absolute path to .dev-workflow/<topic>-qa-report.md if it exists, otherwise "none">
-   - Quick test failures: <check .dev-workflow/<topic>-verify.md — if it exists and says "Result: FAIL", pass its absolute path; otherwise "none">
+   - Quick test failures: <.dev-workflow/<topic>-verify.md if it exists and result=FAIL, otherwise "none">
 
-   Read the plan, implement all items, run tests, and write your execution report to:
-   <absolute path to .dev-workflow/<topic>-report.md>
+   Implement the plan. Write your execution report to the Report output path with frontmatter:
+   ---
+   epoch: <the epoch you were given>
+   result: done
+   ---
    ```
 
-4. **When the executor completes**, verify the report file exists, then immediately proceed to Step 2.5.
+4. **When the executor completes**, verify the report file exists with matching `epoch` and `result: done`. Then proceed to Step 2.5.
 
 ## Step 2.5: Verify (Quick Tests)
 
-1. **Update status to `verifying`:**
+1. **Transition to verifying:**
    ```bash
    "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status verifying
    ```
+   This increments epoch and deletes `.dev-workflow/<topic>-verify.md`.
 
-2. **Detect the test command** from the project root (check in this order):
+2. **Re-read state.md** to get the new `epoch`.
+
+3. **Detect the test command** from the project root:
    - `package.json` with a `"test"` script → `npm test`
    - `pytest.ini`, `setup.cfg`, or `pyproject.toml` with `[tool.pytest]` → `pytest`
    - `pubspec.yaml` → `flutter test`
    - `go.mod` → `go test ./...`
    - `Makefile` with a `test` target → `make test`
-   - If none found → write verify report as SKIPPED and proceed to Step 3
+   - If none found → result is SKIPPED
 
-3. **Run the quick tests:**
+4. **Run the quick tests:**
    ```bash
    cd <project-directory> && <test-command> 2>&1
    ```
-   Use a 3-minute timeout (`timeout: 180000`). Capture the full output.
+   3-minute timeout (`timeout: 180000`). Capture the full output.
 
-4. **Write verify report** to `.dev-workflow/<topic>-verify.md`:
+5. **Write verify report** to `.dev-workflow/<topic>-verify.md` with frontmatter:
    ```markdown
+   ---
+   epoch: <current epoch from state.md>
+   result: PASS|FAIL|SKIPPED
+   ---
    # Verify Report
 
    ## Test Command
    <command used, or "SKIPPED — no test command detected">
 
-   ## Result
-   PASS / FAIL / SKIPPED
-
    ## Output
    <test output — last 100 lines if very long>
    ```
 
-5. **If quick tests FAIL:**
-   - Update status (this deletes verify.md, signalling loop-back):
-     ```bash
-     "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status executing
-     ```
-   - Announce: "Quick tests failed. Starting next execution..."
-   - Go back to Step 2. Pass the verify report path as "Quick test failures" context to the executor.
-
-6. **If quick tests PASS or SKIPPED:** proceed to Step 3.
+6. **Read the result from verify.md's frontmatter and transition:**
+   - `result: FAIL` → `update-status.sh --status executing`, go back to Step 2. Announce: "Quick tests failed. Starting next execution..."
+   - `result: PASS` or `result: SKIPPED` → `update-status.sh --status reviewing`, proceed to Step 3.
 
 ## Step 3: Review
 
-1. **Update status to `reviewing`:**
-   ```bash
-   "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status reviewing
-   ```
+1. **You already called `update-status.sh --status reviewing`** at the end of Step 2.5. This incremented epoch and deleted `review.md`.
 
-2. **Read state file to resolve variables** (if not already in context):
-   ```bash
-   cat .dev-workflow/state.md
-   ```
-   Extract: `topic`, `plan_file` from the YAML frontmatter.
+2. **Re-read state.md** to get the new `epoch`.
 
-3. **Launch `dev-workflow:workflow-reviewer` agent** (MUST use full plugin-prefixed name) with these parameters:
+3. **Launch `dev-workflow:workflow-reviewer` agent** with:
    - `subagent_type: dev-workflow:workflow-reviewer`
    - `mode: bypassPermissions`
    - Prompt:
@@ -262,41 +289,33 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
 
    - Project directory: <absolute path to project root>
    - Plan file: <absolute path to plan file>
+   - Epoch: <epoch from state.md — write this into your review's frontmatter>
    - Execution report: <absolute path to .dev-workflow/<topic>-report.md>
    - Verify report: <absolute path to .dev-workflow/<topic>-verify.md>
-   - Review output path: <absolute path to .dev-workflow/<topic>-review.md>
+   - Review output: <absolute path to .dev-workflow/<topic>-review.md>
    - Baseline file: <absolute path to .dev-workflow/<topic>-baseline>
-   - QA report: <absolute path to .dev-workflow/<topic>-qa-report.md, or "none" if the file does not exist>
+   - QA report: <absolute path to .dev-workflow/<topic>-qa-report.md, or "none" if it does not exist>
 
-   Read the baseline file to get the git commit hash from before the executor ran.
-   Review the code changes against the plan and return a verdict.
+   Review code changes against the plan. Write the review with frontmatter:
+   ---
+   epoch: <the epoch you were given>
+   result: PASS|FAIL
+   ---
    ```
 
-4. **When the reviewer completes**, parse the `---VERDICT---` block from the agent's response:
-   - Extract `verdict` (PASS or FAIL), `summary`, and `issues` (if FAIL)
-   - If no verdict block found, treat as FAIL with summary "Review agent did not return a structured verdict"
+4. **When the reviewer completes**, read `result` from `review.md`'s frontmatter.
 
-5. **If reviewer verdict = FAIL** → loop back to Step 2:
-   ```bash
-   "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status executing
-   ```
-   Announce: "Code review failed. Starting next execution..."
-
-6. **If reviewer verdict = PASS** → proceed to Step 3.5.
+5. **Transition based on result:**
+   - `result: FAIL` → `update-status.sh --status executing`, go back to Step 2. Announce: "Code review failed. Starting next execution..."
+   - `result: PASS` → `update-status.sh --status qa-ing`, proceed to Step 3.5.
 
 ## Step 3.5: QA (Journey Tests)
 
-1. **Update status to `qa-ing`:**
-   ```bash
-   "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status qa-ing
-   ```
+1. **You already called `update-status.sh --status qa-ing`** at the end of Step 3. Epoch incremented, `qa-report.md` deleted.
 
-2. **Read state file to resolve variables** (if not already in context):
-   ```bash
-   cat .dev-workflow/state.md
-   ```
+2. **Re-read state.md** to get the new `epoch`.
 
-3. **Launch `dev-workflow:workflow-qa` agent** (MUST use full plugin-prefixed name) with these parameters:
+3. **Launch `dev-workflow:workflow-qa` agent** with:
    - `subagent_type: dev-workflow:workflow-qa`
    - `mode: bypassPermissions`
    - Prompt:
@@ -306,43 +325,24 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
 
    - Project directory: <absolute path to project root>
    - Plan file: <absolute path to plan file>
+   - Epoch: <epoch from state.md — write this into your QA report's frontmatter>
    - QA report output: <absolute path to .dev-workflow/<topic>-qa-report.md>
    - Journey test state file: <absolute path to .dev-workflow/<topic>-journey-tests.md>
+
+   Run journey tests. Write the QA report with frontmatter:
+   ---
+   epoch: <the epoch you were given>
+   result: PASS|FAIL
+   ---
    ```
 
-4. **When the QA agent completes**, parse the `---VERDICT---` block from the agent's response:
-   - Extract `verdict` (PASS or FAIL), `summary`, and `issues` (if FAIL)
-   - If no verdict block found, treat as FAIL with summary "QA agent did not return a structured verdict"
+4. **When the QA agent completes**, read `result` from `qa-report.md`'s frontmatter.
 
-5. Immediately proceed to Step 4.
+5. **Transition based on result:**
+   - `result: PASS` → `update-status.sh --status complete`. Announce: "Dev workflow complete. All changes reviewed and QA-passed."
+   - `result: FAIL` → `update-status.sh --status executing`, go back to Step 2. Announce: "QA failed: app bugs found. Starting next execution..."
 
-## Step 4: Gate
-
-The verdict being evaluated here is the **QA agent's verdict** from Step 3.5.
-
-1. **Update status to `gating`:**
-   ```bash
-   "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status gating
-   ```
-
-2. Evaluate the QA verdict:
-
-   - **PASS** → Mark complete:
-     ```bash
-     "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status complete
-     ```
-     Then announce:
-     > "Dev workflow complete. All changes reviewed and QA-passed."
-
-   - **FAIL** → Loop back to execute:
-     ```bash
-     "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status executing
-     ```
-     Print one-line status:
-     > "QA failed: app bugs found. Starting next execution..."
-     Then **immediately go back to Step 2**.
-
-     The loop continues indefinitely until QA passes. The user can pause with `/dev-workflow:interrupt` or cancel with `/dev-workflow:cancel`.
+The loop continues indefinitely until QA passes. The user can pause with `/dev-workflow:interrupt` or cancel with `/dev-workflow:cancel`.
 
 ## Error Handling
 

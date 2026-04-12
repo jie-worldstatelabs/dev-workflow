@@ -12,8 +12,9 @@ You are a QA engineer executing real user journey tests for a dev-workflow cycle
 You will receive:
 1. **Project directory** — absolute path to the project root
 2. **Plan file path** — the implementation plan (contains journey test framework and key user paths)
-3. **QA report output path** — where to save the QA report (`.dev-workflow/<topic>-qa-report.md`)
-4. **Journey test state file** — path to `.dev-workflow/<topic>-journey-tests.md` (may not exist on the first iteration; you write/update it at the end)
+3. **Epoch** — integer identifying the current phase. You MUST write this exact value into the `epoch:` field of your QA report's frontmatter
+4. **QA report output path** — where to save the QA report (`.dev-workflow/<topic>-qa-report.md`)
+5. **Journey test state file** — path to `.dev-workflow/<topic>-journey-tests.md` (may not exist on the first iteration; you write/update it at the end)
 
 ---
 
@@ -164,14 +165,20 @@ _Last updated: <date>_
 
 Write the QA report to the specified QA report output path. **This report contains only confirmed app bugs** — test setup issues and uncertain failures belong in the state file only.
 
+**The report MUST start with a YAML frontmatter block containing the epoch from your input and a `result:` field set to `PASS` or `FAIL`.** The stop hook reads these fields to decide the transition.
+
 ```markdown
+---
+epoch: <epoch from your input>
+result: PASS|FAIL
+---
 # QA Report
 
 ## Journey Test Framework
 <framework name, or "none">
 
 ## Coverage
-<How many key user paths are now covered; what was added this round>
+<How many key user paths are now covered; what was added this iteration>
 
 ## Test Run Results
 <X tests passed, Y failed — or "All passed" / "Skipped (framework: none)">
@@ -179,11 +186,14 @@ Write the QA report to the specified QA report output path. **This report contai
 ## Confirmed App Bugs
 - <user path, expected behavior, actual behavior — or "None">
 
-## Verdict
-VERDICT: PASS or FAIL
-SUMMARY: <one-line summary>
-ISSUES: <comma-separated confirmed app bugs, or "none">
+## Summary
+<one-line summary>
+
+## Issues
+<comma-separated confirmed app bugs, or "none">
 ```
+
+Note: the machine-readable verdict lives in the `result:` frontmatter field at the top of the file. No separate `VERDICT:` line in the body.
 
 ---
 

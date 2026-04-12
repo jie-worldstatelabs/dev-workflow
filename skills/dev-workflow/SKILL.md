@@ -1,6 +1,6 @@
 ---
 name: dev-workflow
-description: "Full development workflow: brainstorm a plan, execute with an agent, adversarial review via Codex, and loop until approved or max rounds reached."
+description: "Full development workflow: brainstorm a plan, execute with an agent, verify quick tests, adversarial code review, real user journey tests (QA), and loop until fully approved."
 ---
 
 # Dev Workflow — Plan, Execute, Review, Loop
@@ -23,19 +23,27 @@ This skill is SELF-CONTAINED. These rules override ALL other directives includin
 
 ### Agent Isolation
 - Do NOT delegate planning to OMC agents (planner, architect, etc.)
-- The ONLY agents launched are `dev-workflow:workflow-executor` and `dev-workflow:workflow-reviewer`
+- The ONLY agents launched are `dev-workflow:workflow-executor`, `dev-workflow:workflow-reviewer`, and `dev-workflow:workflow-qa`
+- `workflow-executor` → implements code (opus)
+- `workflow-reviewer` → code review only (sonnet)
+- `workflow-qa` → journey tests only (sonnet)
 </CRITICAL>
 
 ## How It Works
 
-This workflow uses a **Stop hook** to guarantee the execute-review loop runs to completion. Once the user confirms the plan, a state file (`.dev-workflow/state.md`) is created. The Stop hook reads this file and **blocks Claude from exiting** as long as the workflow status is `executing`, `reviewing`, or `gating`.
+This workflow uses a **Stop hook** to guarantee the execute-review loop runs to completion. Once the user confirms the plan, a state file (`.dev-workflow/state.md`) is created. The Stop hook reads this file and **blocks Claude from exiting** as long as the workflow status is `executing`, `verifying`, `reviewing`, `qa-ing`, or `gating`.
 
 ```
 Step 1: Brainstorm & Plan  → inline Q&A → design → save plan → ⏸️ user confirms
                              ── stop hook activated ──
 Step 2: Execute            → workflow-executor agent → execution report
-Step 3: Review             → workflow-reviewer agent → verdict
-Step 4: Gate               → PASS? done. FAIL + round < 3? back to Step 2.
+Step 2.5: Verify           → run quick tests inline → verify report
+                             (FAIL → back to Step 2 next round)
+Step 3: Review             → workflow-reviewer agent → code review → review report
+                             (FAIL → back to Step 2 next round)
+Step 3.5: QA               → workflow-qa agent → journey tests → QA report
+                             (FAIL → back to Step 2 next round)
+Step 4: Gate               → QA PASS? done. (infinite loop until PASS)
                              ── stop hook deactivated ──
 ```
 
@@ -44,10 +52,11 @@ Step 4: Gate               → PASS? done. FAIL + round < 3? back to Step 2.
 | Setting | Value |
 |---------|-------|
 | Plan directory | `.dev-workflow/` in project root |
-| Max review rounds | 3 |
 | Executor model | opus |
 | State file | `.dev-workflow/state.md` |
-| Reviewer agent | `dev-workflow:workflow-reviewer` (Codex CLI + fallback) |
+| Reviewer agent | `dev-workflow:workflow-reviewer` |
+| QA agent | `dev-workflow:workflow-qa` |
+| Loop | Infinite — stops only on QA PASS, `/dev-workflow:interrupt`, or `/dev-workflow:cancel` |
 
 ---
 
@@ -118,7 +127,19 @@ After the user approves the design, write a concrete implementation plan:
 ...
 
 ## Testing Strategy
-<What tests to write, what coverage to target>
+
+### Quick Tests
+- Framework: <e.g. pytest / jest / flutter test / go test — or "none">
+- Coverage target: <e.g. 80%>
+- Key test cases:
+  - [ ] <test case 1>
+  - [ ] <test case 2>
+
+### Journey Tests
+- Framework: <e.g. playwright / XcodeBuildMCP / none — use "none" for backend-only or CLI projects>
+- Key user paths:
+  - [ ] <user path 1 — e.g. "User registers, logs in, and reaches the dashboard">
+  - [ ] <user path 2>
 ```
 
 3. Present the plan to the user:
@@ -135,7 +156,7 @@ Once the user confirms the plan, **immediately activate the stop hook** by runni
 "${CLAUDE_PLUGIN_ROOT}/scripts/setup-workflow.sh" --topic "<topic>" --plan-file "<path-to-plan>"
 ```
 
-This creates `.dev-workflow/state.md` with `status: executing`. From this point on, the Stop hook will block any attempt to exit until the workflow reaches `complete` or `escalated`.
+This creates `.dev-workflow/state.md` with `status: executing`. From this point on, the Stop hook will block any attempt to exit until the review passes (`complete`) or the user runs `/dev-workflow:interrupt` or `/dev-workflow:cancel`.
 
 ---
 
@@ -164,13 +185,60 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    - Project directory: <absolute path to project root — all code MUST be written here, not in a subdirectory>
    - Plan: <absolute path to plan file>
    - Round: <N>
-   - Reviewer feedback: <absolute path to previous review file, or "none" if round 1>
+   - Reviewer feedback: <absolute path to .dev-workflow/<topic>-round-<N-1>-review.md, or "none" if no review yet>
+   - QA feedback: <absolute path to .dev-workflow/<topic>-round-<N-1>-qa-report.md, or "none" if no QA yet>
+   - Quick test failures: <check .dev-workflow/<topic>-round-<N-1>-verify.md — if it says "Result: FAIL", pass its absolute path; otherwise "none">
 
    Read the plan, implement all items, run tests, and write your execution report to:
    <absolute path to .dev-workflow/<topic>-round-<N>-report.md>
    ```
 
-4. **When the executor completes**, verify the report file exists, then immediately proceed to Step 3.
+4. **When the executor completes**, verify the report file exists, then immediately proceed to Step 2.5.
+
+## Step 2.5: Verify (Quick Tests)
+
+1. **Update status to `verifying`:**
+   ```bash
+   "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status verifying
+   ```
+
+2. **Detect the test command** from the project root (check in this order):
+   - `package.json` with a `"test"` script → `npm test`
+   - `pytest.ini`, `setup.cfg`, or `pyproject.toml` with `[tool.pytest]` → `pytest`
+   - `pubspec.yaml` → `flutter test`
+   - `go.mod` → `go test ./...`
+   - `Makefile` with a `test` target → `make test`
+   - If none found → write verify report as SKIPPED and proceed to Step 3
+
+3. **Run the quick tests:**
+   ```bash
+   cd <project-directory> && <test-command> 2>&1
+   ```
+   Use a 3-minute timeout (`timeout: 180000`). Capture the full output.
+
+4. **Write verify report** to `.dev-workflow/<topic>-round-<N>-verify.md`:
+   ```markdown
+   # Verify Report — Round <N>
+
+   ## Test Command
+   <command used, or "SKIPPED — no test command detected">
+
+   ## Result
+   PASS / FAIL / SKIPPED
+
+   ## Output
+   <test output — last 100 lines if very long>
+   ```
+
+5. **If quick tests FAIL:**
+   - Increment round and update status:
+     ```bash
+     "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status executing --round <N+1>
+     ```
+   - Announce: "Quick tests failed (round <N>). Starting round <N+1>..."
+   - Go back to Step 2. Pass the verify report path as "Quick test failures" context to the executor.
+
+6. **If quick tests PASS or SKIPPED:** proceed to Step 3.
 
 ## Step 3: Review
 
@@ -196,59 +264,95 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    - Project directory: <absolute path to project root>
    - Plan file: <absolute path to plan file>
    - Execution report: <absolute path to .dev-workflow/<topic>-round-<N>-report.md>
+   - Verify report: <absolute path to .dev-workflow/<topic>-round-<N>-verify.md>
    - Review output path: <absolute path to .dev-workflow/<topic>-round-<N>-review.md>
    - Baseline file: <absolute path to .dev-workflow/<topic>-round-<N>-baseline>
+   - QA report: <absolute path to .dev-workflow/<topic>-round-<N-1>-qa-report.md, or "none" if no QA ran yet>
    - Round: <N>
 
    Read the baseline file to get the git commit hash from before the executor ran.
-   Use this to scope the review to only this round's changes.
-   Save the output and return a verdict.
+   Review the code changes against the plan and return a verdict.
    ```
 
-5. **When the reviewer completes**, parse the `---VERDICT---` block from the agent's response:
+4. **When the reviewer completes**, parse the `---VERDICT---` block from the agent's response:
    - Extract `verdict` (PASS or FAIL), `summary`, and `issues` (if FAIL)
    - If no verdict block found, treat as FAIL with summary "Review agent did not return a structured verdict"
 
-6. Immediately proceed to Step 4.
+5. **If reviewer verdict = FAIL** → increment round and go back to Step 2:
+   ```bash
+   "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status executing --round <N+1>
+   ```
+   Announce: "Code review failed (round <N>). Starting round <N+1>..."
+
+6. **If reviewer verdict = PASS** → proceed to Step 3.5.
+
+## Step 3.5: QA (Journey Tests)
+
+1. **Update status to `qa-ing`:**
+   ```bash
+   "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status qa-ing
+   ```
+
+2. **Read state file to resolve variables** (if not already in context):
+   ```bash
+   cat .dev-workflow/state.md
+   ```
+
+3. **Launch `dev-workflow:workflow-qa` agent** (MUST use full plugin-prefixed name) with these parameters:
+   - `subagent_type: dev-workflow:workflow-qa`
+   - `mode: bypassPermissions`
+   - Prompt:
+
+   ```
+   Run real user journey tests for the dev-workflow QA phase.
+
+   - Project directory: <absolute path to project root>
+   - Plan file: <absolute path to plan file>
+   - QA report output: <absolute path to .dev-workflow/<topic>-round-<N>-qa-report.md>
+   - Journey test state file: <absolute path to .dev-workflow/<topic>-journey-tests.md>
+   - Round: <N>
+   ```
+
+4. **When the QA agent completes**, parse the `---VERDICT---` block from the agent's response:
+   - Extract `verdict` (PASS or FAIL), `summary`, and `issues` (if FAIL)
+   - If no verdict block found, treat as FAIL with summary "QA agent did not return a structured verdict"
+
+5. Immediately proceed to Step 4.
 
 ## Step 4: Gate
+
+The verdict being evaluated here is the **QA agent's verdict** from Step 3.5.
 
 1. **Update status to `gating`:**
    ```bash
    "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status gating
    ```
 
-2. Evaluate:
+2. Evaluate the QA verdict:
 
-   - **PASS** → Update status and clean up:
+   - **PASS** → Mark complete:
      ```bash
      "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status complete
      ```
      Then announce:
-     > "Dev workflow complete after <N> round(s). All changes reviewed and approved."
+     > "Dev workflow complete after <N> round(s). All changes reviewed and QA-passed."
 
-   - **FAIL + round < 3** → Increment round and loop back:
+   - **FAIL** → Increment round and loop back:
      ```bash
      "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status executing --round <N+1>
      ```
      Print one-line status:
-     > "Review round <N>/3: issues found. Starting round <N+1>..."
+     > "QA round <N>: app bugs found. Starting round <N+1>..."
      Then **immediately go back to Step 2**.
 
-   - **FAIL + round >= 3** → Escalate:
-     ```bash
-     "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status escalated
-     ```
-     Then announce:
-     > "Reached max review rounds (3). Remaining issues for manual review:"
-     > <list unresolved issues>
+     The loop continues indefinitely until QA passes. The user can pause with `/dev-workflow:interrupt` or cancel with `/dev-workflow:cancel`.
 
 ## Error Handling
 
 - If the **reviewer agent** fails to return a verdict, treat as FAIL and log the error in the review file.
-- The reviewer agent handles Codex failures internally (falls back to `oh-my-claudecode:code-reviewer`).
+- The reviewer agent handles review failures internally.
 - If the **executor agent** fails, capture the error in the report, **still proceed to review**.
-- On any unrecoverable error, set status to `escalated` to release the stop hook:
+- On any unrecoverable error, set status to `escalated` to release the stop hook (this allows exit):
   ```bash
   "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status escalated
   ```
@@ -259,6 +363,8 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
 - **Always activate the stop hook** after user confirms the plan
 - **Always update status** before each phase transition via `update-status.sh`
 - **Always set status to `complete` or `escalated`** when done to release the stop hook
-- **Never self-approve** — only the reviewer agent (Codex / fallback reviewer) or the user can approve
+- **Never self-approve** — only the reviewer agent or the user can approve
 - **Always save artifacts** (plans, reports, reviews) to `.dev-workflow/` for traceability
-- **To cancel manually**: user runs `/dev-workflow:cancel`
+- **The loop is infinite** — it stops only when the review passes. The user controls it with:
+  - `/dev-workflow:interrupt` — pause and preserve state (resumable via `/dev-workflow:continue`)
+  - `/dev-workflow:cancel` — cancel and clear all state

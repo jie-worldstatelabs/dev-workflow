@@ -1,6 +1,6 @@
 # dev-workflow
 
-A Claude Code plugin that orchestrates a complete development cycle: **brainstorm → plan → execute → adversarial review → loop**.
+A Claude Code plugin that orchestrates a complete development cycle: **brainstorm → plan → execute → verify → review → QA → loop**.
 
 ## What It Does
 
@@ -8,10 +8,12 @@ A Claude Code plugin that orchestrates a complete development cycle: **brainstor
 
 1. **Brainstorm & Plan** — Claude asks clarifying questions, proposes approaches, presents a design, and writes an implementation plan. You confirm before anything gets built.
 2. **Execute** — A dedicated executor agent (Opus) implements the plan step-by-step with TDD, tests, and incremental commits.
-3. **Review** — A reviewer agent runs an adversarial code review via [Codex CLI](https://github.com/openai/codex), with automatic fallback to `oh-my-claudecode:code-reviewer` if Codex is unavailable.
-4. **Gate** — If the review passes, the workflow completes. If it fails, the executor re-runs with the reviewer's feedback (up to 3 rounds).
+3. **Verify** — Quick tests (unit/integration) run inline. If they fail, the executor re-runs with test output as context — skipping the expensive review.
+4. **Review** — A reviewer agent runs adversarial code review: correctness, completeness, design, edge cases, security. Reports code-level issues only. PASS → QA, FAIL → back to Execute.
+5. **QA** — A dedicated QA agent audits and runs real user journey tests (Playwright, XcodeBuildMCP, etc.). Distinguishes test bugs from app bugs — only confirmed app bugs appear in the QA report. PASS → complete, FAIL → back to Execute.
+6. **Gate** — If QA passes, the workflow completes. If it fails, the loop repeats indefinitely until it passes.
 
-The entire execute→review→gate loop runs **autonomously** after you confirm the plan. A Stop hook prevents the session from exiting mid-loop.
+The entire execute→verify→review→QA→gate loop runs **autonomously** after you confirm the plan. A Stop hook prevents the session from exiting mid-loop. The loop has no round limit — it stops only when QA passes, or when you intervene.
 
 ## Installation
 
@@ -37,27 +39,30 @@ claude --plugin-dir ~/.claude/plugins/dev-workflow
 /dev-workflow:dev Add dark mode support to the dashboard
 ```
 
-To cancel a running workflow:
+To control a running workflow:
 
 ```
-/dev-workflow:cancel
+/dev-workflow:interrupt   — pause the loop at the current round (state preserved)
+/dev-workflow:continue    — resume from where it was interrupted
+/dev-workflow:cancel      — cancel entirely and clear all state
 ```
 
 ## Prerequisites
 
 - [Claude Code](https://claude.ai/claude-code) CLI
-- (Optional) [Codex CLI](https://github.com/openai/codex) for adversarial reviews
-- (Optional) [oh-my-claudecode](https://github.com/anthropics/oh-my-claudecode) — used as fallback reviewer when Codex is not configured
 
 ## Architecture
 
 ```
 commands/
   dev.md              ← /dev entry point with skill isolation guard
-  cancel.md           ← /dev-workflow:cancel to abort a running workflow
+  interrupt.md        ← /dev-workflow:interrupt to pause (state preserved)
+  continue.md         ← /dev-workflow:continue to resume after interrupt
+  cancel.md           ← /dev-workflow:cancel to abort and clear state
 agents/
   workflow-executor.md ← Opus-powered implementation agent
-  workflow-reviewer.md ← Adversarial review agent (Codex + fallback)
+  workflow-reviewer.md ← Adversarial code review (correctness, security, edge cases)
+  workflow-qa.md       ← Journey test agent (Playwright/XcodeBuildMCP); reports only confirmed app bugs
 skills/
   dev-workflow/
     SKILL.md          ← Main workflow orchestration logic
@@ -66,8 +71,10 @@ hooks/
   stop-hook.sh        ← Prevents exit during active workflow
   agent-guard.sh      ← Steers agent launches with correct params
 scripts/
-  setup-workflow.sh   ← Activates the stop hook after plan confirmation
-  update-status.sh    ← Updates workflow state (executing/reviewing/gating/complete)
+  setup-workflow.sh      ← Activates the stop hook after plan confirmation
+  interrupt-workflow.sh  ← Pauses loop without clearing state
+  continue-workflow.sh   ← Restores active status for resumption
+  update-status.sh       ← Updates workflow state
 ```
 
 ### Key Design Decisions
@@ -82,9 +89,9 @@ scripts/
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Plan directory | `.dev-workflow/` | Where plans, reports, and reviews are saved |
-| Max review rounds | 3 | Execute→review cycles before escalation |
 | Executor model | opus | Model for the implementation agent |
 | State file | `.dev-workflow/state.md` | Workflow state (auto-managed) |
+| Loop | Infinite | Stops only on PASS, interrupt, or cancel |
 
 ## Project Setup
 

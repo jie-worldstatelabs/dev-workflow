@@ -9,7 +9,6 @@ set -euo pipefail
 # Parse arguments
 TOPIC=""
 PLAN_FILE=""
-MAX_ROUNDS=3
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -21,10 +20,6 @@ while [[ $# -gt 0 ]]; do
       PLAN_FILE="$2"
       shift 2
       ;;
-    --max-rounds)
-      MAX_ROUNDS="$2"
-      shift 2
-      ;;
     *)
       shift
       ;;
@@ -33,7 +28,7 @@ done
 
 if [[ -z "$TOPIC" ]] || [[ -z "$PLAN_FILE" ]]; then
   echo "❌ Error: --topic and --plan-file are required" >&2
-  echo "Usage: setup-workflow.sh --topic <topic> --plan-file <path> [--max-rounds <n>]" >&2
+  echo "Usage: setup-workflow.sh --topic <topic> --plan-file <path>" >&2
   exit 1
 fi
 
@@ -48,7 +43,6 @@ cat > "${PROJECT_ROOT}/.dev-workflow/state.md" <<EOF
 active: true
 status: executing
 round: 1
-max_rounds: $MAX_ROUNDS
 topic: "$TOPIC"
 plan_file: "$PLAN_FILE"
 project_root: "$PROJECT_ROOT"
@@ -61,10 +55,12 @@ EOF
 echo "${PROJECT_ROOT}/.dev-workflow/state.md" > "${HOME}/.dev-workflow-active"
 
 # Clean up ALL stale artifacts from previous workflows with the same topic
-# (baselines, reports, reviews — prevents hooks from deriving wrong phase)
+# (baselines, reports, verifies, reviews — prevents hooks from deriving wrong phase)
 rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-baseline"
 rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-report.md"
+rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-verify.md"
 rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-review.md"
+rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-qa-report.md"
 
 # Record baseline commit for round 1 (reviewer diffs against this)
 git -C "${PROJECT_ROOT}" rev-parse HEAD > "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-1-baseline" 2>/dev/null || echo "EMPTY" > "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-1-baseline"
@@ -73,8 +69,8 @@ echo "🔄 Dev workflow loop activated!"
 echo ""
 echo "   Topic: $TOPIC"
 echo "   Plan: $PLAN_FILE"
-echo "   Max rounds: $MAX_ROUNDS"
 echo "   Status: executing (round 1)"
 echo ""
-echo "   The stop hook will prevent exit until the workflow completes."
+echo "   The loop runs until the review passes."
+echo "   To pause: /dev-workflow:interrupt"
 echo "   To cancel: /dev-workflow:cancel"

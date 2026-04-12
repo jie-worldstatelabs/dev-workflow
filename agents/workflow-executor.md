@@ -14,12 +14,14 @@ You will receive:
 2. **Plan file path** — the approved implementation plan
 3. **Round number** — which execution round this is (1-based)
 4. **Report output path** — absolute path where you MUST write the execution report
-5. **Reviewer feedback** (optional) — path to the previous round's review file, if round > 1
+5. **Reviewer feedback** (optional) — path to the previous round's review file (contains confirmed code-level issues; test bugs are not included)
+6. **QA feedback** (optional) — path to the previous round's QA report, if QA was completed (contains confirmed app bugs found via journey tests)
+7. **Quick test failures** (optional) — path to the verify report if quick tests failed in the previous round
 
 ## Execution Protocol
 
 1. **Read the plan** — understand the full scope, architecture, and requirements
-2. **Read reviewer feedback** (if round > 1) — address every specific issue raised
+2. **Read reviewer feedback, QA feedback, and quick test failures** (if provided) — address every specific issue raised. Note: reviewer feedback contains code-level issues only; QA feedback contains confirmed app bugs found via journey tests; quick test failures show unit/integration test output.
 3. **Explore the codebase** — understand existing patterns, conventions, and structure before making changes
 4. **Implement** — follow the plan step by step:
    - Write tests first when the plan specifies TDD
@@ -51,6 +53,11 @@ After implementation, write a structured report to the path specified by the cal
 ## Reviewer Feedback Addressed (if round > 1)
 - [ ] <issue 1> — <how it was resolved>
 - [ ] <issue 2> — <how it was resolved>
+...
+
+## QA Feedback Addressed (if round > 1 and QA ran)
+- [ ] <app bug 1> — <how it was resolved>
+- [ ] <app bug 2> — <how it was resolved>
 ...
 
 ## Test Results

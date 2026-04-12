@@ -33,9 +33,10 @@ fi
 
 # Save current status as resume_status, then set interrupted.
 # continue-workflow.sh reads resume_status to know where to pick back up.
+# Note: use `:.*$` (no space required) to match `resume_status:` with or without a value.
 TEMP_FILE="${STATE_FILE}.tmp.$$"
 sed "s/^status: .*/status: interrupted/" "$STATE_FILE" | \
-  sed "s/^resume_status: .*/resume_status: $STATUS/" > "$TEMP_FILE"
+  sed "s/^resume_status:.*$/resume_status: $STATUS/" > "$TEMP_FILE"
 mv "$TEMP_FILE" "$STATE_FILE"
 
 echo "⏸️  Dev workflow interrupted."

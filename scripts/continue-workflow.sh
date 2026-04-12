@@ -35,7 +35,7 @@ fi
 # Restore active status and clear resume_status
 TEMP_FILE="${STATE_FILE}.tmp.$$"
 sed "s/^status: .*/status: $RESUME_STATUS/" "$STATE_FILE" | \
-  sed "s/^resume_status: .*/resume_status:/" > "$TEMP_FILE"
+  sed "s/^resume_status:.*$/resume_status:/" > "$TEMP_FILE"
 mv "$TEMP_FILE" "$STATE_FILE"
 
 echo "▶️  Dev workflow resumed."

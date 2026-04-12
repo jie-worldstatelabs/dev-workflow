@@ -350,22 +350,25 @@ The loop continues indefinitely until QA passes. The user can pause with `/dev-w
 
 ## Error Handling
 
-- If the **reviewer agent** fails to return a verdict, treat as FAIL and log the error in the review file.
-- The reviewer agent handles review failures internally.
-- If the **executor agent** fails, capture the error in the report, **still proceed to review**.
-- On any unrecoverable error, set status to `escalated` to release the stop hook (this allows exit):
+The state machine handles most failures naturally — you rarely need special logic.
+
+- **Agent fails mid-run, missing artifact, or stale/unrecognized epoch** → the stop hook sees "stage not done" and tells you to re-launch the agent. No manual intervention needed.
+- **Agent writes artifact with a `result:` value not in the transition table** → the stop hook blocks with "unknown result" and asks you to inspect the artifact and call `update-status.sh --status <correct-next>` manually. Do NOT manually rewrite the artifact to bypass this.
+- **Executor hits an unrecoverable implementation issue** (e.g. environment broken, missing dependency it cannot install) → still write `{topic}-executing-report.md` with `result: done` and document the problem in the body; the verifying stage will surface it through failing tests and the loop will iterate. Only use `escalated` (below) if even documenting a report is not possible.
+- **Truly unrecoverable workflow error** → release the stop hook to exit:
   ```bash
   "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status escalated
   ```
 
 ## Key Rules
 
-- **NEVER invoke external skills** — all phases are handled inline
-- **Always activate the stop hook** after user confirms the plan
-- **Always update status** before each phase transition via `update-status.sh`
-- **Always set status to `complete` or `escalated`** when done to release the stop hook
-- **Never self-approve** — only the reviewer agent or the user can approve
-- **Always save artifacts** (plans, reports, reviews) to `.dev-workflow/` for traceability
-- **The loop is infinite** — it stops only when the review passes. The user controls it with:
+- **NEVER invoke external skills** — all phases are handled inline.
+- **Activate the stop hook via `setup-workflow.sh`** after the user confirms the plan. Never write `.dev-workflow/state.md` by hand.
+- **`update-status.sh` is the only way to transition between stages.** One call atomically increments epoch, sets status, and deletes the new stage's output artifact (`{topic}-{stage}-report.md`).
+- **Every stage artifact MUST start with `epoch:` and `result:` frontmatter.** The stop hook uses these to decide "stage done → transition" vs. "stage not done → re-run." Missing or wrong frontmatter means the stop hook will re-trigger the stage.
+- **Set status to `complete` or `escalated`** to release the stop hook. `complete` is the normal terminator after `qa-ing` returns `result: PASS`; `escalated` is the escape hatch for unrecoverable errors.
+- **Never self-approve** — only the reviewer agent's `result: PASS` and the QA agent's `result: PASS` can drive the workflow to `complete`.
+- **All artifacts go to `.dev-workflow/`** (plan, baseline, stage reports, journey test state). Nothing workflow-related belongs elsewhere.
+- **The loop is infinite** — it stops only on QA's `result: PASS`, `/dev-workflow:interrupt`, or `/dev-workflow:cancel`.
   - `/dev-workflow:interrupt` — pause and preserve state (resumable via `/dev-workflow:continue`)
   - `/dev-workflow:cancel` — cancel and clear all state

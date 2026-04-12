@@ -71,9 +71,10 @@ else
 fi
 
 # ──────────────────────────────────────────────────────────────
-# Auto-record baseline if missing (hard guarantee — Claude may skip scripts)
+# Auto-record baseline if missing (hard guarantee — Claude may skip setup script)
+# Baseline is written ONCE at setup and never updated across rounds.
 # ──────────────────────────────────────────────────────────────
-BASELINE_FILE="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-${ROUND}-baseline"
+BASELINE_FILE="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-baseline"
 if [[ "$ACTUAL_PHASE" == "executing" ]] && [[ ! -f "$BASELINE_FILE" ]]; then
   git -C "${PROJECT_ROOT}" rev-parse HEAD > "$BASELINE_FILE" 2>/dev/null || echo "EMPTY" > "$BASELINE_FILE"
 fi
@@ -108,7 +109,7 @@ Verify report exists at .dev-workflow/${TOPIC}-round-${ROUND}-verify.md
 Ensure this agent is launched with:
   - subagent_type: "dev-workflow:workflow-reviewer"
   - mode: bypassPermissions
-  - Prompt must include: project directory, plan path ($PLAN_FILE), execution report (.dev-workflow/${TOPIC}-round-${ROUND}-report.md), verify report (.dev-workflow/${TOPIC}-round-${ROUND}-verify.md), review output path (.dev-workflow/${TOPIC}-round-${ROUND}-review.md), baseline file (.dev-workflow/${TOPIC}-round-${ROUND}-baseline), QA report (.dev-workflow/${TOPIC}-round-$((ROUND-1))-qa-report.md or "none"), round ($ROUND)
+  - Prompt must include: project directory, plan path ($PLAN_FILE), execution report (.dev-workflow/${TOPIC}-round-${ROUND}-report.md), verify report (.dev-workflow/${TOPIC}-round-${ROUND}-verify.md), review output path (.dev-workflow/${TOPIC}-round-${ROUND}-review.md), baseline file (.dev-workflow/${TOPIC}-baseline), QA report (.dev-workflow/${TOPIC}-round-$((ROUND-1))-qa-report.md or "none"), round ($ROUND)
 After review: If PASS → update-status --status qa-ing and launch workflow-qa. If FAIL → update-status --status executing --round <next> and loop back.
 Also remember to run: "\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status reviewing (if not already done)
 EOF

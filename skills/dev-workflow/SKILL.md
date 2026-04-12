@@ -266,7 +266,7 @@ This creates `.dev-workflow/state.md` with `status: executing`. From this point 
    - Execution report: <absolute path to .dev-workflow/<topic>-round-<N>-report.md>
    - Verify report: <absolute path to .dev-workflow/<topic>-round-<N>-verify.md>
    - Review output path: <absolute path to .dev-workflow/<topic>-round-<N>-review.md>
-   - Baseline file: <absolute path to .dev-workflow/<topic>-round-<N>-baseline>
+   - Baseline file: <absolute path to .dev-workflow/<topic>-baseline>
    - QA report: <absolute path to .dev-workflow/<topic>-round-<N-1>-qa-report.md, or "none" if no QA ran yet>
    - Round: <N>
 

@@ -142,7 +142,7 @@ Verify report exists at .dev-workflow/${TOPIC}-round-${ROUND}-verify.md but revi
 
 You MUST now:
 1. Launch the workflow-reviewer agent (subagent_type: dev-workflow:workflow-reviewer, mode: bypassPermissions)
-   Include in prompt: project directory, plan path ($PLAN_FILE), execution report (.dev-workflow/${TOPIC}-round-${ROUND}-report.md), verify report (.dev-workflow/${TOPIC}-round-${ROUND}-verify.md), review output path (.dev-workflow/${TOPIC}-round-${ROUND}-review.md), baseline file (.dev-workflow/${TOPIC}-round-${ROUND}-baseline), QA report (.dev-workflow/${TOPIC}-round-$((ROUND-1))-qa-report.md or "none" if round 1), round ($ROUND)
+   Include in prompt: project directory, plan path ($PLAN_FILE), execution report (.dev-workflow/${TOPIC}-round-${ROUND}-report.md), verify report (.dev-workflow/${TOPIC}-round-${ROUND}-verify.md), review output path (.dev-workflow/${TOPIC}-round-${ROUND}-review.md), baseline file (.dev-workflow/${TOPIC}-baseline), QA report (.dev-workflow/${TOPIC}-round-$((ROUND-1))-qa-report.md or "none" if round 1), round ($ROUND)
 2. Parse the verdict from the agent's response (look for ---VERDICT--- block)
 3. If PASS: run \"\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status qa-ing, then launch workflow-qa agent
 4. If FAIL: run \"\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status executing --round $NEXT_ROUND, then loop back

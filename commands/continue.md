@@ -50,11 +50,10 @@ Based on the **Phase** reported by the continue script, jump directly to the rig
 | `verifying`   | Step 2.5 — run quick tests inline |
 | `reviewing`   | Step 3 — launch `dev-workflow:workflow-reviewer` |
 | `qa-ing`      | Step 3.5 — launch `dev-workflow:workflow-qa` |
-| `gating`      | Step 4 — make gate decision |
 
 ## Step 4: Continue Autonomously
 
-Run the execute→verify→review→gate loop without stopping, exactly as the dev-workflow skill instructs.
+Run the execute→verify→review→QA loop without stopping, exactly as the dev-workflow skill instructs.
 
 To interrupt again: `/dev-workflow:interrupt`
 To cancel entirely: `/dev-workflow:cancel`

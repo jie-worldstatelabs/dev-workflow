@@ -23,17 +23,6 @@ resolve_state() {
     done
   fi
 
-  # 3. Breadcrumb file (written by setup-workflow.sh)
-  if [[ -z "$state_file" ]]; then
-    if [[ -f "${HOME}/.dev-workflow-active" ]]; then
-      local stored
-      stored="$(cat "${HOME}/.dev-workflow-active")"
-      if [[ -f "$stored" ]]; then
-        state_file="$stored"
-      fi
-    fi
-  fi
-
   if [[ -z "$state_file" ]]; then
     return 1
   fi

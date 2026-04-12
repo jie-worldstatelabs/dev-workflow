@@ -13,6 +13,9 @@
 
 set -euo pipefail
 
+# Read hook input first (stdin is only available at script start)
+HOOK_INPUT=$(cat)
+
 # Resolve state file (handles CWD drift)
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$(dirname "$HOOK_DIR")/scripts/lib.sh"
@@ -27,6 +30,13 @@ STATUS=$(echo "$FRONTMATTER" | grep '^status:' | sed 's/status: *//')
 ROUND=$(echo "$FRONTMATTER" | grep '^round:' | sed 's/round: *//')
 TOPIC=$(echo "$FRONTMATTER" | grep '^topic:' | sed 's/topic: *//' | sed 's/^"\(.*\)"$/\1/')
 PLAN_FILE=$(echo "$FRONTMATTER" | grep '^plan_file:' | sed 's/plan_file: *//' | sed 's/^"\(.*\)"$/\1/')
+
+# Session isolation: only inject guidance into the session that owns the workflow
+STATE_SESSION=$(echo "$FRONTMATTER" | grep '^session_id:' | sed 's/session_id: *//' | tr -d '[:space:]' || true)
+HOOK_SESSION=$(echo "$HOOK_INPUT" | jq -r '.session_id // ""' 2>/dev/null || true)
+if [[ -n "$STATE_SESSION" ]] && [[ -n "$HOOK_SESSION" ]] && [[ "$STATE_SESSION" != "$HOOK_SESSION" ]]; then
+  exit 0
+fi
 
 # Terminal or paused states — no guard needed
 case "$STATUS" in

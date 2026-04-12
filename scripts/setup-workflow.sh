@@ -51,9 +51,6 @@ started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ---
 EOF
 
-# Breadcrumb for cross-directory state discovery
-echo "${PROJECT_ROOT}/.dev-workflow/state.md" > "${HOME}/.dev-workflow-active"
-
 # Clean up ALL stale artifacts from previous workflows with the same topic
 # (baselines, reports, verifies, reviews — prevents hooks from deriving wrong phase)
 rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-baseline"

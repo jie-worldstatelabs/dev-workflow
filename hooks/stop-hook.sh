@@ -38,11 +38,17 @@ ROUND=$(echo "$FRONTMATTER" | grep '^round:' | sed 's/round: *//')
 TOPIC=$(echo "$FRONTMATTER" | grep '^topic:' | sed 's/topic: *//' | sed 's/^"\(.*\)"$/\1/')
 PLAN_FILE=$(echo "$FRONTMATTER" | grep '^plan_file:' | sed 's/plan_file: *//' | sed 's/^"\(.*\)"$/\1/')
 
-# Session isolation
-STATE_SESSION=$(echo "$FRONTMATTER" | grep '^session_id:' | sed 's/session_id: *//' || true)
+# Session isolation: directory × session_id
+STATE_SESSION=$(echo "$FRONTMATTER" | grep '^session_id:' | sed 's/session_id: *//' | tr -d '[:space:]' || true)
 HOOK_SESSION=$(echo "$HOOK_INPUT" | jq -r '.session_id // ""')
-if [[ -n "$STATE_SESSION" ]] && [[ "$STATE_SESSION" != "$HOOK_SESSION" ]]; then
-  exit 0
+if [[ -n "$STATE_SESSION" ]]; then
+  # Workflow already claimed — only block the owning session
+  if [[ "$STATE_SESSION" != "$HOOK_SESSION" ]]; then
+    exit 0
+  fi
+elif [[ -n "$HOOK_SESSION" ]]; then
+  # No owner yet — first stop fires in the workflow session, claim it
+  sed -i '' "s/^session_id: *$/session_id: $HOOK_SESSION/" "$STATE_FILE"
 fi
 
 # Terminal states

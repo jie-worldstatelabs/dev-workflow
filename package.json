@@ -1,5 +1,5 @@
 {
   "name": "dev-workflow",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Plan-Execute-Review development workflow with brainstorming, executor agent, and adversarial code review loop"
 }

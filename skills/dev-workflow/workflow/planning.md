@@ -3,7 +3,7 @@
 _Runtime config (canonical): `workflow.json` → `stages.planning`_
 
 **Purpose:** produce an agreed implementation plan and record user approval.
-**Output artifact:** `<project>/.dev-workflow/<topic>-planning-report.md`
+**Output artifact:** `<project>/.dev-workflow/<topic>/planning-report.md`
 **Valid results this stage writes:** `pending` (plan drafted, awaiting user approval), `approved` (user has explicitly confirmed)
 
 <HARD-GATE>
@@ -77,7 +77,7 @@ result: pending
 
 ## Get user approval
 
-> "Plan saved to `.dev-workflow/<topic>-planning-report.md`. Please review and confirm to start execution, or request changes."
+> "Plan saved to `.dev-workflow/<topic>/planning-report.md`. Please review and confirm to start execution, or request changes."
 
 If the user requests changes, iterate on the plan body — keep `result: pending`.
 

@@ -3,7 +3,7 @@
 _Runtime config (canonical): `workflow.json` → `stages.executing`_
 
 **Purpose:** implement the plan, producing the actual code changes.
-**Output artifact:** `<project>/.dev-workflow/<topic>-executing-report.md`
+**Output artifact:** `<project>/.dev-workflow/<topic>/executing-report.md`
 **Valid results this stage writes:** `done`
 
 ## Work

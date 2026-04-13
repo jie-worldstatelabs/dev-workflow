@@ -3,7 +3,7 @@
 _Runtime config (canonical): `workflow.json` → `stages.verifying`_
 
 **Purpose:** run the project's quick test suite to catch obvious regressions.
-**Output artifact:** `<project>/.dev-workflow/<topic>-verifying-report.md`
+**Output artifact:** `<project>/.dev-workflow/<topic>/verifying-report.md`
 **Valid results this stage writes:** `PASS`, `FAIL`, `SKIPPED`
 
 ## Work

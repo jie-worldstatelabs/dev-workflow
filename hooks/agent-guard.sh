@@ -12,6 +12,9 @@ HOOK_INPUT=$(cat)
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$(dirname "$HOOK_DIR")/scripts/lib.sh"
 
+HOOK_SESSION=$(echo "$HOOK_INPUT" | jq -r '.session_id // ""' 2>/dev/null || true)
+DESIRED_SESSION="$HOOK_SESSION"
+
 if ! resolve_state; then
   exit 0
 fi
@@ -24,14 +27,6 @@ fi
 FRONTMATTER=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$STATE_FILE")
 STATUS=$(echo "$FRONTMATTER" | grep '^status:' | sed 's/status: *//')
 EPOCH=$(echo "$FRONTMATTER" | grep '^epoch:' | sed 's/epoch: *//' | tr -d '[:space:]')
-TOPIC=$(echo "$FRONTMATTER" | grep '^topic:' | sed 's/topic: *//' | sed 's/^"\(.*\)"$/\1/')
-
-# Session isolation
-STATE_SESSION=$(echo "$FRONTMATTER" | grep '^session_id:' | sed 's/session_id: *//' | tr -d '[:space:]' || true)
-HOOK_SESSION=$(echo "$HOOK_INPUT" | jq -r '.session_id // ""' 2>/dev/null || true)
-if [[ -n "$STATE_SESSION" ]] && [[ -n "$HOOK_SESSION" ]] && [[ "$STATE_SESSION" != "$HOOK_SESSION" ]]; then
-  exit 0
-fi
 
 # Terminal / paused: nothing to advise
 if config_is_terminal "$STATUS" || [[ "$STATUS" == "interrupted" ]]; then
@@ -43,7 +38,7 @@ if ! config_is_stage "$STATUS"; then
   exit 0
 fi
 
-BASELINE="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-baseline"
+BASELINE="${TOPIC_DIR}/baseline"
 ARTIFACT="$(config_artifact_path "$STATUS" "$TOPIC" "$PROJECT_ROOT")"
 
 # Auto-record baseline at the start of an executing phase (belt-and-suspenders)

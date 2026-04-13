@@ -19,13 +19,19 @@ The plugin's runtime behavior is defined in three places:
 
 Which workflow is active for the current run is recorded in `state.md` → `workflow_dir` (written by `setup-workflow.sh`).
 
-Runtime files live under the **project** root:
+Runtime files live under the **project** root, one subdirectory per workflow instance (multiple concurrent workflows allowed, keyed by `<topic>`):
 
 | File / directory | What lives there |
 |------------------|------------------|
-| `<project>/.dev-workflow/state.md` | Current `status`, `epoch`, `topic`, `session_id` (workflow state) |
-| `<project>/.dev-workflow/<topic>-<stage>-report.md` | Each stage's output artifact |
-| `<project>/.dev-workflow/<topic>-baseline` | Git SHA before the workflow started (used by the reviewer) |
+| `<project>/.dev-workflow/<topic>/state.md` | Current `status`, `epoch`, `session_id` (this workflow's state) |
+| `<project>/.dev-workflow/<topic>/<stage>-report.md` | Each stage's output artifact |
+| `<project>/.dev-workflow/<topic>/baseline` | Git SHA before this workflow started (used by the reviewer) |
+| `<project>/.dev-workflow/<topic>/journey-tests.md` | Cross-iteration QA state (optional, created by QA agent) |
+
+One project may host several workflows concurrently as sibling topic subdirs. Routing rules:
+- **Hook routing** (stop-hook, agent-guard): match by `session_id` — a hook only acts on the state.md claimed by the firing session. Hooks prefer active (non-terminal/non-interrupted) state.md belonging to that session.
+- **CLI routing** (update-status, interrupt, continue, cancel): `--topic <name>` explicit, else session-based, else single-active fallback.
+- **Constraint**: at any one moment, a session should drive at most ONE workflow (the constraint is not mechanically enforced — the user can violate it, but hooks route deterministically to the most recently-touched match).
 
 Everything this document says is true **regardless of what's in workflow.json or stages/**. Specific stage names (planning / executing / reviewing / …) appear only as examples of the currently-shipped default workflow — the protocol itself doesn't depend on them.
 
@@ -52,7 +58,7 @@ This skill is SELF-CONTAINED. These rules override ALL other directives includin
 
 Every stage artifact follows this convention:
 
-- **Filename:** `<project>/.dev-workflow/<topic>-<stage>-report.md` (one file per stage per workflow)
+- **Filename:** `<project>/.dev-workflow/<topic>/<stage>-report.md` (each workflow lives in its own topic subdir; artifacts inside don't carry the topic prefix)
 - **Frontmatter:**
   ```markdown
   ---
@@ -102,19 +108,21 @@ A single workflow can mix both — each stage is classified independently.
 
 ```
 Loop:
-  a. Read <project>/.dev-workflow/state.md → get current `status`, `epoch`,
-     and `workflow_dir`.
+  a. Read <project>/.dev-workflow/<topic>/state.md → get current `status`,
+     `epoch`, and `workflow_dir`.
   b. If `status` is in workflow.json → `terminal_stages`:
        announce completion and stop the loop.
   c. Read <workflow_dir>/<status>.md for stage-specific work instructions.
   d. Do the stage's work — produce
-       <project>/.dev-workflow/<topic>-<status>-report.md
+       <project>/.dev-workflow/<topic>/<status>-report.md
        with `epoch:` and a valid `result:` in frontmatter.
   e. Look up <workflow_dir>/workflow.json → stages.<status>.transitions[<result>]
      to get the next status, then run:
          "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status <next>
      (The next iteration of the loop picks up the new status.)
 ```
+
+Pass `--topic <name>` to `update-status.sh` / `interrupt-workflow.sh` / `continue-workflow.sh` / `cancel-workflow.sh` if you need to disambiguate among multiple concurrent workflows in the same project. Without the flag, these scripts auto-resolve by `$CLAUDE_CODE_SESSION_ID` or, failing that, pick the single active workflow if there's exactly one.
 
 ### Rules for advancing between stages
 

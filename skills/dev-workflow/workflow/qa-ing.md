@@ -2,8 +2,8 @@
 
 _Runtime config (canonical): `workflow.json` → `stages.qa-ing`_
 
-**Purpose:** run real user journey tests (Playwright, XcodeBuildMCP, etc.). The QA agent distinguishes test bugs from app bugs — only confirmed app bugs block progress. Test bugs and unresolved uncertainties are tracked in `<project>/.dev-workflow/<topic>-journey-tests.md` for future iterations.
-**Output artifact:** `<project>/.dev-workflow/<topic>-qa-ing-report.md`
+**Purpose:** run real user journey tests (Playwright, XcodeBuildMCP, etc.). The QA agent distinguishes test bugs from app bugs — only confirmed app bugs block progress. Test bugs and unresolved uncertainties are tracked in `<project>/.dev-workflow/<topic>/journey-tests.md` for future iterations.
+**Output artifact:** `<project>/.dev-workflow/<topic>/qa-ing-report.md`
 **Valid results this stage writes:** `PASS`, `FAIL`
 
 ## Work

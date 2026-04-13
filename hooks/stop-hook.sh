@@ -19,29 +19,27 @@ HOOK_INPUT=$(cat)
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$(dirname "$HOOK_DIR")/scripts/lib.sh"
 
+# Route by session_id: find the workflow owned by this session (prefer active)
+HOOK_SESSION=$(echo "$HOOK_INPUT" | jq -r '.session_id // ""')
+DESIRED_SESSION="$HOOK_SESSION"
+
 if ! resolve_state; then
+  # No matching/claimable workflow — nothing to do, allow exit
   exit 0
 fi
 resolve_workflow_dir_from_state
 
 if ! config_check; then
-  # Without config we can't do anything; allow exit silently.
   exit 0
 fi
 
 FRONTMATTER=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$STATE_FILE")
 STATUS=$(echo "$FRONTMATTER" | grep '^status:' | sed 's/status: *//')
 EPOCH=$(echo "$FRONTMATTER" | grep '^epoch:' | sed 's/epoch: *//' | tr -d '[:space:]')
-TOPIC=$(echo "$FRONTMATTER" | grep '^topic:' | sed 's/topic: *//' | sed 's/^"\(.*\)"$/\1/')
 
-# Session isolation (directory × session_id)
+# If the resolved state.md was unclaimed, claim it for this session
 STATE_SESSION=$(echo "$FRONTMATTER" | grep '^session_id:' | sed 's/session_id: *//' | tr -d '[:space:]' || true)
-HOOK_SESSION=$(echo "$HOOK_INPUT" | jq -r '.session_id // ""')
-if [[ -n "$STATE_SESSION" ]]; then
-  if [[ "$STATE_SESSION" != "$HOOK_SESSION" ]]; then
-    exit 0
-  fi
-elif [[ -n "$HOOK_SESSION" ]]; then
+if [[ -z "$STATE_SESSION" ]] && [[ -n "$HOOK_SESSION" ]]; then
   sed -i '' "s/^session_id: *$/session_id: $HOOK_SESSION/" "$STATE_FILE"
 fi
 

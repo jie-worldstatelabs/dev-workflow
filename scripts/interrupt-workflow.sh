@@ -4,20 +4,49 @@
 # Pauses the loop at the current phase WITHOUT clearing state.
 # Resume with: /dev-workflow:continue
 # Cancel entirely with: /dev-workflow:cancel
+#
+# Usage: interrupt-workflow.sh [--topic <name>]
+# Routing:
+#   --topic <name>           explicit
+#   $CLAUDE_CODE_SESSION_ID  falls back to session routing
+#   else                     uses the single active workflow if there's exactly one
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
+TOPIC_ARG=""
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --topic)
+      TOPIC_ARG="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+if [[ -n "$TOPIC_ARG" ]]; then
+  DESIRED_TOPIC="$TOPIC_ARG"
+elif [[ -n "${CLAUDE_CODE_SESSION_ID:-}" ]]; then
+  DESIRED_SESSION="$CLAUDE_CODE_SESSION_ID"
+fi
+
 if ! resolve_state; then
-  echo "No active dev workflow." >&2
+  echo "No matching active dev workflow." >&2
+  if workflows=$(list_all_workflows); [[ -n "$workflows" ]]; then
+    echo "   Available workflows:" >&2
+    echo "$workflows" >&2
+    echo "   Pass --topic <name> to select one." >&2
+  fi
   exit 1
 fi
 
 FRONTMATTER=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$STATE_FILE")
 STATUS=$(echo "$FRONTMATTER" | grep '^status:' | sed 's/status: *//')
-TOPIC=$(echo "$FRONTMATTER" | grep '^topic:' | sed 's/topic: *//' | sed 's/^"\(.*\)"$/\1/')
 
 if [[ "$STATUS" == "interrupted" ]]; then
   echo "⚠️  Workflow is already interrupted (topic: $TOPIC)." >&2
@@ -32,8 +61,6 @@ if [[ "$STATUS" == "complete" ]] || [[ "$STATUS" == "escalated" ]]; then
 fi
 
 # Save current status as resume_status, then set interrupted.
-# continue-workflow.sh reads resume_status to know where to pick back up.
-# Note: use `:.*$` (no space required) to match `resume_status:` with or without a value.
 TEMP_FILE="${STATE_FILE}.tmp.$$"
 sed "s/^status: .*/status: interrupted/" "$STATE_FILE" | \
   sed "s/^resume_status:.*$/resume_status: $STATUS/" > "$TEMP_FILE"
@@ -45,5 +72,5 @@ echo "   Topic: $TOPIC"
 echo "   Phase: $STATUS (saved as resume_status)"
 echo "   State preserved at: $STATE_FILE"
 echo ""
-echo "   Resume with: /dev-workflow:continue"
-echo "   Cancel entirely with: /dev-workflow:cancel"
+echo "   Resume with: /dev-workflow:continue --topic $TOPIC"
+echo "   Cancel entirely with: /dev-workflow:cancel --topic $TOPIC"

@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # Dev Workflow Setup Script
-# Creates state.md to activate the workflow at the START of /dev-workflow:dev.
-# The initial stage is read from workflow.json (→ `initial_stage`). For the
-# default config this is `planning` — interruptible, so the stop hook allows
-# natural Q&A pauses.
+# Creates a per-topic subdir `.dev-workflow/<topic>/` containing state.md +
+# baseline, and activates the workflow. Multiple workflows can coexist in
+# one project (one per <topic>/ subdir); at most one should be active at a
+# time per session.
 #
-# Usage: setup-workflow.sh --topic <topic>
+# Usage: setup-workflow.sh --topic <topic> [--workflow <name-or-path>]
 
 set -euo pipefail
 
@@ -38,11 +38,7 @@ if [[ -z "$TOPIC" ]]; then
   exit 1
 fi
 
-# Resolve workflow dir:
-#  - empty → default (skills/dev-workflow/workflow)
-#  - absolute path → use as-is
-#  - name without slash → plugin-relative (skills/dev-workflow/<name>)
-#  - relative path with slash → resolved from CWD
+# Resolve workflow dir (bare name / absolute / relative; default if empty)
 if [[ -z "$WORKFLOW_NAME" ]]; then
   WORKFLOW_DIR="$DEFAULT_WORKFLOW_DIR"
 elif [[ "$WORKFLOW_NAME" == /* ]]; then
@@ -62,7 +58,7 @@ PROJECT_ROOT="$(pwd)"
 
 # ──────────────────────────────────────────────────────────────
 # Phase 1: Ensure git repo with a HEAD commit (baseline)
-# Do this BEFORE creating .dev-workflow/ so the workflow's own
+# Do this BEFORE creating .dev-workflow/<topic>/ so the workflow's own
 # state files never land in the baseline commit.
 # ──────────────────────────────────────────────────────────────
 AUTO_GIT_MSG=""
@@ -72,8 +68,6 @@ if ! git -C "${PROJECT_ROOT}" rev-parse --git-dir > /dev/null 2>&1; then
 fi
 
 if ! git -C "${PROJECT_ROOT}" rev-parse HEAD > /dev/null 2>&1; then
-  # Stage existing files (if any) and commit so HEAD exists.
-  # Inline user config: works even without global git user.name/email.
   git -C "${PROJECT_ROOT}" add -A
   HAS_FILES=$(git -C "${PROJECT_ROOT}" diff --cached --name-only | head -1)
   git -C "${PROJECT_ROOT}" \
@@ -88,13 +82,14 @@ if ! git -C "${PROJECT_ROOT}" rev-parse HEAD > /dev/null 2>&1; then
 fi
 
 # ──────────────────────────────────────────────────────────────
-# Phase 2: Create workflow directory and state file
+# Phase 2: Create per-topic workflow dir
 # ──────────────────────────────────────────────────────────────
-mkdir -p "${PROJECT_ROOT}/.dev-workflow"
+TOPIC_DIR="${PROJECT_ROOT}/.dev-workflow/${TOPIC}"
+mkdir -p "$TOPIC_DIR"
 
 INITIAL_STAGE="$(config_initial_stage)"
 
-cat > "${PROJECT_ROOT}/.dev-workflow/state.md" <<EOF
+cat > "${TOPIC_DIR}/state.md" <<EOF
 ---
 active: true
 status: $INITIAL_STAGE
@@ -109,37 +104,24 @@ started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 EOF
 
 # ──────────────────────────────────────────────────────────────
-# Phase 3: Clean up stale artifacts from previous workflows with the same topic
+# Phase 3: Clean up stale artifacts inside this topic's subdir
+#          (previous run with the same topic)
 # ──────────────────────────────────────────────────────────────
-rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-baseline"
+rm -f "${TOPIC_DIR}/baseline"
 while IFS= read -r stage; do
   [[ -z "$stage" ]] && continue
-  rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-${stage}-report.md"
+  rm -f "${TOPIC_DIR}/${stage}-report.md"
 done < <(config_all_stages)
 
-# Legacy flat names (v1.4–v1.5)
-rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-report.md"
-rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-verify.md"
-rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-review.md"
-rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-qa-report.md"
-# Legacy separate plan file (pre-v1.7)
-rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-plan.md"
-# Legacy round-numbered (pre-v1.4)
-rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-baseline"
-rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-report.md"
-rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-verify.md"
-rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-review.md"
-rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-round-"*"-qa-report.md"
-
 # ──────────────────────────────────────────────────────────────
-# Phase 4: Record baseline (the git SHA we just ensured exists)
+# Phase 4: Record baseline (git SHA)
 # ──────────────────────────────────────────────────────────────
-git -C "${PROJECT_ROOT}" rev-parse HEAD > "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-baseline"
+git -C "${PROJECT_ROOT}" rev-parse HEAD > "${TOPIC_DIR}/baseline"
 
 # ──────────────────────────────────────────────────────────────
 # Phase 5: Surface context to the main agent
 # ──────────────────────────────────────────────────────────────
-PLAN_PATH="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-planning-report.md"
+PLAN_PATH="${TOPIC_DIR}/planning-report.md"
 INTERRUPTIBLE_HINT=""
 if config_is_interruptible "$INITIAL_STAGE"; then
   INTERRUPTIBLE_HINT=" — interruptible"
@@ -153,14 +135,12 @@ if [[ -n "$AUTO_GIT_MSG" ]]; then
   printf '%b\n' "$AUTO_GIT_MSG"
 fi
 
-# Surface the initial stage's I/O context for the main agent
-# (especially important when the initial stage is inline).
 if config_is_stage "$INITIAL_STAGE"; then
   config_show_stage_context "$INITIAL_STAGE" "$TOPIC" "$PROJECT_ROOT"
 fi
 
 echo ""
-echo "   Plan lives in: $PLAN_PATH"
+echo "   State dir: $TOPIC_DIR"
 echo "   Workflow dir: $WORKFLOW_DIR"
-echo "   To pause: /dev-workflow:interrupt"
-echo "   To cancel: /dev-workflow:cancel"
+echo "   To pause: /dev-workflow:interrupt [--topic $TOPIC]"
+echo "   To cancel: /dev-workflow:cancel [--topic $TOPIC]"

@@ -1,17 +1,16 @@
 #!/bin/bash
 
 # Dev Workflow Stop Hook
-# Prevents session exit when the workflow is active.
+# Prevents session exit when a workflow is active.
 #
-# DESIGN:
-#   State machine controller. Reads state.md for (status, epoch), then:
-#     1. If artifact for current stage exists with matching epoch + non-empty
-#        result → stage is done, use transition table to tell Claude what to
-#        do next.
-#     2. Else → stage not done, tell Claude to execute the stage's work.
-#
-#   Epoch validates freshness. Deletion keeps file system clean (and acts as
-#   belt-and-suspenders).
+# DESIGN: Generic state machine controller driven by workflow.json.
+# Reads (status, epoch) from state.md, then for the current stage:
+#   1. If the stage's artifact exists with matching epoch + non-empty result
+#      → stage is DONE, use the stage's transitions to tell Claude which
+#        status to move to next.
+#   2. Else → stage is NOT DONE. For uninterruptible stages, block and prompt
+#     Claude to execute the stage. For interruptible stages, emit a
+#     systemMessage hint but do not block.
 
 set -euo pipefail
 
@@ -19,6 +18,11 @@ HOOK_INPUT=$(cat)
 
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$(dirname "$HOOK_DIR")/scripts/lib.sh"
+
+if ! config_check; then
+  # Without config we can't do anything; allow exit silently.
+  exit 0
+fi
 
 if ! resolve_state; then
   exit 0
@@ -28,9 +32,8 @@ FRONTMATTER=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$STATE_FILE")
 STATUS=$(echo "$FRONTMATTER" | grep '^status:' | sed 's/status: *//')
 EPOCH=$(echo "$FRONTMATTER" | grep '^epoch:' | sed 's/epoch: *//' | tr -d '[:space:]')
 TOPIC=$(echo "$FRONTMATTER" | grep '^topic:' | sed 's/topic: *//' | sed 's/^"\(.*\)"$/\1/')
-PLAN_FILE=$(echo "$FRONTMATTER" | grep '^plan_file:' | sed 's/plan_file: *//' | sed 's/^"\(.*\)"$/\1/')
 
-# Session isolation
+# Session isolation (directory × session_id)
 STATE_SESSION=$(echo "$FRONTMATTER" | grep '^session_id:' | sed 's/session_id: *//' | tr -d '[:space:]' || true)
 HOOK_SESSION=$(echo "$HOOK_INPUT" | jq -r '.session_id // ""')
 if [[ -n "$STATE_SESSION" ]]; then
@@ -42,15 +45,26 @@ elif [[ -n "$HOOK_SESSION" ]]; then
 fi
 
 # Terminal states
-case "$STATUS" in
-  complete|escalated)
-    rm -f "$STATE_FILE"
-    exit 0
-    ;;
-  interrupted)
-    exit 0
-    ;;
-esac
+if config_is_terminal "$STATUS"; then
+  case "$STATUS" in
+    interrupted)
+      # This shouldn't happen (interrupted isn't in terminal_stages by default)
+      # but handle it gracefully — allow exit, keep state for /dev-workflow:continue
+      exit 0
+      ;;
+    *)
+      # complete / escalated → done, clean up and allow exit
+      rm -f "$STATE_FILE"
+      exit 0
+      ;;
+  esac
+fi
+
+# Paused by user — allow exit but KEEP state file for /dev-workflow:continue
+# (interrupted is handled here since it's a state machine feature, not a "terminal" per config)
+if [[ "$STATUS" == "interrupted" ]]; then
+  exit 0
+fi
 
 # Corrupted state
 if [[ -z "$STATUS" ]] || [[ -z "$EPOCH" ]] || ! [[ "$EPOCH" =~ ^[0-9]+$ ]]; then
@@ -59,23 +73,16 @@ if [[ -z "$STATUS" ]] || [[ -z "$EPOCH" ]] || ! [[ "$EPOCH" =~ ^[0-9]+$ ]]; then
   exit 0
 fi
 
-# ──────────────────────────────────────────────────────────────
-# Map STATUS to the artifact it produces
-# Unified naming: {topic}-{stage}-report.md
-# ──────────────────────────────────────────────────────────────
-case "$STATUS" in
-  planning|executing|verifying|reviewing|qa-ing)
-    ARTIFACT="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-${STATUS}-report.md"
-    ;;
-  *)
-    # Unknown active status — allow exit rather than block in weird state
-    exit 0
-    ;;
-esac
+# Active stage: must be declared in config
+if ! config_is_stage "$STATUS"; then
+  exit 0
+fi
 
 # ──────────────────────────────────────────────────────────────
-# Read artifact frontmatter (if file exists)
+# Current stage's artifact
 # ──────────────────────────────────────────────────────────────
+ARTIFACT="$(config_artifact_path "$STATUS" "$TOPIC" "$PROJECT_ROOT")"
+
 ARTIFACT_EPOCH=""
 ARTIFACT_RESULT=""
 if [[ -f "$ARTIFACT" ]]; then
@@ -85,41 +92,17 @@ if [[ -f "$ARTIFACT" ]]; then
 fi
 
 # ──────────────────────────────────────────────────────────────
-# Transition table: (status, result) → next_status
-# ──────────────────────────────────────────────────────────────
-next_status() {
-  case "$1:$2" in
-    planning:approved) echo "executing" ;;
-    executing:done)    echo "verifying" ;;
-    verifying:PASS)    echo "reviewing" ;;
-    verifying:FAIL)    echo "executing" ;;
-    verifying:SKIPPED) echo "reviewing" ;;
-    reviewing:PASS)    echo "qa-ing" ;;
-    reviewing:FAIL)    echo "executing" ;;
-    qa-ing:PASS)       echo "complete" ;;
-    qa-ing:FAIL)       echo "executing" ;;
-    *)                 echo "" ;;
-  esac
-}
-
-# ──────────────────────────────────────────────────────────────
-# Interruptible stages: stop hook shows info but never blocks exit.
-# Phase 1: hardcoded list. Phase 2 DSL: read from workflow.yaml.
-# ──────────────────────────────────────────────────────────────
-is_interruptible() {
-  case "$1" in
-    planning) return 0 ;;
-    *)        return 1 ;;
-  esac
-}
-
-# ──────────────────────────────────────────────────────────────
 # Interruptible stages: output info, do NOT block exit
+# For interruptible stages, a "transition key" result (e.g. planning:approved)
+# triggers a ⚠️ hint. Other values (pending, empty, etc.) are neutral.
 # ──────────────────────────────────────────────────────────────
-if is_interruptible "$STATUS"; then
-  if [[ -f "$ARTIFACT" ]] && [[ "$ARTIFACT_EPOCH" == "$EPOCH" ]] && [[ "$ARTIFACT_RESULT" == "approved" ]]; then
-    # Approved but not yet transitioned — show a strong hint (but still don't block)
-    SYSTEM_MSG="📋 Dev workflow: $STATUS stage (epoch $EPOCH) — interruptible. ⚠️  $ARTIFACT is approved; run \"\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status $(next_status "$STATUS" approved) to proceed."
+if config_is_interruptible "$STATUS"; then
+  NEXT_STATUS=""
+  if [[ -n "$ARTIFACT_RESULT" ]] && [[ -f "$ARTIFACT" ]] && [[ "$ARTIFACT_EPOCH" == "$EPOCH" ]]; then
+    NEXT_STATUS=$(config_next_status "$STATUS" "$ARTIFACT_RESULT")
+  fi
+  if [[ -n "$NEXT_STATUS" ]]; then
+    SYSTEM_MSG="📋 Dev workflow: $STATUS stage (epoch $EPOCH) — interruptible. ⚠️  $ARTIFACT has result: $ARTIFACT_RESULT; run \"\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status $NEXT_STATUS to proceed."
   else
     SYSTEM_MSG="📋 Dev workflow: $STATUS stage (epoch $EPOCH) — interruptible. Continue the conversation to proceed, or use /dev-workflow:cancel to abort."
   fi
@@ -127,69 +110,87 @@ if is_interruptible "$STATUS"; then
   exit 0
 fi
 
-# Per-stage work instructions (for "not done" case on uninterruptible stages)
-# All stage artifacts follow: {topic}-{stage}-report.md
-REPORT="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-executing-report.md"
-VERIFY="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-verifying-report.md"
-REVIEW="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-reviewing-report.md"
-QAREPORT="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-qa-ing-report.md"
-BASELINE="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-baseline"
-JOURNEY="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-journey-tests.md"
+# ──────────────────────────────────────────────────────────────
+# Uninterruptible: either transition (stage done) or re-execute (stage not done)
+# ──────────────────────────────────────────────────────────────
 
-case "$STATUS" in
-  executing)
-    STAGE_WORK="Launch workflow-executor agent (subagent_type: dev-workflow:workflow-executor, model: opus, mode: bypassPermissions).
-Prompt must include: project directory ($PROJECT_ROOT), plan ($PLAN_FILE), epoch ($EPOCH), report output ($REPORT), reviewer feedback ($REVIEW if it exists otherwise \"none\"), QA feedback ($QAREPORT if it exists otherwise \"none\"), verify failures ($VERIFY if it exists and result=FAIL otherwise \"none\").
-Agent MUST write $REPORT with frontmatter:
----
-epoch: $EPOCH
-result: done
----"
-    ;;
-  verifying)
-    STAGE_WORK="Run quick tests inline (no agent).
-1. Detect test command: package.json (npm test), pytest.ini/pyproject.toml (pytest), pubspec.yaml (flutter test), go.mod (go test ./...), Makefile (make test). If none → SKIPPED.
-2. Run with 3-minute timeout.
-3. Write $VERIFY with frontmatter:
----
-epoch: $EPOCH
-result: PASS|FAIL|SKIPPED
----
-# Verify Report
-<test output>"
-    ;;
-  reviewing)
-    STAGE_WORK="Launch workflow-reviewer agent (subagent_type: dev-workflow:workflow-reviewer, mode: bypassPermissions).
-Prompt must include: project directory ($PROJECT_ROOT), plan ($PLAN_FILE), epoch ($EPOCH), execution report ($REPORT), verify report ($VERIFY), review output ($REVIEW), baseline ($BASELINE), QA report ($QAREPORT if it exists otherwise \"none\").
-Agent MUST write $REVIEW with frontmatter:
----
-epoch: $EPOCH
-result: PASS|FAIL
----"
-    ;;
-  qa-ing)
-    STAGE_WORK="Launch workflow-qa agent (subagent_type: dev-workflow:workflow-qa, mode: bypassPermissions).
-Prompt must include: project directory ($PROJECT_ROOT), plan ($PLAN_FILE), epoch ($EPOCH), QA report output ($QAREPORT), journey test state file ($JOURNEY).
-Agent MUST write $QAREPORT with frontmatter:
----
-epoch: $EPOCH
-result: PASS|FAIL
----"
-    ;;
-esac
+# Build input descriptors for prompt templating.
+# Each input becomes a line: "  - {artifact_path}  (<description>)"
+build_inputs_section() {
+  local kind="$1"   # required | optional
+  local stage="$2"
+  local source_fn="config_${kind}_inputs"
+  local section=""
+  while IFS=$'\t' read -r from_stage description; do
+    [[ -z "$from_stage" ]] && continue
+    local path
+    path="$(config_artifact_path "$from_stage" "$TOPIC" "$PROJECT_ROOT")"
+    if [[ "$kind" == "optional" ]]; then
+      section+="  - $path (if exists, else \"none\") — $description"$'\n'
+    else
+      section+="  - $path — $description"$'\n'
+    fi
+  done < <($source_fn "$stage")
+  printf '%s' "$section"
+}
+
+REQUIRED_SECTION="$(build_inputs_section required "$STATUS")"
+OPTIONAL_SECTION="$(build_inputs_section optional "$STATUS")"
+TRANSITION_KEYS="$(config_transition_keys "$STATUS")"
+EXEC_TYPE="$(config_execution_type "$STATUS")"
+
+# Render the "execute this stage" instruction based on execution type.
+if [[ "$EXEC_TYPE" == "subagent" ]]; then
+  SUBAGENT_TYPE="$(config_subagent_type "$STATUS")"
+  MODEL="$(config_model "$STATUS")"
+  MODEL_LINE=""
+  if [[ -n "$MODEL" ]]; then
+    MODEL_LINE="  - model: $MODEL"$'\n'
+  fi
+  STAGE_WORK="Launch the Agent tool with:
+  - subagent_type: $SUBAGENT_TYPE
+$MODEL_LINE  - mode: bypassPermissions
+
+The agent prompt must include:
+  - Project directory: $PROJECT_ROOT
+  - Epoch: $EPOCH
+  - Output: $ARTIFACT
+  - Required inputs (MUST exist):
+$REQUIRED_SECTION  - Optional inputs:
+$OPTIONAL_SECTION
+Agent MUST write $ARTIFACT with frontmatter:
+  ---
+  epoch: $EPOCH
+  result: <one of: $TRANSITION_KEYS>
+  ---"
+else
+  # inline
+  STAGE_WORK="This is an inline stage — the main agent runs it directly, no subagent.
+See the dev-workflow SKILL.md Step for the exact stage-specific work (e.g. verifying runs quick tests).
+
+Output: $ARTIFACT
+Required inputs (MUST exist):
+$REQUIRED_SECTION
+Optional inputs:
+$OPTIONAL_SECTION
+Write $ARTIFACT with frontmatter:
+  ---
+  epoch: $EPOCH
+  result: <one of: $TRANSITION_KEYS>
+  ---"
+fi
 
 # ──────────────────────────────────────────────────────────────
-# Decide: stage done or not done?
+# Decide: stage done → transition prompt | not done → execute prompt
 # ──────────────────────────────────────────────────────────────
 if [[ -f "$ARTIFACT" ]] && [[ "$ARTIFACT_EPOCH" == "$EPOCH" ]] && [[ -n "$ARTIFACT_RESULT" ]]; then
-  # Stage done → give transition instruction
-  NEXT=$(next_status "$STATUS" "$ARTIFACT_RESULT")
+  NEXT=$(config_next_status "$STATUS" "$ARTIFACT_RESULT")
   if [[ -z "$NEXT" ]]; then
     CONTINUE_PROMPT="[dev-workflow] BLOCKED EXIT — unknown result in artifact.
 
 Status: $STATUS (epoch $EPOCH)
 Artifact: $ARTIFACT
-Result value: '$ARTIFACT_RESULT' — not in transition table.
+Result value: '$ARTIFACT_RESULT' — not in the transition table (valid keys: $TRANSITION_KEYS).
 
 Inspect $ARTIFACT, then call:
   \"\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status <correct-next>
@@ -202,12 +203,11 @@ $ARTIFACT is valid for epoch $EPOCH.
 You MUST now run:
   \"\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status $NEXT
 
-Then continue the workflow (either do the next stage's work or, if the new status is 'complete', announce completion).
+Then continue the workflow (either do the next stage's work or, if the new status is terminal, announce completion).
 
 DO NOT STOP. The loop is infinite — only /dev-workflow:interrupt or /dev-workflow:cancel stops it."
   fi
 else
-  # Stage NOT done → tell Claude to execute the stage
   if [[ ! -f "$ARTIFACT" ]]; then
     REASON="$ARTIFACT does not exist"
   elif [[ "$ARTIFACT_EPOCH" != "$EPOCH" ]]; then

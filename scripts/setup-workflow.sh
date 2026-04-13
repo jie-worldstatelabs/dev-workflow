@@ -15,6 +15,7 @@ source "${SCRIPT_DIR}/lib.sh"
 
 TOPIC=""
 WORKFLOW_NAME=""
+FORCE=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -25,6 +26,10 @@ while [[ $# -gt 0 ]]; do
     --workflow)
       WORKFLOW_NAME="$2"
       shift 2
+      ;;
+    --force)
+      FORCE="yes"
+      shift
       ;;
     *)
       shift
@@ -55,6 +60,48 @@ if ! config_check; then
 fi
 
 PROJECT_ROOT="$(pwd)"
+
+# ──────────────────────────────────────────────────────────────
+# Phase 0: Detect existing workflow(s) in this worktree.
+# If found and --force not given, exit with a clear message asking the
+# user (via the main agent) whether to proceed — starting a new run
+# DELETES the existing workflow's state and artifacts.
+# ──────────────────────────────────────────────────────────────
+if [[ -z "$FORCE" ]] && [[ -d "${PROJECT_ROOT}/.dev-workflow" ]]; then
+  EXISTING=()
+  for d in "${PROJECT_ROOT}/.dev-workflow"/*/; do
+    [[ -d "$d" ]] || continue
+    [[ -f "$d/state.md" ]] || continue
+    EXISTING+=("$d")
+  done
+  # Legacy flat layout
+  if [[ -f "${PROJECT_ROOT}/.dev-workflow/state.md" ]]; then
+    EXISTING+=("${PROJECT_ROOT}/.dev-workflow/")
+  fi
+
+  if [[ ${#EXISTING[@]} -gt 0 ]]; then
+    echo "⚠️  A dev-workflow already exists in this worktree." >&2
+    echo "" >&2
+    echo "   Existing workflow(s):" >&2
+    for d in "${EXISTING[@]}"; do
+      sd="$d/state.md"
+      [[ -f "$sd" ]] || continue
+      etopic=$(_read_fm_field "$sd" topic)
+      estatus=$(_read_fm_field "$sd" status)
+      echo "     - topic: ${etopic:-?}   status: ${estatus:-?}   dir: $d" >&2
+    done
+    echo "" >&2
+    echo "   Starting a new workflow (topic=${TOPIC}) will DELETE all existing" >&2
+    echo "   workflow state and artifacts in this worktree." >&2
+    echo "" >&2
+    echo "   Options:" >&2
+    echo "     1. Confirm with the user and re-run with --force:" >&2
+    echo "        setup-workflow.sh --topic \"${TOPIC}\" --force" >&2
+    echo "     2. Keep existing workflow — /dev-workflow:interrupt to pause," >&2
+    echo "        /dev-workflow:cancel to clean up, /dev-workflow:continue to resume." >&2
+    exit 2
+  fi
+fi
 
 # ──────────────────────────────────────────────────────────────
 # Phase 1: Ensure git repo with a HEAD commit (baseline)

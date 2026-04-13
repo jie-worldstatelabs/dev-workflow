@@ -98,12 +98,22 @@ A single workflow can mix both — each stage is classified independently.
    - absolute path → used as-is
    - omitted → defaults to `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/workflow/`
 
-   Creates `<project>/.dev-workflow/state.md` with:
-   - `status` = `workflow.json` → `initial_stage`
-   - `epoch` = 1
-   - `workflow_dir` = resolved absolute path to the active workflow
+5. **If setup-workflow.sh exits with code 2** (existing workflow detected), it will have printed the existing workflow's topic + status to stderr. Do NOT proceed blindly:
+   - Relay the warning to the user verbatim, including which topic is currently active and its status.
+   - Ask: `There's already a workflow in this worktree. Proceeding will delete it and its artifacts. Continue? (yes/no)`
+   - If the user confirms: re-run with `--force`:
+     ```bash
+     "${CLAUDE_PLUGIN_ROOT}/scripts/setup-workflow.sh" --topic "<topic>" [--workflow "<name>"] --force
+     ```
+   - If the user declines: stop. Suggest `/dev-workflow:interrupt` (pause), `/dev-workflow:continue` (resume), or `/dev-workflow:cancel` (remove) to handle the existing workflow first.
 
-   The stop hook becomes active. The initial stage's I/O context (required/optional inputs + output path) prints to stdout.
+On success, setup-workflow.sh creates `<project>/.dev-workflow/<topic>/state.md` with:
+- `status` = `workflow.json` → `initial_stage`
+- `epoch` = 1
+- `workflow_dir` = resolved absolute path to the active workflow
+- `worktree` = absolute path to the git worktree root
+
+The stop hook becomes active. The initial stage's I/O context (required/optional inputs + output path) prints to stdout.
 
 ### Step 2 — Stage loop (run forever until a terminal status is reached)
 

@@ -114,13 +114,18 @@ Loop:
 
 ### Where stage I/O paths come from
 
-You never need to hardcode artifact paths. At the moments that matter, three channels surface the current stage's required/optional input paths, output path, and execution params:
+You never need to hardcode artifact paths. Three channels surface the current stage's required/optional input paths, output path, and execution params.
 
-1. **`setup-workflow.sh` / `update-status.sh` stdout** (**primary channel for every stage**). When the workflow enters a new stage, the transition script prints the stage's inputs and output. This is the main delivery mechanism for **inline stages**, which have no Agent-tool call and therefore do not trigger `agent-guard.sh`.
-2. **`agent-guard.sh`** — PreToolUse hook that fires when you call the Agent tool. Injects the current stage's `subagent_type`, `model`, `mode`, required/optional input paths, and output path. Applies to **subagent stages** only.
-3. **`stop-hook.sh`** — fires when you attempt to end your turn mid-workflow. If the workflow is active, it either blocks (uninterruptible stages) or emits a `systemMessage` hint (interruptible stages), and re-surfaces the current stage's I/O context. Safety net for when channels 1–2 were missed.
+**Channel 1 — `setup-workflow.sh` / `update-status.sh` stdout** (primary for every stage)
+When the workflow enters a new stage, the transition script prints the stage's inputs and output. This is the main delivery mechanism for **inline stages**, which have no Agent-tool call and therefore do not trigger `agent-guard.sh`.
 
-Channels 1 and 2 fire in the normal path; 3 is the recovery path. All three agree on the paths (they read the same `workflow.json`).
+**Channel 2 — `agent-guard.sh`** (PreToolUse hook on the Agent tool, subagent stages only)
+Fires **only in your context**, not the subagent's. PreToolUse hooks cannot modify tool parameters. The hook prints a clearly-labelled **`PROMPT TEMPLATE — copy verbatim into the Agent tool's prompt`** block; you MUST transcribe that block into the `prompt` argument of your Agent-tool call. Subagents can see only the prompt you pass them — they have no access to the hook's output. Never send a prompt like "see injected paths" — paths must appear literally in the prompt string.
+
+**Channel 3 — `stop-hook.sh`** (safety net, fires on attempted session exit)
+If the workflow is active, it either blocks (uninterruptible stages) or emits a `systemMessage` hint (interruptible stages), and re-surfaces the current stage's I/O context. Kicks in when channels 1 and 2 were missed.
+
+All three channels read the same `workflow.json`, so the paths they show always agree.
 
 ## Error Handling
 

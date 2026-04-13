@@ -152,11 +152,16 @@ if [[ "$EXEC_TYPE" == "subagent" ]]; then
   fi
   STAGE_WORK="Read stage instructions: $INSTRUCTIONS_PATH
 
-Launch the Agent tool with:
+Call the Agent tool. When you do, the agent-guard PreToolUse hook will print
+a prompt template you MUST copy verbatim into the Agent-tool \`prompt\` argument
+(the subagent cannot see hook output — only the prompt string you pass it).
+
+Agent-tool parameters:
   - subagent_type: $SUBAGENT_TYPE
 $MODEL_LINE  - mode: bypassPermissions
 
-The agent prompt must include:
+The prompt you pass to the Agent tool must include (transcribe every path
+literally — do NOT write \"see injected paths\"):
   - Project directory: $PROJECT_ROOT
   - Epoch: $EPOCH
   - Output: $ARTIFACT

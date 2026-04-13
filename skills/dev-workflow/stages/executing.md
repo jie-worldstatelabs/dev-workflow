@@ -9,7 +9,9 @@ _Runtime config (canonical): `workflow.json` → `stages.executing`_
 ## Work
 
 1. Read `state.md` to get `topic` and `epoch`.
-2. Launch the Agent tool. The `agent-guard.sh` PreToolUse hook injects the exact `subagent_type`, `model`, `mode`, and prompt template — including required/optional input paths and the output path — all sourced from `workflow.json` → `stages.executing`. Follow that injected guidance verbatim.
+2. Call the Agent tool.
+   - **Before the call fires**, the `agent-guard.sh` PreToolUse hook prints guidance to you (the main agent). That guidance includes a labelled block **`PROMPT TEMPLATE — copy verbatim into the Agent tool's prompt`**. The agent-guard hook cannot modify your Agent-tool parameters and the subagent cannot see the hook's output — **you must copy that template into the `prompt` argument of your Agent-tool call**.
+   - Use the `subagent_type`, `model`, and `mode` values the hook shows you. Do NOT write placeholders like "see injected paths" — transcribe the paths fully.
 3. The agent MUST write the output artifact with frontmatter:
    ```
    ---

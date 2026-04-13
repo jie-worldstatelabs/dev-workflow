@@ -96,23 +96,40 @@ SUBAGENT_TYPE="$(config_subagent_type "$STATUS")"
 MODEL="$(config_model "$STATUS")"
 
 cat <<EOF
-[dev-workflow] Active workflow (phase: $STATUS, epoch: $EPOCH).
-Stage instructions: $INSTRUCTIONS_PATH
+[dev-workflow] agent-guard (PreToolUse hook for Agent tool)
+Active workflow phase: $STATUS (epoch $EPOCH) — stage instructions: $INSTRUCTIONS_PATH
 
-This Agent call should use:
+⚠️  IMPORTANT — how this hook works:
+  This output is visible ONLY to you, the main agent. PreToolUse hooks cannot
+  modify Agent-tool parameters. The subagent will see ONLY the prompt string
+  you pass to the Agent tool — NOT this hook's output.
+  → You MUST copy the prompt template below into the \`prompt\` argument of
+    your Agent tool call. Do NOT write "see injected paths" — the subagent
+    has no access to "injected" context.
+
+Agent tool parameters to use:
   - subagent_type: "$SUBAGENT_TYPE"$( [[ -n "$MODEL" ]] && printf '\n  - model: %s' "$MODEL" )
   - mode: bypassPermissions
 
-Prompt must include:
-  - Project directory: $PROJECT_ROOT
-  - Epoch: $EPOCH
-  - Output: $ARTIFACT
-  - Required inputs (MUST exist):
-$REQUIRED_SECTION  - Optional inputs:
+━━━━━━━━━━ PROMPT TEMPLATE — copy verbatim into the Agent tool's \`prompt\` ━━━━━━━━━━
+
+Execute the $STATUS stage of the dev-workflow.
+
+Project directory: $PROJECT_ROOT
+Epoch: $EPOCH
+Output artifact path: $ARTIFACT
+
+Required inputs (these files MUST exist — read and use them as needed):
+$REQUIRED_SECTION
+Optional inputs (read each if the file exists; otherwise treat as absent):
 $OPTIONAL_SECTION
-The agent MUST write $ARTIFACT with frontmatter:
-  ---
-  epoch: $EPOCH
-  result: <one of: $TRANSITION_KEYS>
-  ---
+You MUST write the output artifact at the path above with this frontmatter:
+---
+epoch: $EPOCH
+result: <one of: $TRANSITION_KEYS>
+---
+
+Then write the body according to your agent definition.
+
+━━━━━━━━━━ END PROMPT TEMPLATE ━━━━━━━━━━
 EOF

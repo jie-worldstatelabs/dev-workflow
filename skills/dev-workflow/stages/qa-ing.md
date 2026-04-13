@@ -9,7 +9,9 @@ _Runtime config (canonical): `workflow.json` → `stages.qa-ing`_
 ## Work
 
 1. Read `state.md` to get `topic` and `epoch`.
-2. Launch the Agent tool. The `agent-guard.sh` hook injects the exact `subagent_type`, `mode`, and prompt template — including required/optional input paths, the output path, and the journey-test state file path — all sourced from `workflow.json` → `stages.qa-ing`. Follow that injected guidance verbatim.
+2. Call the Agent tool.
+   - **Before the call fires**, the `agent-guard.sh` PreToolUse hook prints guidance to you (the main agent), including a labelled block **`PROMPT TEMPLATE — copy verbatim into the Agent tool's prompt`**. The hook cannot modify Agent-tool parameters and the subagent cannot see the hook's output — **you must copy that template into the `prompt` argument of your Agent-tool call**.
+   - Use the `subagent_type` and `mode` values the hook shows you. Transcribe every path fully; do not abbreviate to "see injected paths".
 3. The agent MUST write the output artifact with frontmatter:
    ```
    ---

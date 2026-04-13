@@ -62,45 +62,51 @@ fi
 PROJECT_ROOT="$(pwd)"
 
 # ──────────────────────────────────────────────────────────────
-# Phase 0: Detect existing workflow(s) in this worktree.
-# If found and --force not given, exit with a clear message asking the
-# user (via the main agent) whether to proceed — starting a new run
-# DELETES the existing workflow's state and artifacts.
+# Resolve current session_id (written by SessionStart hook → cache).
+# session_id IS the run's directory name under .dev-workflow/, so we need
+# a real value. Nothing we can do without it — error out with a clear hint.
 # ──────────────────────────────────────────────────────────────
-if [[ -z "$FORCE" ]] && [[ -d "${PROJECT_ROOT}/.dev-workflow" ]]; then
-  EXISTING=()
-  for d in "${PROJECT_ROOT}/.dev-workflow"/*/; do
-    [[ -d "$d" ]] || continue
-    [[ -f "$d/state.md" ]] || continue
-    EXISTING+=("$d")
-  done
-  # Legacy flat layout
-  if [[ -f "${PROJECT_ROOT}/.dev-workflow/state.md" ]]; then
-    EXISTING+=("${PROJECT_ROOT}/.dev-workflow/")
-  fi
+SESSION_ID="$(read_cached_session_id)"
+if [[ -z "$SESSION_ID" ]]; then
+  echo "❌ Error: session_id is unknown." >&2
+  echo "   The SessionStart hook (hooks/session-start.sh) did not populate" >&2
+  echo "   the cache. Ensure the dev-workflow plugin is properly installed" >&2
+  echo "   and restart your Claude Code session." >&2
+  exit 1
+fi
 
-  if [[ ${#EXISTING[@]} -gt 0 ]]; then
-    echo "⚠️  A dev-workflow already exists in this worktree." >&2
-    echo "" >&2
-    echo "   Existing workflow(s):" >&2
-    for d in "${EXISTING[@]}"; do
-      sd="$d/state.md"
-      [[ -f "$sd" ]] || continue
-      etopic=$(_read_fm_field "$sd" topic)
-      estatus=$(_read_fm_field "$sd" status)
-      echo "     - topic: ${etopic:-?}   status: ${estatus:-?}   dir: $d" >&2
-    done
-    echo "" >&2
-    echo "   Starting a new workflow (topic=${TOPIC}) will DELETE all existing" >&2
-    echo "   workflow state and artifacts in this worktree." >&2
-    echo "" >&2
-    echo "   Options:" >&2
-    echo "     1. Confirm with the user and re-run with --force:" >&2
-    echo "        setup-workflow.sh --topic \"${TOPIC}\" --force" >&2
-    echo "     2. Keep existing workflow — /dev-workflow:interrupt to pause," >&2
-    echo "        /dev-workflow:cancel to clean up, /dev-workflow:continue to resume." >&2
-    exit 2
-  fi
+SESSION_RUN_DIR="${PROJECT_ROOT}/.dev-workflow/${SESSION_ID}"
+
+# ──────────────────────────────────────────────────────────────
+# Phase 0: Detect existing workflow for THIS session.
+# Each session has its own .dev-workflow/<session_id>/ subdir, so we only
+# check our own. Other sessions' dirs are independent and untouched.
+# ──────────────────────────────────────────────────────────────
+if [[ -z "$FORCE" ]] && [[ -f "${SESSION_RUN_DIR}/state.md" ]]; then
+  etopic=$(_read_fm_field "${SESSION_RUN_DIR}/state.md" topic)
+  estatus=$(_read_fm_field "${SESSION_RUN_DIR}/state.md" status)
+  case "$estatus" in
+    complete|escalated|"")
+      # Terminal or unreadable — safe to replace without --force.
+      ;;
+    *)
+      echo "⚠️  This session already has an active dev-workflow." >&2
+      echo "" >&2
+      echo "   Session: ${SESSION_ID}" >&2
+      echo "   Existing topic: ${etopic:-?}   status: ${estatus}" >&2
+      echo "   Existing dir: ${SESSION_RUN_DIR}" >&2
+      echo "" >&2
+      echo "   Starting a new workflow (topic=${TOPIC}) will DELETE this" >&2
+      echo "   session's existing workflow state and artifacts." >&2
+      echo "" >&2
+      echo "   Options:" >&2
+      echo "     1. Confirm with the user and re-run with --force:" >&2
+      echo "        setup-workflow.sh --topic \"${TOPIC}\" --force" >&2
+      echo "     2. Keep existing — /dev-workflow:interrupt to pause," >&2
+      echo "        /dev-workflow:cancel to clean up, /dev-workflow:continue to resume." >&2
+      exit 2
+      ;;
+  esac
 fi
 
 # ──────────────────────────────────────────────────────────────
@@ -133,21 +139,18 @@ fi
 WORKTREE_ROOT="$(git -C "${PROJECT_ROOT}" rev-parse --show-toplevel 2>/dev/null || echo "$PROJECT_ROOT")"
 
 # ──────────────────────────────────────────────────────────────
-# Phase 2: Nuke any prior workflow in this worktree (one run per worktree)
+# Phase 2: Nuke only THIS session's prior workflow dir.
+# Other sessions' dirs under .dev-workflow/ are independent and
+# must not be touched.
 # ──────────────────────────────────────────────────────────────
-if [[ -d "${PROJECT_ROOT}/.dev-workflow" ]]; then
-  for d in "${PROJECT_ROOT}/.dev-workflow"/*/; do
-    [[ -d "$d" ]] || continue
-    rm -rf "$d"
-  done
-  # Legacy flat state.md (pre-v1.11)
-  rm -f "${PROJECT_ROOT}/.dev-workflow/state.md"
-fi
+rm -rf "$SESSION_RUN_DIR"
+# Also clean up legacy flat layout if it happens to exist
+rm -f "${PROJECT_ROOT}/.dev-workflow/state.md"
 
 # ──────────────────────────────────────────────────────────────
-# Phase 3: Create the run's dir and state.md
+# Phase 3: Create this session's run dir and state.md
 # ──────────────────────────────────────────────────────────────
-TOPIC_DIR="${PROJECT_ROOT}/.dev-workflow/${TOPIC}"
+TOPIC_DIR="$SESSION_RUN_DIR"
 mkdir -p "$TOPIC_DIR"
 
 INITIAL_STAGE="$(config_initial_stage)"
@@ -159,6 +162,7 @@ status: $INITIAL_STAGE
 epoch: 1
 resume_status:
 topic: "$TOPIC"
+session_id: $SESSION_ID
 worktree: "$WORKTREE_ROOT"
 workflow_dir: "$WORKFLOW_DIR"
 project_root: "$PROJECT_ROOT"
@@ -182,6 +186,7 @@ fi
 echo "🔄 Dev workflow activated."
 echo ""
 echo "   Topic: $TOPIC"
+echo "   Session: $SESSION_ID"
 echo "   Worktree: $WORKTREE_ROOT"
 echo "   Status: $INITIAL_STAGE (epoch 1)$INTERRUPTIBLE_HINT"
 if [[ -n "$AUTO_GIT_MSG" ]]; then
@@ -189,7 +194,7 @@ if [[ -n "$AUTO_GIT_MSG" ]]; then
 fi
 
 if config_is_stage "$INITIAL_STAGE"; then
-  config_show_stage_context "$INITIAL_STAGE" "$TOPIC" "$PROJECT_ROOT"
+  config_show_stage_context "$INITIAL_STAGE" "$SESSION_ID" "$PROJECT_ROOT"
 fi
 
 echo ""

@@ -19,9 +19,11 @@ HOOK_INPUT=$(cat)
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$(dirname "$HOOK_DIR")/scripts/lib.sh"
 
-# Worktree-based: find the single workflow (if any) in this worktree.
-# Hooks fire in every Claude session — if this worktree has no active
-# workflow, exit cleanly.
+# Session-keyed: every session has its own .dev-workflow/<session_id>/ dir.
+# Resolve by THIS session's id (from HOOK_INPUT stdin). If there's no dir
+# for this session, this hook fires for a bystander → nothing to do,
+# allow exit cleanly.
+DESIRED_SESSION=$(echo "$HOOK_INPUT" | jq -r '.session_id // ""' 2>/dev/null || true)
 if ! resolve_state; then
   exit 0
 fi

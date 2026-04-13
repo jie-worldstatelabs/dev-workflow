@@ -63,6 +63,69 @@ _read_fm_field() {
     | tr -d '[:space:]'
 }
 
+# Set (or insert if missing) a frontmatter scalar in state.md. Operates only
+# on the first YAML frontmatter block (between the first two --- lines).
+set_fm_field() {
+  local file="$1" field="$2" value="$3"
+  awk -v field="$field" -v value="$value" '
+    BEGIN { fm=0; done=0 }
+    /^---$/ {
+      fm++
+      if (fm == 2 && !done) { print field ": " value; done=1 }
+      print; next
+    }
+    fm == 1 && $0 ~ "^" field ":" { if (!done) { print field ": " value; done=1 } ; next }
+    { print }
+  ' "$file" > "${file}.tmp.$$" && mv "${file}.tmp.$$" "$file"
+}
+
+# ──────────────────────────────────────────────────────────────
+# Session-id cache (written by hooks/session-start.sh, read by
+# setup-workflow.sh and continue-workflow.sh)
+# ──────────────────────────────────────────────────────────────
+#
+# Claude Code exposes session_id to hooks via stdin JSON, but NOT to the
+# Bash tool's subprocess env. The cache bridges that gap.
+#
+# SessionStart hook writes two keys:
+#   cwd-<sha1(cwd)>   matches when reader's cwd == hook's cwd
+#   ppid-<PPID>       matches when reader's $PPID (walked up if needed) is
+#                     the Claude Code harness PID (same as hook's $PPID)
+#
+# Readers try both, walking the process tree on the ppid path. If neither
+# matches, the session_id is unknown and owner_session_id stays empty —
+# callers fall back to worktree-level blocking semantics.
+
+_DW_SESSION_CACHE_DIR="${HOME}/.dev-workflow/session-cache"
+
+_session_cache_cwd_key() {
+  printf '%s' "$(pwd)" | shasum -a 1 | cut -c1-16
+}
+
+# Echo the cached session_id for the current session, or empty if unknown.
+read_cached_session_id() {
+  local cache="$_DW_SESSION_CACHE_DIR"
+  local key
+  # Try cwd key first (most reliable when there's no cd-drift)
+  key="$(_session_cache_cwd_key)"
+  if [[ -f "${cache}/cwd-${key}" ]]; then
+    cat "${cache}/cwd-${key}"
+    return 0
+  fi
+  # Walk up the process tree looking for a matching ppid cache file
+  local pid=$PPID
+  local hops=0
+  while [[ -n "$pid" && "$pid" != "0" && "$pid" != "1" && $hops -lt 8 ]]; do
+    if [[ -f "${cache}/ppid-${pid}" ]]; then
+      cat "${cache}/ppid-${pid}"
+      return 0
+    fi
+    pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d '[:space:]')
+    hops=$((hops + 1))
+  done
+  echo ""
+}
+
 # ──────────────────────────────────────────────────────────────
 # State resolution
 # ──────────────────────────────────────────────────────────────
@@ -101,18 +164,33 @@ resolve_state() {
   local project_root
   project_root="$(dirname "$dw")"
 
-  # Current layout: .dev-workflow/<topic>/state.md
-  local sd
-  for sd in "$dw"/*/state.md; do
-    [[ -f "$sd" ]] || continue
-    if [[ -n "${DESIRED_TOPIC:-}" ]]; then
+  # Session-keyed layout: .dev-workflow/<session_id>/state.md
+  # Primary resolution: DESIRED_SESSION (caller-supplied, typically from
+  # HOOK_INPUT in hooks) or the cached session_id for this Claude session.
+  local session="${DESIRED_SESSION:-}"
+  if [[ -z "$session" ]]; then
+    session="$(read_cached_session_id)"
+  fi
+
+  if [[ -n "$session" ]] && [[ -f "$dw/$session/state.md" ]]; then
+    _populate_state_vars "$dw/$session/state.md" "$project_root"
+    return 0
+  fi
+
+  # Fallback for cross-session CLI queries: DESIRED_TOPIC filters by the
+  # `topic:` field in state.md across all session dirs.
+  if [[ -n "${DESIRED_TOPIC:-}" ]]; then
+    local sd
+    for sd in "$dw"/*/state.md; do
+      [[ -f "$sd" ]] || continue
       local tp
       tp="$(_read_fm_field "$sd" topic)"
-      [[ "$tp" != "$DESIRED_TOPIC" ]] && continue
-    fi
-    _populate_state_vars "$sd" "$project_root"
-    return 0
-  done
+      if [[ "$tp" == "$DESIRED_TOPIC" ]]; then
+        _populate_state_vars "$sd" "$project_root"
+        return 0
+      fi
+    done
+  fi
 
   # Legacy: flat .dev-workflow/state.md (pre-v1.11) — single-workflow fallback
   if [[ -f "$dw/state.md" ]]; then
@@ -123,6 +201,51 @@ resolve_state() {
   fi
 
   return 1
+}
+
+# Find a state.md with status=interrupted across all session dirs under
+# .dev-workflow/. Used by continue-workflow.sh for cross-session takeover.
+# On success: sets STATE_FILE/TOPIC_DIR/RUN_DIR_NAME/TOPIC/PROJECT_ROOT to
+# the found dir (still keyed by the ORIGINAL session id — caller must
+# rename to new session id).
+resolve_interrupted_state() {
+  local dw
+  dw="$(find_dw_root)" || return 1
+  local project_root
+  project_root="$(dirname "$dw")"
+
+  local match_count=0
+  local match=""
+  local sd
+  for sd in "$dw"/*/state.md; do
+    [[ -f "$sd" ]] || continue
+    local st
+    st="$(_read_fm_field "$sd" status)"
+    if [[ "$st" == "interrupted" ]]; then
+      match_count=$((match_count + 1))
+      match="$sd"
+    fi
+  done
+
+  if [[ $match_count -eq 0 ]]; then
+    return 1
+  fi
+  if [[ $match_count -gt 1 ]]; then
+    echo "⚠️  Multiple interrupted workflows found; disambiguate with --session <id>:" >&2
+    for sd in "$dw"/*/state.md; do
+      [[ -f "$sd" ]] || continue
+      local st
+      st="$(_read_fm_field "$sd" status)"
+      [[ "$st" == "interrupted" ]] || continue
+      local tp
+      tp="$(_read_fm_field "$sd" topic)"
+      echo "   - session: $(basename "$(dirname "$sd")")   topic: ${tp:-?}" >&2
+    done
+    return 2
+  fi
+
+  _populate_state_vars "$match" "$project_root"
+  return 0
 }
 
 # List all workflows (state.md files) under .dev-workflow/, with their status.

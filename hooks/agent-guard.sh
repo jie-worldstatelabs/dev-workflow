@@ -12,7 +12,9 @@ HOOK_INPUT=$(cat)
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$(dirname "$HOOK_DIR")/scripts/lib.sh"
 
-# Worktree-based: find the single workflow in this worktree (if any).
+# Session-keyed: resolve THIS session's workflow dir (from HOOK_INPUT).
+# If there's no workflow for this session, nothing to advise.
+DESIRED_SESSION=$(echo "$HOOK_INPUT" | jq -r '.session_id // ""' 2>/dev/null || true)
 if ! resolve_state; then
   exit 0
 fi

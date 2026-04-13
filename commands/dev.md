@@ -35,9 +35,11 @@ Task from user:
 ## Execution Instructions
 
 1. Invoke the `dev-workflow` skill now — and ONLY this skill. Do not invoke any other skill before, during, or after.
-2. After the user confirms the plan in Step 1, **run the execute→verify→review→QA→gate loop autonomously** without stopping.
-3. When launching the `workflow-executor` agent, use `subagent_type: dev-workflow:workflow-executor` and `mode: bypassPermissions` so it runs without permission prompts.
-4. After the executor completes, run quick tests inline (Step 2.5) and write the verify report before launching the reviewer.
-5. When running the code review, launch the `dev-workflow:workflow-reviewer` agent with `mode: bypassPermissions`. If reviewer PASS → launch `dev-workflow:workflow-qa` for journey tests. If reviewer FAIL → loop back to executor.
-6. When running QA, launch the `dev-workflow:workflow-qa` agent with `mode: bypassPermissions`. QA reports only confirmed app bugs. QA PASS → complete. QA FAIL → loop back to executor.
-7. Between Steps 2→3→4, do NOT stop to ask the user anything. The loop runs until QA passes. Only `/dev-workflow:interrupt` or `/dev-workflow:cancel` stops it.
+2. **Step 1 (Planning) is interruptible.** The skill activates the workflow with `setup-workflow.sh` at the start (as soon as a topic name is determinable from the task), then holds inline Q&A with the user to design the plan. The stop hook is active but allows natural session pauses while waiting for user responses.
+3. **Once the user confirms the plan**, the skill finalizes planning-report with `result: approved` and calls `update-status.sh --status executing`, transitioning into the uninterruptible loop.
+4. From Step 2 onwards, run the execute→verify→review→QA loop autonomously without stopping.
+5. When launching the `workflow-executor` agent, use `subagent_type: dev-workflow:workflow-executor` and `mode: bypassPermissions` so it runs without permission prompts.
+6. After the executor completes, run quick tests inline (Step 2.5) and write the verify report before launching the reviewer.
+7. When running the code review, launch the `dev-workflow:workflow-reviewer` agent with `mode: bypassPermissions`. If reviewer PASS → launch `dev-workflow:workflow-qa` for journey tests. If reviewer FAIL → loop back to executor.
+8. When running QA, launch the `dev-workflow:workflow-qa` agent with `mode: bypassPermissions`. QA reports only confirmed app bugs. QA PASS → complete. QA FAIL → loop back to executor.
+9. Between Steps 2→3→3.5, do NOT stop to ask the user anything. The loop runs until QA passes. Only `/dev-workflow:interrupt` or `/dev-workflow:cancel` stops it.

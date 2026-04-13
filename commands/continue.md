@@ -46,6 +46,7 @@ Based on the **Phase** reported by the continue script, jump directly to the rig
 
 | Phase reported | Jump to |
 |---------------|---------|
+| `planning`    | Step 1 — resume planning conversation (interruptible) |
 | `executing`   | Step 2 — launch `dev-workflow:workflow-executor` |
 | `verifying`   | Step 2.5 — run quick tests inline |
 | `reviewing`   | Step 3 — launch `dev-workflow:workflow-reviewer` |

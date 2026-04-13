@@ -62,7 +62,7 @@ mv "$TEMP_FILE" "$STATE_FILE"
 # file system state simple and avoids partial-write edge cases.
 # Unified naming: {topic}-{stage}-report.md
 case "$NEW_STATUS" in
-  executing|verifying|reviewing|qa-ing)
+  planning|executing|verifying|reviewing|qa-ing)
     rm -f "${PROJECT_ROOT}/.dev-workflow/${TOPIC}-${NEW_STATUS}-report.md"
     ;;
 esac

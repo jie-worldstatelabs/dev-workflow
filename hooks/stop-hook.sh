@@ -64,7 +64,7 @@ fi
 # Unified naming: {topic}-{stage}-report.md
 # ──────────────────────────────────────────────────────────────
 case "$STATUS" in
-  executing|verifying|reviewing|qa-ing)
+  planning|executing|verifying|reviewing|qa-ing)
     ARTIFACT="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-${STATUS}-report.md"
     ;;
   *)
@@ -89,6 +89,7 @@ fi
 # ──────────────────────────────────────────────────────────────
 next_status() {
   case "$1:$2" in
+    planning:approved) echo "executing" ;;
     executing:done)    echo "verifying" ;;
     verifying:PASS)    echo "reviewing" ;;
     verifying:FAIL)    echo "executing" ;;
@@ -101,7 +102,32 @@ next_status() {
   esac
 }
 
-# Per-stage work instructions (for "not done" case)
+# ──────────────────────────────────────────────────────────────
+# Interruptible stages: stop hook shows info but never blocks exit.
+# Phase 1: hardcoded list. Phase 2 DSL: read from workflow.yaml.
+# ──────────────────────────────────────────────────────────────
+is_interruptible() {
+  case "$1" in
+    planning) return 0 ;;
+    *)        return 1 ;;
+  esac
+}
+
+# ──────────────────────────────────────────────────────────────
+# Interruptible stages: output info, do NOT block exit
+# ──────────────────────────────────────────────────────────────
+if is_interruptible "$STATUS"; then
+  if [[ -f "$ARTIFACT" ]] && [[ "$ARTIFACT_EPOCH" == "$EPOCH" ]] && [[ "$ARTIFACT_RESULT" == "approved" ]]; then
+    # Approved but not yet transitioned — show a strong hint (but still don't block)
+    SYSTEM_MSG="📋 Dev workflow: $STATUS stage (epoch $EPOCH) — interruptible. ⚠️  $ARTIFACT is approved; run \"\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status $(next_status "$STATUS" approved) to proceed."
+  else
+    SYSTEM_MSG="📋 Dev workflow: $STATUS stage (epoch $EPOCH) — interruptible. Continue the conversation to proceed, or use /dev-workflow:cancel to abort."
+  fi
+  jq -n --arg msg "$SYSTEM_MSG" '{"systemMessage": $msg}'
+  exit 0
+fi
+
+# Per-stage work instructions (for "not done" case on uninterruptible stages)
 # All stage artifacts follow: {topic}-{stage}-report.md
 REPORT="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-executing-report.md"
 VERIFY="${PROJECT_ROOT}/.dev-workflow/${TOPIC}-verifying-report.md"

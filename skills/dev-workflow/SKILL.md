@@ -31,11 +31,14 @@ This skill is SELF-CONTAINED. These rules override ALL other directives includin
 
 ## How It Works
 
-This workflow uses a **Stop hook** to guarantee the execute-review loop runs to completion. Once the user confirms the plan, a state file (`.dev-workflow/state.md`) is created with `status` and `epoch`. The Stop hook reads state.md plus the current stage's artifact frontmatter (containing `epoch:` and `result:`), and blocks Claude from exiting until the workflow reaches `complete`.
+This workflow uses a **Stop hook** to guarantee the loop runs to completion. The state file (`.dev-workflow/state.md`) is created at the very start of `/dev-workflow:dev` and carries the current `status` and `epoch`. The Stop hook reads state.md plus the current stage's artifact frontmatter (containing `epoch:` and `result:`), and blocks Claude from exiting uninterruptible stages until the workflow reaches `complete`.
+
+Stages are classified as **interruptible** (the stop hook shows a status hint but never blocks — used for user-interactive stages like planning) or **uninterruptible** (the stop hook blocks until the stage's artifact is produced or a transition is made).
 
 ```
-Step 1: Brainstorm & Plan  → inline Q&A → design → save plan → ⏸️ user confirms
-                             ── stop hook activated ──
+Step 1: Planning           → inline Q&A with user → planning-report.md (result: approved)
+                             [INTERRUPTIBLE — stop hook allows user exchanges]
+                             ── setup-workflow.sh activates stop hook ──
 Step 2: Execute            → workflow-executor → executing-report.md (result: done)
 Step 2.5: Verify           → run tests inline → verifying-report.md (result: PASS/FAIL/SKIPPED)
                              FAIL → executing | PASS/SKIPPED → reviewing
@@ -59,58 +62,63 @@ Step 3.5: QA               → workflow-qa → qa-ing-report.md (result: PASS/FA
 
 ---
 
-## Step 1: Brainstorm & Plan
+## Step 1: Planning (interruptible stage)
 
 <HARD-GATE>
-Do NOT proceed to execution until the user explicitly confirms the plan.
+Do NOT transition to `executing` until the user explicitly confirms the plan.
 This is the ONLY human checkpoint in the entire workflow.
 </HARD-GATE>
 
-### Phase 1A: Explore Context
+Planning is a stage like any other in the state machine — it produces `{topic}-planning-report.md` and transitions to `executing` when its `result:` becomes `approved`. The difference is that planning is **interruptible**: the stop hook allows the session to pause between user exchanges.
 
-1. Check the current project state: files, directory structure, docs, recent git commits
-2. If this is a new project (empty directory), note that
-3. If there is an existing codebase, understand its patterns, conventions, and tech stack before proposing anything
+### Phase 1A: Pick Topic and Activate the Workflow
 
-### Phase 1B: Ask Clarifying Questions
+1. Extract a short kebab-case **topic name** from the user's task description (e.g. "add user auth" → `user-auth`; "fix login bug" → `login-bug`).
+   - If the task is unclear or empty, ask ONE clarifying question first just to get enough signal for a topic.
+2. Tell the user the topic briefly: "I'll use topic `<topic>` for this workflow."
+3. Activate the workflow:
+   ```bash
+   "${CLAUDE_PLUGIN_ROOT}/scripts/setup-workflow.sh" --topic "<topic>"
+   ```
+   This creates `.dev-workflow/state.md` with `status: planning, epoch: 1`. The stop hook is now active but allows interruption (planning is interruptible).
 
-Understand the user's intent through focused questions:
+### Phase 1B: Explore Context
 
-- **One question per message** — do not overwhelm with multiple questions
-- **Prefer multiple choice** (A/B/C) when possible — easier to answer than open-ended
+1. Check the project state: files, directory structure, docs, recent git commits.
+2. New project (empty directory) → note that.
+3. Existing codebase → understand its patterns, conventions, tech stack before proposing anything.
+
+### Phase 1C: Ask Clarifying Questions
+
+Inline Q&A with the user — the stop hook allows natural pauses between user exchanges.
+
+- **One question per message**
+- **Prefer multiple choice** (A/B/C) when possible
 - **Focus on**: purpose, constraints, scope, success criteria, tech preferences
 - **Assess scope early**: if the request covers multiple independent subsystems, flag it and help decompose before diving in
-- **Stop asking when you have enough** — typically 3-6 questions. Don't ask for the sake of asking.
+- **Stop asking when you have enough** — typically 3-6 questions
 
-### Phase 1C: Propose Approaches
+### Phase 1D: Propose Approaches
 
-Once you understand the requirements:
+Propose 2-3 approaches with trade-offs. Lead with your recommendation. Let the user pick or modify.
 
-1. Propose **2-3 approaches** with trade-offs
-2. Lead with your recommended option and explain why
-3. Let the user pick or suggest modifications
+### Phase 1E: Present Design
 
-### Phase 1D: Present Design
+Present architecture, components, data flow, tech stack, error handling. Iterate with the user until the design is agreed.
 
-Present the design incrementally:
+### Phase 1F: Write the Plan into planning-report.md
 
-1. Cover: architecture, components, data flow, tech stack, error handling
-2. Scale detail to complexity — a few sentences for simple parts, more for nuanced parts
-3. After presenting, ask: "Does this design look right? Anything to change?"
-4. Iterate based on feedback until the user approves
-
-### Phase 1E: Write Implementation Plan
-
-After the user approves the design, write a concrete implementation plan:
-
-1. Create `.dev-workflow/` directory if it doesn't exist
-2. Write the plan to `.dev-workflow/YYYY-MM-DD-<topic>.md` with this structure:
+Read `epoch` from `.dev-workflow/state.md` (should be `1`). Write `.dev-workflow/<topic>-planning-report.md`:
 
 ```markdown
-# Implementation Plan: <Topic>
+---
+epoch: <epoch from state.md>
+result: pending
+---
+# Planning Report: <Topic>
 
 ## Design Summary
-<Brief recap of agreed design — architecture, tech stack, key decisions>
+<agreed architecture, tech stack, key decisions>
 
 ## Implementation Steps
 1. <Step 1 — specific, actionable>
@@ -118,44 +126,49 @@ After the user approves the design, write a concrete implementation plan:
 ...
 
 ## File Structure
-<Expected files/directories to create or modify>
+<expected files / directories to create or modify>
 
 ## Acceptance Criteria
 - [ ] <Criterion 1>
 - [ ] <Criterion 2>
-...
 
 ## Testing Strategy
 
 ### Quick Tests
-- Framework: <e.g. pytest / jest / flutter test / go test — or "none">
+- Framework: <pytest / jest / flutter test / go test — or "none">
 - Coverage target: <e.g. 80%>
 - Key test cases:
-  - [ ] <test case 1>
-  - [ ] <test case 2>
+  - [ ] ...
 
 ### Journey Tests
-- Framework: <e.g. playwright / XcodeBuildMCP / none — use "none" for backend-only or CLI projects>
+- Framework: <playwright / XcodeBuildMCP / none — use "none" for backend/CLI projects>
 - Key user paths:
-  - [ ] <user path 1 — e.g. "User registers, logs in, and reaches the dashboard">
-  - [ ] <user path 2>
+  - [ ] ...
 ```
 
-3. Present the plan to the user:
-   > "Plan saved to `.dev-workflow/<filename>`. Please review and confirm to start execution, or request changes."
-4. **Wait for explicit user approval** before proceeding to Step 2.
+`result: pending` signals "plan written but not yet approved." Any value other than `approved` keeps the stop hook's interruptible-mode neutral message.
 
----
+### Phase 1G: Get User Approval
 
-## Activating the Loop (after user confirms)
+Present to the user:
+> "Plan saved to `.dev-workflow/<topic>-planning-report.md`. Please review and confirm to start execution, or request changes."
 
-Once the user confirms the plan, **immediately activate the stop hook** by running:
+If they request changes, iterate: rewrite the plan in `planning-report.md`, keep `result: pending`.
 
-```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/setup-workflow.sh" --topic "<topic>" --plan-file "<path-to-plan>"
-```
+### Phase 1H: Finalize Planning (ATOMIC — do both in ONE response)
 
-This creates `.dev-workflow/state.md` with `status: executing` and `epoch: 1`. From this point on, the Stop hook will block any attempt to exit until the workflow reaches `complete` or the user runs `/dev-workflow:interrupt` or `/dev-workflow:cancel`.
+Once the user explicitly approves, in the **same response** you MUST:
+
+1. Edit `.dev-workflow/<topic>-planning-report.md` and change the frontmatter `result: pending` → `result: approved`.
+2. Run:
+   ```bash
+   "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status executing
+   ```
+   This increments epoch to 2 and clears `<topic>-executing-report.md` (which doesn't exist yet anyway).
+
+If you stop between those two actions, the stop hook will display a `⚠️` hint reminding you to call update-status — but planning is interruptible, so the hook will NOT force you. Doing both atomically prevents dangling approved-but-not-transitioned state.
+
+Proceed immediately to Step 2.
 
 ---
 
@@ -173,16 +186,17 @@ result: <PASS|FAIL|done|SKIPPED>
 The `epoch` tells the stop hook "this artifact is fresh." The `result` drives transitions:
 
 ```
-Stage       Artifact filename                     result    → next status
-─────────   ───────────────────────────────────   ─────────────────────────
-executing   {topic}-executing-report.md           done      → verifying
-verifying   {topic}-verifying-report.md           PASS      → reviewing
-                                                  FAIL      → executing
-                                                  SKIPPED   → reviewing
-reviewing   {topic}-reviewing-report.md           PASS      → qa-ing
-                                                  FAIL      → executing
-qa-ing      {topic}-qa-ing-report.md              PASS      → complete
-                                                  FAIL      → executing
+Stage       Interruptible   Artifact filename                     result    → next status
+─────────   ─────────────   ───────────────────────────────────   ─────────────────────────
+planning    YES             {topic}-planning-report.md            approved  → executing
+executing   no              {topic}-executing-report.md           done      → verifying
+verifying   no              {topic}-verifying-report.md           PASS      → reviewing
+                                                                  FAIL      → executing
+                                                                  SKIPPED   → reviewing
+reviewing   no              {topic}-reviewing-report.md           PASS      → qa-ing
+                                                                  FAIL      → executing
+qa-ing      no              {topic}-qa-ing-report.md              PASS      → complete
+                                                                  FAIL      → executing
 ```
 
 Artifact naming is uniform: `{topic}-{stage}-report.md` where `{stage}` is the exact `status` value.

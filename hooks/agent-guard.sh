@@ -50,6 +50,15 @@ if [[ "$STATUS" == "executing" ]] && [[ ! -f "$BASELINE" ]]; then
 fi
 
 case "$STATUS" in
+  planning)
+    cat <<EOF
+[dev-workflow] Active workflow (phase: planning, epoch: $EPOCH).
+Planning is an INLINE stage — you should be doing Q&A and design work directly with the user, NOT launching a subagent.
+If you're about to launch workflow-executor/reviewer/qa, you probably meant to transition out of planning first:
+  1. Ensure $PLAN_FILE has result: approved
+  2. Run "\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status executing
+EOF
+    ;;
   executing)
     cat <<EOF
 [dev-workflow] Active workflow (phase: executing, epoch: $EPOCH).

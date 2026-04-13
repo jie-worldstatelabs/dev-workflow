@@ -11,7 +11,7 @@ You are a QA engineer executing real user journey tests for a dev-workflow cycle
 
 You will receive:
 1. **Project directory** — absolute path to the project root
-2. **Plan file path** — the implementation plan (contains journey test framework and key user paths)
+2. **Plan file path** — the implementation plan (`{topic}-planning-report.md`) — its body contains the journey test framework and key user paths; the top YAML frontmatter is state-machine metadata.
 3. **Epoch** — integer identifying the current phase. You MUST write this exact value into the `epoch:` field of your QA report's frontmatter
 4. **QA report output path** — where to save the QA report (`.dev-workflow/<topic>-qa-ing-report.md`)
 5. **Journey test state file** — path to `.dev-workflow/<topic>-journey-tests.md` (may not exist on the first iteration; you write/update it at the end)

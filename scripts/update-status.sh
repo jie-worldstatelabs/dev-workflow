@@ -18,6 +18,7 @@ source "${SCRIPT_DIR}/lib.sh"
 
 NEW_STATUS=""
 TOPIC_ARG=""
+RUN_ARG=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -27,6 +28,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --topic)
       TOPIC_ARG="$2"
+      shift 2
+      ;;
+    --run)
+      RUN_ARG="$2"
       shift 2
       ;;
     *)
@@ -42,7 +47,9 @@ if [[ -z "$NEW_STATUS" ]]; then
 fi
 
 # Route to the right state.md
-if [[ -n "$TOPIC_ARG" ]]; then
+if [[ -n "$RUN_ARG" ]]; then
+  DESIRED_RUN_ID="$RUN_ARG"
+elif [[ -n "$TOPIC_ARG" ]]; then
   DESIRED_TOPIC="$TOPIC_ARG"
 elif [[ -n "${CLAUDE_CODE_SESSION_ID:-}" ]]; then
   DESIRED_SESSION="$CLAUDE_CODE_SESSION_ID"
@@ -89,7 +96,7 @@ if config_is_stage "$NEW_STATUS"; then
   MISSING_INPUTS=()
   while IFS=$'\t' read -r from_stage description; do
     [[ -z "$from_stage" ]] && continue
-    input_path="$(config_artifact_path "$from_stage" "$TOPIC" "$PROJECT_ROOT")"
+    input_path="$(config_artifact_path "$from_stage" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
     if [[ ! -f "$input_path" ]]; then
       MISSING_INPUTS+=("$input_path ($description)")
     fi
@@ -115,12 +122,12 @@ mv "$TEMP_FILE" "$STATE_FILE"
 
 # Invalidate the artifact the new stage will produce
 if config_is_stage "$NEW_STATUS"; then
-  NEW_ARTIFACT="$(config_artifact_path "$NEW_STATUS" "$TOPIC" "$PROJECT_ROOT")"
+  NEW_ARTIFACT="$(config_artifact_path "$NEW_STATUS" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
   rm -f "$NEW_ARTIFACT"
 fi
 
 echo "[dev-workflow] Topic: $TOPIC | Status: $NEW_STATUS | epoch: $NEW_EPOCH"
 
 if config_is_stage "$NEW_STATUS"; then
-  config_show_stage_context "$NEW_STATUS" "$TOPIC" "$PROJECT_ROOT"
+  config_show_stage_context "$NEW_STATUS" "$RUN_DIR_NAME" "$PROJECT_ROOT"
 fi

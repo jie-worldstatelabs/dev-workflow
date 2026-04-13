@@ -80,7 +80,7 @@ fi
 # ──────────────────────────────────────────────────────────────
 # Current stage's artifact
 # ──────────────────────────────────────────────────────────────
-ARTIFACT="$(config_artifact_path "$STATUS" "$TOPIC" "$PROJECT_ROOT")"
+ARTIFACT="$(config_artifact_path "$STATUS" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
 
 ARTIFACT_EPOCH=""
 ARTIFACT_RESULT=""
@@ -124,7 +124,7 @@ build_inputs_section() {
   while IFS=$'\t' read -r from_stage description; do
     [[ -z "$from_stage" ]] && continue
     local path
-    path="$(config_artifact_path "$from_stage" "$TOPIC" "$PROJECT_ROOT")"
+    path="$(config_artifact_path "$from_stage" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
     if [[ "$kind" == "optional" ]]; then
       section+="  - $path (if exists, else \"none\") — $description"$'\n'
     else

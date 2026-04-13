@@ -19,19 +19,23 @@ The plugin's runtime behavior is defined in three places:
 
 Which workflow is active for the current run is recorded in `state.md` → `workflow_dir` (written by `setup-workflow.sh`).
 
-Runtime files live under the **project** root, one subdirectory per workflow instance (multiple concurrent workflows allowed, keyed by `<topic>`):
+Runtime files live under the **project** root. Every invocation of `setup-workflow.sh` generates a unique `run_id` = `<session_prefix>-<N>` (first 8 chars of the session id + per-session counter), and artifacts + state for that run live in `.dev-workflow/<topic>-<run_id>/`. Multiple runs can coexist — including repeat runs of the same topic.
 
 | File / directory | What lives there |
 |------------------|------------------|
-| `<project>/.dev-workflow/<topic>/state.md` | Current `status`, `epoch`, `session_id` (this workflow's state) |
-| `<project>/.dev-workflow/<topic>/<stage>-report.md` | Each stage's output artifact |
-| `<project>/.dev-workflow/<topic>/baseline` | Git SHA before this workflow started (used by the reviewer) |
-| `<project>/.dev-workflow/<topic>/journey-tests.md` | Cross-iteration QA state (optional, created by QA agent) |
+| `<project>/.dev-workflow/<topic>-<run_id>/state.md` | Current `status`, `epoch`, `run_id`, `session_id` (this run's state) |
+| `<project>/.dev-workflow/<topic>-<run_id>/<stage>-report.md` | Each stage's output artifact |
+| `<project>/.dev-workflow/<topic>-<run_id>/baseline` | Git SHA before this run started (used by the reviewer) |
+| `<project>/.dev-workflow/<topic>-<run_id>/journey-tests.md` | Cross-iteration QA state (optional, created by QA agent) |
 
-One project may host several workflows concurrently as sibling topic subdirs. Routing rules:
-- **Hook routing** (stop-hook, agent-guard): match by `session_id` — a hook only acts on the state.md claimed by the firing session. Hooks prefer active (non-terminal/non-interrupted) state.md belonging to that session.
-- **CLI routing** (update-status, interrupt, continue, cancel): `--topic <name>` explicit, else session-based, else single-active fallback.
-- **Constraint**: at any one moment, a session should drive at most ONE workflow (the constraint is not mechanically enforced — the user can violate it, but hooks route deterministically to the most recently-touched match).
+Routing rules when multiple runs coexist:
+- **Hook routing** (stop-hook, agent-guard): match by `session_id` — a hook only acts on state.md claimed by the firing session, preferring active (non-terminal/non-interrupted) runs.
+- **CLI routing** (update-status, interrupt, continue, cancel) — resolution order:
+  1. `--run <run_id>` — exact match by `run_id` field
+  2. `--topic <name>` — match by `topic` field (if multiple, prefer active/newest)
+  3. `$CLAUDE_CODE_SESSION_ID` auto-routing (prefers active run owned by this session)
+  4. Single-active fallback
+- **Constraint**: a session should drive at most ONE active run at a time (not mechanically enforced — routing stays deterministic even if violated by picking the most recently-touched match).
 
 Everything this document says is true **regardless of what's in workflow.json or stages/**. Specific stage names (planning / executing / reviewing / …) appear only as examples of the currently-shipped default workflow — the protocol itself doesn't depend on them.
 

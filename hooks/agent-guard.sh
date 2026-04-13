@@ -39,7 +39,7 @@ if ! config_is_stage "$STATUS"; then
 fi
 
 BASELINE="${TOPIC_DIR}/baseline"
-ARTIFACT="$(config_artifact_path "$STATUS" "$TOPIC" "$PROJECT_ROOT")"
+ARTIFACT="$(config_artifact_path "$STATUS" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
 
 # Auto-record baseline at the start of an executing phase (belt-and-suspenders)
 if [[ "$STATUS" == "executing" ]] && [[ ! -f "$BASELINE" ]]; then
@@ -57,7 +57,7 @@ build_inputs_section() {
   while IFS=$'\t' read -r from_stage description; do
     [[ -z "$from_stage" ]] && continue
     local path
-    path="$(config_artifact_path "$from_stage" "$TOPIC" "$PROJECT_ROOT")"
+    path="$(config_artifact_path "$from_stage" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
     if [[ "$kind" == "optional" ]]; then
       section+="  - $path (if exists, else \"none\") — $description"$'\n'
     else

@@ -57,8 +57,37 @@ fi
 PROJECT_ROOT="$(pwd)"
 
 # ──────────────────────────────────────────────────────────────
+# Compute run_id for this workflow invocation.
+# Format: <session_prefix>-<N>  where
+#   session_prefix = first 8 chars of $CLAUDE_CODE_SESSION_ID (or "nosession")
+#   N              = ordinal of this run in the current session, in this project
+# Artifacts + state belong to this run (directory = <topic>-<run_id>/).
+# ──────────────────────────────────────────────────────────────
+SESSION_FULL="${CLAUDE_CODE_SESSION_ID:-}"
+if [[ -n "$SESSION_FULL" ]]; then
+  SESSION_PREFIX="${SESSION_FULL:0:8}"
+else
+  SESSION_PREFIX="nosession"
+fi
+
+N=1
+if [[ -d "${PROJECT_ROOT}/.dev-workflow" ]]; then
+  for sd in "${PROJECT_ROOT}/.dev-workflow"/*/state.md; do
+    [[ -f "$sd" ]] || continue
+    ss=$(grep '^session_id:' "$sd" | sed 's/session_id: *//' | tr -d '[:space:]')
+    if [[ -n "$SESSION_FULL" ]] && [[ "$ss" == "$SESSION_FULL" ]]; then
+      N=$((N + 1))
+    elif [[ -z "$SESSION_FULL" ]] && [[ -z "$ss" ]]; then
+      N=$((N + 1))
+    fi
+  done
+fi
+RUN_ID="${SESSION_PREFIX}-${N}"
+RUN_DIR_NAME="${TOPIC}-${RUN_ID}"
+
+# ──────────────────────────────────────────────────────────────
 # Phase 1: Ensure git repo with a HEAD commit (baseline)
-# Do this BEFORE creating .dev-workflow/<topic>/ so the workflow's own
+# Do this BEFORE creating .dev-workflow/<run-dir>/ so the workflow's own
 # state files never land in the baseline commit.
 # ──────────────────────────────────────────────────────────────
 AUTO_GIT_MSG=""
@@ -82,9 +111,9 @@ if ! git -C "${PROJECT_ROOT}" rev-parse HEAD > /dev/null 2>&1; then
 fi
 
 # ──────────────────────────────────────────────────────────────
-# Phase 2: Create per-topic workflow dir
+# Phase 2: Create per-run workflow dir (<topic>-<run_id>/)
 # ──────────────────────────────────────────────────────────────
-TOPIC_DIR="${PROJECT_ROOT}/.dev-workflow/${TOPIC}"
+TOPIC_DIR="${PROJECT_ROOT}/.dev-workflow/${RUN_DIR_NAME}"
 mkdir -p "$TOPIC_DIR"
 
 INITIAL_STAGE="$(config_initial_stage)"
@@ -96,6 +125,7 @@ status: $INITIAL_STAGE
 epoch: 1
 resume_status:
 topic: "$TOPIC"
+run_id: "$RUN_ID"
 workflow_dir: "$WORKFLOW_DIR"
 project_root: "$PROJECT_ROOT"
 session_id: ${CLAUDE_CODE_SESSION_ID:-}
@@ -104,14 +134,10 @@ started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 EOF
 
 # ──────────────────────────────────────────────────────────────
-# Phase 3: Clean up stale artifacts inside this topic's subdir
-#          (previous run with the same topic)
+# Phase 3: The run dir is brand-new (run_id is unique), so there's
+#          nothing to clean. Historical runs (same topic, different
+#          run_id) are preserved as sibling dirs for reference.
 # ──────────────────────────────────────────────────────────────
-rm -f "${TOPIC_DIR}/baseline"
-while IFS= read -r stage; do
-  [[ -z "$stage" ]] && continue
-  rm -f "${TOPIC_DIR}/${stage}-report.md"
-done < <(config_all_stages)
 
 # ──────────────────────────────────────────────────────────────
 # Phase 4: Record baseline (git SHA)
@@ -130,17 +156,18 @@ fi
 echo "🔄 Dev workflow activated."
 echo ""
 echo "   Topic: $TOPIC"
+echo "   Run ID: $RUN_ID"
 echo "   Status: $INITIAL_STAGE (epoch 1)$INTERRUPTIBLE_HINT"
 if [[ -n "$AUTO_GIT_MSG" ]]; then
   printf '%b\n' "$AUTO_GIT_MSG"
 fi
 
 if config_is_stage "$INITIAL_STAGE"; then
-  config_show_stage_context "$INITIAL_STAGE" "$TOPIC" "$PROJECT_ROOT"
+  config_show_stage_context "$INITIAL_STAGE" "$RUN_DIR_NAME" "$PROJECT_ROOT"
 fi
 
 echo ""
-echo "   State dir: $TOPIC_DIR"
+echo "   Run dir: $TOPIC_DIR"
 echo "   Workflow dir: $WORKFLOW_DIR"
-echo "   To pause: /dev-workflow:interrupt [--topic $TOPIC]"
-echo "   To cancel: /dev-workflow:cancel [--topic $TOPIC]"
+echo "   To pause: /dev-workflow:interrupt [--run $RUN_ID]"
+echo "   To cancel: /dev-workflow:cancel [--run $RUN_ID]"

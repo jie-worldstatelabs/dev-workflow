@@ -13,16 +13,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
-if ! config_check; then
-  exit 1
-fi
-
 TOPIC=""
+WORKFLOW_NAME=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --topic)
       TOPIC="$2"
+      shift 2
+      ;;
+    --workflow)
+      WORKFLOW_NAME="$2"
       shift 2
       ;;
     *)
@@ -33,7 +34,27 @@ done
 
 if [[ -z "$TOPIC" ]]; then
   echo "❌ Error: --topic is required" >&2
-  echo "Usage: setup-workflow.sh --topic <topic>" >&2
+  echo "Usage: setup-workflow.sh --topic <topic> [--workflow <name-or-path>]" >&2
+  exit 1
+fi
+
+# Resolve workflow dir:
+#  - empty → default (skills/dev-workflow/workflow)
+#  - absolute path → use as-is
+#  - name without slash → plugin-relative (skills/dev-workflow/<name>)
+#  - relative path with slash → resolved from CWD
+if [[ -z "$WORKFLOW_NAME" ]]; then
+  WORKFLOW_DIR="$DEFAULT_WORKFLOW_DIR"
+elif [[ "$WORKFLOW_NAME" == /* ]]; then
+  WORKFLOW_DIR="$WORKFLOW_NAME"
+elif [[ "$WORKFLOW_NAME" == */* ]]; then
+  WORKFLOW_DIR="$(cd "$WORKFLOW_NAME" 2>/dev/null && pwd || echo "$WORKFLOW_NAME")"
+else
+  WORKFLOW_DIR="${PLUGIN_ROOT}/skills/dev-workflow/${WORKFLOW_NAME}"
+fi
+CONFIG_FILE="${WORKFLOW_DIR}/workflow.json"
+
+if ! config_check; then
   exit 1
 fi
 
@@ -80,6 +101,7 @@ status: $INITIAL_STAGE
 epoch: 1
 resume_status:
 topic: "$TOPIC"
+workflow_dir: "$WORKFLOW_DIR"
 project_root: "$PROJECT_ROOT"
 session_id: ${CLAUDE_CODE_SESSION_ID:-}
 started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -139,6 +161,6 @@ fi
 
 echo ""
 echo "   Plan lives in: $PLAN_PATH"
-echo "   Stage definitions: $CONFIG_FILE"
+echo "   Workflow dir: $WORKFLOW_DIR"
 echo "   To pause: /dev-workflow:interrupt"
 echo "   To cancel: /dev-workflow:cancel"

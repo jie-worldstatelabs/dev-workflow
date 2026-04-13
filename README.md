@@ -45,7 +45,6 @@ Control a running workflow:
 ## Architecture
 
 ```
-workflow.json            ← Source of truth: stages, transitions, inputs, execution params
 commands/
   dev.md                 ← /dev-workflow:dev entry point (passes $ARGUMENTS to the skill)
   interrupt.md           ← /dev-workflow:interrupt to pause (state preserved)
@@ -57,14 +56,23 @@ agents/
   workflow-qa.md         ← Journey test agent; reports only confirmed app bugs
 skills/
   dev-workflow/
-    SKILL.md             ← Narrative layer of the workflow (loops through the state machine)
+    SKILL.md             ← Meta-protocol: how to drive the state machine (workflow-agnostic)
+    workflow/            ← Default workflow package (config + stage instructions)
+      workflow.json      ← State machine shape: stages, transitions, inputs, execution params
+      planning.md        ← Per-stage instructions — planning stage
+      executing.md       ← …executing stage
+      verifying.md       ← …verifying stage
+      reviewing.md       ← …reviewing stage
+      qa-ing.md          ← …qa-ing stage
+    (alt-workflow/)      ← Optional: sibling dirs for alternate workflows
+                           (select via --workflow <name>)
 hooks/
   hooks.json             ← Hook wiring
   stop-hook.sh           ← Generic state-machine controller driven by workflow.json
   agent-guard.sh         ← Templates agent prompts from config at Agent-tool launch
 scripts/
   lib.sh                 ← Shared helpers + config reader (wraps jq)
-  setup-workflow.sh      ← Creates state.md at workflow start
+  setup-workflow.sh      ← Creates state.md at workflow start (accepts --workflow <name>)
   update-status.sh       ← The only legal way to transition (validates required inputs atomically)
   interrupt-workflow.sh  ← Pauses without clearing state
   continue-workflow.sh   ← Restores active status for resumption
@@ -276,10 +284,20 @@ The stop hook fires at every Claude turn-end. It reads `state.md` and the curren
 
 ## Configuration
 
-### Per-workflow config (`workflow.json`)
+### Per-workflow config (`<workflow-dir>/workflow.json`)
 
-The plugin ships with a 5-stage default workflow. Edit `workflow.json` at the plugin root to customize:
+A workflow is a directory that bundles `workflow.json` + one `<stage>.md` per stage. The plugin ships a 5-stage default at `skills/dev-workflow/workflow/`. Customize that workflow in-place, or copy the directory to `skills/dev-workflow/<my-workflow>/`, edit to taste, and select it at setup time:
 
+```
+/dev-workflow:dev --workflow my-workflow Build X
+# → setup-workflow.sh --topic X --workflow my-workflow
+# → state.md workflow_dir = ${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/my-workflow
+```
+
+`workflow.json` fields:
+
+- **`initial_stage`** — status written into state.md at setup
+- **`terminal_stages`** — list of values that release the stop hook and end the workflow
 - **`stages.*.interruptible`** — `true` to let the stop hook allow session exits during the stage
 - **`stages.*.execution`** — `{ "type": "inline" }` or `{ "type": "subagent", "subagent_type": "…", "model": "…" }`
 - **`stages.*.transitions`** — map of `result:` values to next status

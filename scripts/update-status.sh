@@ -14,12 +14,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
-if ! config_check; then
-  exit 1
-fi
-
 if ! resolve_state; then
   echo "⚠️  No active dev workflow" >&2
+  exit 1
+fi
+resolve_workflow_dir_from_state
+
+if ! config_check; then
   exit 1
 fi
 

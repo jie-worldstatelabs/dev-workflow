@@ -56,7 +56,32 @@ resolve_state() {
 # ──────────────────────────────────────────────────────────────
 
 _LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_FILE="$(dirname "$_LIB_DIR")/workflow.json"
+PLUGIN_ROOT="$(dirname "$_LIB_DIR")"
+
+# A workflow is a directory containing workflow.json + one {stage}.md per stage.
+# The default workflow ships at skills/dev-workflow/workflow/. Alternate
+# workflows can live as siblings (skills/dev-workflow/<other-workflow>/),
+# selected via `setup-workflow.sh --workflow <name>`.
+DEFAULT_WORKFLOW_DIR="${PLUGIN_ROOT}/skills/dev-workflow/workflow"
+
+# Resolved workflow dir + config file (may be overridden by resolve_workflow_dir_from_state)
+WORKFLOW_DIR="$DEFAULT_WORKFLOW_DIR"
+CONFIG_FILE="${WORKFLOW_DIR}/workflow.json"
+
+# Called AFTER resolve_state so state.md can override the default workflow dir.
+# State.md's `workflow_dir` field (written by setup-workflow.sh) points to the
+# workflow this workflow-instance was activated with.
+resolve_workflow_dir_from_state() {
+  if [[ -z "${STATE_FILE:-}" ]] || [[ ! -f "${STATE_FILE}" ]]; then
+    return 0
+  fi
+  local dir
+  dir=$(grep '^workflow_dir:' "$STATE_FILE" | sed 's/workflow_dir: *//' | sed 's/^"\(.*\)"$/\1/')
+  if [[ -n "$dir" ]]; then
+    WORKFLOW_DIR="$dir"
+    CONFIG_FILE="${dir}/workflow.json"
+  fi
+}
 
 config_check() {
   if [[ ! -f "$CONFIG_FILE" ]]; then
@@ -138,11 +163,10 @@ config_artifact_path() {
   echo "${project_root}/.dev-workflow/${topic}-${stage}-report.md"
 }
 
-# Stage-instructions markdown path. Convention: skills/dev-workflow/stages/<stage>.md
-# relative to the plugin root.
+# Stage-instructions markdown path. Convention: <workflow-dir>/<stage>.md
 config_stage_instructions_path() {
   local stage="$1"
-  echo "$(dirname "$_LIB_DIR")/skills/dev-workflow/stages/${stage}.md"
+  echo "${WORKFLOW_DIR}/${stage}.md"
 }
 
 # Print a summary of a stage's I/O context (required/optional input paths,

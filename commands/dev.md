@@ -8,4 +8,6 @@ Start the `dev-workflow` skill with the user's task.
 
 Task from user: `$ARGUMENTS`
 
+The user's task may include a `--workflow <name>` hint selecting an alternate workflow directory (default is `skills/dev-workflow/workflow/`). The skill parses this and passes it through to `setup-workflow.sh`.
+
 Invoke `Skill("dev-workflow:dev")` and follow its instructions exactly. The skill is self-contained — do NOT invoke any other skill before, during, or after.

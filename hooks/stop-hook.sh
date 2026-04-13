@@ -19,12 +19,13 @@ HOOK_INPUT=$(cat)
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$(dirname "$HOOK_DIR")/scripts/lib.sh"
 
-if ! config_check; then
-  # Without config we can't do anything; allow exit silently.
+if ! resolve_state; then
   exit 0
 fi
+resolve_workflow_dir_from_state
 
-if ! resolve_state; then
+if ! config_check; then
+  # Without config we can't do anything; allow exit silently.
   exit 0
 fi
 

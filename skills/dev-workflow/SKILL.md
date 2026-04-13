@@ -7,13 +7,17 @@ description: "Full development workflow: brainstorm a plan, execute with an agen
 
 Orchestrate any development cycle as a **config-driven state machine**. This document is the workflow-agnostic meta-protocol; the specific stages, transitions, and per-stage work are declared elsewhere.
 
+A **workflow** is a directory containing `workflow.json` (config) plus one `<stage>.md` per stage (instructions). The default workflow ships at `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/workflow/`; alternate workflows can live as siblings under `skills/dev-workflow/<name>/` and be selected via `setup-workflow.sh --workflow <name>`.
+
 The plugin's runtime behavior is defined in three places:
 
 | File | Role |
 |------|------|
-| `${CLAUDE_PLUGIN_ROOT}/workflow.json` | Stages, transitions, interruptible flags, execution params, required/optional input dependencies — **source of truth for the workflow shape** |
-| `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/stages/<stage>.md` | Per-stage instructions — what to actually do in each stage |
+| `<workflow-dir>/workflow.json` | Stages, transitions, interruptible flags, execution params, required/optional input dependencies — **source of truth for the workflow shape** |
+| `<workflow-dir>/<stage>.md` | Per-stage instructions — what to actually do in each stage |
 | This file (`SKILL.md`) | Meta-protocol: how to drive a state machine defined by the other two |
+
+Which workflow is active for the current run is recorded in `state.md` → `workflow_dir` (written by `setup-workflow.sh`).
 
 Runtime files live under the **project** root:
 
@@ -77,13 +81,20 @@ A single workflow can mix both — each stage is classified independently.
 
 1. Derive a short kebab-case **topic name** from the user's task description (e.g. "add user auth" → `user-auth`; "fix login bug" → `login-bug`). If the task is unclear or empty, ask ONE clarifying question first — just enough to pick a topic.
 2. Briefly tell the user: `I'll use topic \`<topic>\` for this workflow.`
-3. Activate the workflow:
+3. If the user's task mentions a specific workflow name (e.g. `--workflow <name>` flag or similar hint), parse it out; otherwise the default workflow applies.
+4. Activate the workflow:
    ```bash
-   "${CLAUDE_PLUGIN_ROOT}/scripts/setup-workflow.sh" --topic "<topic>"
+   "${CLAUDE_PLUGIN_ROOT}/scripts/setup-workflow.sh" --topic "<topic>" [--workflow "<name>"]
    ```
+   The `--workflow` argument accepts:
+   - bare name (e.g. `custom-workflow`) → resolves to `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/<name>/`
+   - absolute path → used as-is
+   - omitted → defaults to `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/workflow/`
+
    Creates `<project>/.dev-workflow/state.md` with:
    - `status` = `workflow.json` → `initial_stage`
    - `epoch` = 1
+   - `workflow_dir` = resolved absolute path to the active workflow
 
    The stop hook becomes active. The initial stage's I/O context (required/optional inputs + output path) prints to stdout.
 
@@ -91,16 +102,16 @@ A single workflow can mix both — each stage is classified independently.
 
 ```
 Loop:
-  a. Read <project>/.dev-workflow/state.md → get current `status` and `epoch`.
+  a. Read <project>/.dev-workflow/state.md → get current `status`, `epoch`,
+     and `workflow_dir`.
   b. If `status` is in workflow.json → `terminal_stages`:
        announce completion and stop the loop.
-  c. Read ${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/stages/<status>.md
-       for stage-specific work instructions.
+  c. Read <workflow_dir>/<status>.md for stage-specific work instructions.
   d. Do the stage's work — produce
        <project>/.dev-workflow/<topic>-<status>-report.md
        with `epoch:` and a valid `result:` in frontmatter.
-  e. Look up workflow.json → stages.<status>.transitions[<result>] to get
-       the next status, then run:
+  e. Look up <workflow_dir>/workflow.json → stages.<status>.transitions[<result>]
+     to get the next status, then run:
          "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status <next>
      (The next iteration of the loop picks up the new status.)
 ```

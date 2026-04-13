@@ -52,6 +52,7 @@ fi
 
 EXEC_TYPE="$(config_execution_type "$STATUS")"
 TRANSITION_KEYS="$(config_transition_keys "$STATUS")"
+INSTRUCTIONS_PATH="$(config_stage_instructions_path "$STATUS")"
 
 build_inputs_section() {
   local kind="$1"
@@ -80,6 +81,7 @@ This stage is INLINE — the main agent runs it directly.
 Do NOT launch a subagent for this phase.
 If you're about to launch workflow-executor/reviewer/qa, you probably need to transition out of $STATUS first via \${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh.
 
+Stage instructions: $INSTRUCTIONS_PATH
 Expected output: $ARTIFACT
   ---
   epoch: $EPOCH
@@ -95,6 +97,8 @@ MODEL="$(config_model "$STATUS")"
 
 cat <<EOF
 [dev-workflow] Active workflow (phase: $STATUS, epoch: $EPOCH).
+Stage instructions: $INSTRUCTIONS_PATH
+
 This Agent call should use:
   - subagent_type: "$SUBAGENT_TYPE"$( [[ -n "$MODEL" ]] && printf '\n  - model: %s' "$MODEL" )
   - mode: bypassPermissions

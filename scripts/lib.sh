@@ -137,3 +137,10 @@ config_artifact_path() {
   local project_root="$3"
   echo "${project_root}/.dev-workflow/${topic}-${stage}-report.md"
 }
+
+# Stage-instructions markdown path. Convention: skills/dev-workflow/stages/<stage>.md
+# relative to the plugin root.
+config_stage_instructions_path() {
+  local stage="$1"
+  echo "$(dirname "$_LIB_DIR")/skills/dev-workflow/stages/${stage}.md"
+}

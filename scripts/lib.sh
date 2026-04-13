@@ -71,19 +71,19 @@ _read_fm_field() {
 # reports in the same <topic>/ subdir. Multiple topics may coexist so long
 # as at most ONE is active at any moment (sessions switch focus serially).
 #
-# resolve_state() is the main entry point. The `session_id` field in
-# state.md IS the run identifier (one session = one run). Callers populate:
+# resolve_state() is the main entry point. Worktree-based model: at most
+# one workflow per worktree, so resolution is simple — find the single
+# state.md in .dev-workflow/*/state.md.
 #
-#   DESIRED_TOPIC=<name>   — find by `topic` frontmatter (prefers active,
-#                            then most recently modified)
-#   DESIRED_SESSION=<id>   — find state.md owned by this session (prefer
-#                            active, then paused, then unclaimed)
-#   (none set)             — if exactly one ACTIVE state.md exists, use it
+# Optional:
+#   DESIRED_TOPIC=<name>   — if set, filter to the state.md whose topic
+#                            frontmatter matches (for cross-worktree CLI
+#                            commands, or to pick among multiple dirs if
+#                            ever more than one coexists)
 #
 # On success, sets: STATE_FILE, TOPIC, RUN_DIR_NAME, TOPIC_DIR, PROJECT_ROOT
 # Returns 0 on success, 1 if nothing resolvable.
 
-# Helper: given a state.md path, populate all state vars.
 _populate_state_vars() {
   local sd="$1"
   local project_root="$2"
@@ -95,121 +95,33 @@ _populate_state_vars() {
   PROJECT_ROOT="$project_root"
 }
 
-_file_mtime() {
-  stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0
-}
-
 resolve_state() {
   local dw
   dw="$(find_dw_root)" || return 1
   local project_root
   project_root="$(dirname "$dw")"
 
-  # Collect all state.md files across run subdirs
-  local -a all_states=()
+  # Current layout: .dev-workflow/<topic>/state.md
+  local sd
   for sd in "$dw"/*/state.md; do
     [[ -f "$sd" ]] || continue
-    all_states+=("$sd")
+    if [[ -n "${DESIRED_TOPIC:-}" ]]; then
+      local tp
+      tp="$(_read_fm_field "$sd" topic)"
+      [[ "$tp" != "$DESIRED_TOPIC" ]] && continue
+    fi
+    _populate_state_vars "$sd" "$project_root"
+    return 0
   done
 
   # Legacy: flat .dev-workflow/state.md (pre-v1.11) — single-workflow fallback
-  if [[ -f "$dw/state.md" ]] && [[ ${#all_states[@]} -eq 0 ]]; then
+  if [[ -f "$dw/state.md" ]]; then
     _populate_state_vars "$dw/state.md" "$project_root"
-    TOPIC_DIR="$dw"  # legacy: no subdir
+    TOPIC_DIR="$dw"
     RUN_DIR_NAME=""
     return 0
   fi
 
-  [[ ${#all_states[@]} -eq 0 ]] && return 1
-
-  local sd
-
-  # Strategy 1: topic match (may be ambiguous across runs — prefer active/newest)
-  if [[ -n "${DESIRED_TOPIC:-}" ]]; then
-    local -a topic_matches=()
-    for sd in "${all_states[@]}"; do
-      local tp
-      tp="$(_read_fm_field "$sd" topic)"
-      [[ "$tp" == "$DESIRED_TOPIC" ]] && topic_matches+=("$sd")
-    done
-    [[ ${#topic_matches[@]} -eq 0 ]] && return 1
-    # Prefer active
-    for sd in "${topic_matches[@]}"; do
-      local status
-      status="$(_read_fm_field "$sd" status)"
-      if ! _is_inactive_status "$status"; then
-        _populate_state_vars "$sd" "$project_root"
-        return 0
-      fi
-    done
-    # All inactive — pick newest by mtime
-    local newest="" newest_mt=0
-    for sd in "${topic_matches[@]}"; do
-      local mt
-      mt=$(_file_mtime "$sd")
-      if [[ "$mt" -gt "$newest_mt" ]]; then
-        newest_mt=$mt
-        newest="$sd"
-      fi
-    done
-    _populate_state_vars "$newest" "$project_root"
-    return 0
-  fi
-
-  # Strategy 3: session-based match
-  if [[ -n "${DESIRED_SESSION:-}" ]]; then
-    # Prefer session-owned + active
-    for sd in "${all_states[@]}"; do
-      local ss status
-      ss="$(_read_fm_field "$sd" session_id)"
-      status="$(_read_fm_field "$sd" status)"
-      if [[ "$ss" == "$DESIRED_SESSION" ]] && ! _is_inactive_status "$status"; then
-        _populate_state_vars "$sd" "$project_root"
-        return 0
-      fi
-    done
-    # Fallback: session-owned, any status (paused)
-    for sd in "${all_states[@]}"; do
-      local ss
-      ss="$(_read_fm_field "$sd" session_id)"
-      if [[ "$ss" == "$DESIRED_SESSION" ]]; then
-        _populate_state_vars "$sd" "$project_root"
-        return 0
-      fi
-    done
-    # Fallback: unclaimed (empty or "nosession-*" fallback id) — auto-claim, newest first
-    local newest="" newest_mt=0
-    for sd in "${all_states[@]}"; do
-      local ss
-      ss="$(_read_fm_field "$sd" session_id)"
-      if [[ -z "$ss" ]] || [[ "$ss" == nosession-* ]]; then
-        local mt
-        mt=$(_file_mtime "$sd")
-        if [[ "$mt" -gt "$newest_mt" ]]; then
-          newest_mt=$mt
-          newest="$sd"
-        fi
-      fi
-    done
-    if [[ -n "$newest" ]]; then
-      _populate_state_vars "$newest" "$project_root"
-      return 0
-    fi
-    return 1
-  fi
-
-  # Strategy 4: no hint — if exactly one ACTIVE state.md, use it
-  local -a active=()
-  for sd in "${all_states[@]}"; do
-    local status
-    status="$(_read_fm_field "$sd" status)"
-    _is_inactive_status "$status" && continue
-    active+=("$sd")
-  done
-  if [[ ${#active[@]} -eq 1 ]]; then
-    _populate_state_vars "${active[0]}" "$project_root"
-    return 0
-  fi
   return 1
 }
 
@@ -220,11 +132,10 @@ list_all_workflows() {
   dw="$(find_dw_root)" || return 1
   for sd in "$dw"/*/state.md; do
     [[ -f "$sd" ]] || continue
-    local topic status session
+    local topic status
     topic="$(_read_fm_field "$sd" topic)"
     status="$(_read_fm_field "$sd" status)"
-    session="$(_read_fm_field "$sd" session_id)"
-    echo "  - topic=${topic:-?} status=$status session=${session:-unclaimed}"
+    echo "  - topic=${topic:-?} status=$status"
   done
 }
 

@@ -79,12 +79,12 @@ scripts/
   cancel-workflow.sh     ← Removes the topic subdir entirely (--topic)
 ```
 
-Runtime files (in the user's project). One Claude session owns one run at a time; starting a new run replaces the old.
+Runtime files (in the user's project). Rule: one worktree = one run. Starting a new run replaces any prior workflow in the worktree.
 
 ```
 <project>/.dev-workflow/
-  <topic>-<session_short>/             ← one subdir per active run; run id = Claude session id
-    state.md                           ← status, epoch, session_id, workflow_dir
+  <topic>/                             ← the single active workflow in this worktree
+    state.md                           ← status, epoch, topic, worktree, workflow_dir
     baseline                           ← git SHA at workflow start
     planning-report.md                 ← one file per stage; frontmatter carries epoch+result
     executing-report.md
@@ -92,9 +92,9 @@ Runtime files (in the user's project). One Claude session owns one run at a time
     reviewing-report.md
     qa-ing-report.md
     journey-tests.md                   ← cross-iteration QA state (optional)
-  <topic-other>-<other_session_short>/ ← another session's concurrent run, if any
-    …
 ```
+
+For parallel workflows, use separate git worktrees. Any Claude session that enters a worktree interacts with that worktree's single workflow.
 
 ### State Machine
 

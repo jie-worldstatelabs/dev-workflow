@@ -23,8 +23,6 @@ done
 
 if [[ -n "$TOPIC_ARG" ]]; then
   DESIRED_TOPIC="$TOPIC_ARG"
-elif [[ -n "${CLAUDE_CODE_SESSION_ID:-}" ]]; then
-  DESIRED_SESSION="$CLAUDE_CODE_SESSION_ID"
 fi
 
 if ! resolve_state; then

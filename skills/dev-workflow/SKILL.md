@@ -19,24 +19,20 @@ The plugin's runtime behavior is defined in three places:
 
 Which workflow is active for the current run is recorded in `state.md` → `workflow_dir` (written by `setup-workflow.sh`).
 
-Runtime files live under the **project** root. Rule: **one Claude session owns one run at a time**. Starting a new run (`setup-workflow.sh`) in a session **deletes any prior run** owned by that session (artifacts and all). Different sessions can hold their own runs concurrently.
-
-The run id **is** the Claude session id. Directory name is `<topic>-<session_short>` (first 8 chars of session id) for human readability.
+Runtime files live under the **project** root. Rule: **one worktree = one run**. The run is scoped to the git worktree / project directory. Any Claude session that enters the worktree interacts with the single workflow there. Starting a new run (`setup-workflow.sh`) **deletes any prior workflow** in the worktree.
 
 | File / directory | What lives there |
 |------------------|------------------|
-| `<project>/.dev-workflow/<topic>-<session_short>/state.md` | Current `status`, `epoch`, `session_id` (this run's state) |
-| `<project>/.dev-workflow/<topic>-<session_short>/<stage>-report.md` | Each stage's output artifact |
-| `<project>/.dev-workflow/<topic>-<session_short>/baseline` | Git SHA before this run started (used by the reviewer) |
-| `<project>/.dev-workflow/<topic>-<session_short>/journey-tests.md` | Cross-iteration QA state (optional, created by QA agent) |
+| `<project>/.dev-workflow/<topic>/state.md` | Current `status`, `epoch`, `topic`, `worktree` (this run's state) |
+| `<project>/.dev-workflow/<topic>/<stage>-report.md` | Each stage's output artifact |
+| `<project>/.dev-workflow/<topic>/baseline` | Git SHA before this run started (used by the reviewer) |
+| `<project>/.dev-workflow/<topic>/journey-tests.md` | Cross-iteration QA state (optional, created by QA agent) |
 
 Routing rules:
-- **Hook routing** (stop-hook, agent-guard): match by `session_id` — a hook only acts on state.md claimed by the firing session. Unrelated sessions' hooks exit without interfering.
-- **CLI routing** (update-status, interrupt, continue, cancel) — resolution order:
-  1. `--topic <name>` — match by `topic` field (cross-session lookup)
-  2. `$CLAUDE_CODE_SESSION_ID` auto-routing (this session's run)
-  3. Single-active fallback
-- **Enforcement**: starting a new run in a session with `setup-workflow.sh` automatically deletes that session's previous run dir, so at most one active run per session always holds.
+- **Hook routing** (stop-hook, agent-guard): find the workflow in the current worktree by walking up from CWD to `.dev-workflow/`. One workflow per worktree, so resolution is deterministic. Hooks in unrelated projects (no `.dev-workflow/`) exit cleanly.
+- **CLI routing** (update-status, interrupt, continue, cancel): either `--topic <name>` explicit, or the single workflow in the current worktree.
+- **Enforcement**: `setup-workflow.sh` nukes any prior workflow dir in `.dev-workflow/` before creating the new one — so there is always at most one workflow per worktree.
+- **Implication**: two Claude sessions in the same worktree share the same workflow. Hook behaviour (e.g. block-on-exit during uninterruptible stages) applies to both. If independent workflows are needed, use separate worktrees.
 
 Everything this document says is true **regardless of what's in workflow.json or stages/**. Specific stage names (planning / executing / reviewing / …) appear only as examples of the currently-shipped default workflow — the protocol itself doesn't depend on them.
 

@@ -8,7 +8,6 @@
 # Usage: interrupt-workflow.sh [--topic <name>]
 # Routing:
 #   --topic <name>           explicit
-#   $CLAUDE_CODE_SESSION_ID  falls back to session routing
 #   else                     uses the single active workflow if there's exactly one
 
 set -euo pipefail
@@ -31,8 +30,6 @@ done
 
 if [[ -n "$TOPIC_ARG" ]]; then
   DESIRED_TOPIC="$TOPIC_ARG"
-elif [[ -n "${CLAUDE_CODE_SESSION_ID:-}" ]]; then
-  DESIRED_SESSION="$CLAUDE_CODE_SESSION_ID"
 fi
 
 if ! resolve_state; then

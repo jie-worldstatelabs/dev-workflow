@@ -6,7 +6,6 @@
 #
 # Resolves which workflow to operate on (multiple topics may coexist):
 #   --topic <name>           explicit
-#   $CLAUDE_CODE_SESSION_ID  falls back to session routing
 #   else                     if exactly one active workflow exists, use it
 #
 # Usage: update-status.sh --status <status> [--topic <topic>]
@@ -44,8 +43,6 @@ fi
 # Route to the right state.md
 if [[ -n "$TOPIC_ARG" ]]; then
   DESIRED_TOPIC="$TOPIC_ARG"
-elif [[ -n "${CLAUDE_CODE_SESSION_ID:-}" ]]; then
-  DESIRED_SESSION="$CLAUDE_CODE_SESSION_ID"
 fi
 
 if ! resolve_state; then

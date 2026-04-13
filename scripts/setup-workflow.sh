@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Dev Workflow Setup Script
-# Creates a per-topic subdir `.dev-workflow/<topic>/` containing state.md +
-# baseline, and activates the workflow. Multiple workflows can coexist in
-# one project (one per <topic>/ subdir); at most one should be active at a
-# time per session.
+# Model: one worktree = one run. Starting a new run DELETES any existing
+# workflow in this worktree (including artifacts and state). This keeps the
+# concept simple: `<project>/.dev-workflow/` always holds at most one
+# workflow, and any Claude session in the worktree interacts with it.
 #
 # Usage: setup-workflow.sh --topic <topic> [--workflow <name-or-path>]
 
@@ -57,59 +57,8 @@ fi
 PROJECT_ROOT="$(pwd)"
 
 # ──────────────────────────────────────────────────────────────
-# One session = one run.
-# run_id = Claude session id.
-# Directory name = <topic>-<session_short>, where session_short is the
-# first 8 chars of the session id for readability.
-# Starting a new run in a session DELETES any prior run owned by that
-# session — artifacts, state, everything. Completed runs keep their
-# dir until the user starts a new one.
-#
-# Session id resolution:
-#   1. $CLAUDE_CODE_SESSION_ID env var (if exported by Claude Code)
-#   2. <project>/.dev-workflow/.session-cache/$PPID (written by
-#      session-start.sh hook earlier in this Claude session — $PPID is
-#      the Claude Code main process id, shared by hook and bash tool)
-#   3. Fallback nosession-<ts>-<pid> (hooks auto-claim on first fire)
-# ──────────────────────────────────────────────────────────────
-SESSION_FULL="${CLAUDE_CODE_SESSION_ID:-}"
-if [[ -z "$SESSION_FULL" ]]; then
-  CACHE_FILE="${PROJECT_ROOT}/.dev-workflow/.session-cache/${PPID}"
-  if [[ -f "$CACHE_FILE" ]]; then
-    SESSION_FULL="$(cat "$CACHE_FILE")"
-  fi
-fi
-if [[ -z "$SESSION_FULL" ]]; then
-  # No session id available — fallback; first hook fire claims.
-  SESSION_FULL="nosession-$(date +%s)-$$"
-fi
-SESSION_SHORT="${SESSION_FULL:0:8}"
-RUN_DIR_NAME="${TOPIC}-${SESSION_SHORT}"
-
-# Nuke any prior run owned by this session in this project.
-if [[ -d "${PROJECT_ROOT}/.dev-workflow" ]]; then
-  for d in "${PROJECT_ROOT}/.dev-workflow"/*/; do
-    [[ -d "$d" ]] || continue
-    base="$(basename "$d")"
-    # Suffix match: dirs created by this session end with -<SESSION_SHORT>
-    if [[ "$base" == *"-${SESSION_SHORT}" ]]; then
-      rm -rf "$d"
-      continue
-    fi
-    # Also nuke if state.md inside declares this session as owner
-    # (defensive: covers cases where the suffix convention was different)
-    if [[ -f "$d/state.md" ]]; then
-      ss=$(grep '^session_id:' "$d/state.md" | sed 's/session_id: *//' | tr -d '[:space:]')
-      if [[ "$ss" == "$SESSION_FULL" ]]; then
-        rm -rf "$d"
-      fi
-    fi
-  done
-fi
-
-# ──────────────────────────────────────────────────────────────
 # Phase 1: Ensure git repo with a HEAD commit (baseline)
-# Do this BEFORE creating .dev-workflow/<run-dir>/ so the workflow's own
+# Do this BEFORE creating .dev-workflow/ so the workflow's own
 # state files never land in the baseline commit.
 # ──────────────────────────────────────────────────────────────
 AUTO_GIT_MSG=""
@@ -132,10 +81,26 @@ if ! git -C "${PROJECT_ROOT}" rev-parse HEAD > /dev/null 2>&1; then
   fi
 fi
 
+# Resolve worktree root (may differ from PROJECT_ROOT if user ran setup from
+# a subdirectory inside the repo). Used for the `worktree:` field in state.md.
+WORKTREE_ROOT="$(git -C "${PROJECT_ROOT}" rev-parse --show-toplevel 2>/dev/null || echo "$PROJECT_ROOT")"
+
 # ──────────────────────────────────────────────────────────────
-# Phase 2: Create per-run workflow dir (<topic>-<run_id>/)
+# Phase 2: Nuke any prior workflow in this worktree (one run per worktree)
 # ──────────────────────────────────────────────────────────────
-TOPIC_DIR="${PROJECT_ROOT}/.dev-workflow/${RUN_DIR_NAME}"
+if [[ -d "${PROJECT_ROOT}/.dev-workflow" ]]; then
+  for d in "${PROJECT_ROOT}/.dev-workflow"/*/; do
+    [[ -d "$d" ]] || continue
+    rm -rf "$d"
+  done
+  # Legacy flat state.md (pre-v1.11)
+  rm -f "${PROJECT_ROOT}/.dev-workflow/state.md"
+fi
+
+# ──────────────────────────────────────────────────────────────
+# Phase 3: Create the run's dir and state.md
+# ──────────────────────────────────────────────────────────────
+TOPIC_DIR="${PROJECT_ROOT}/.dev-workflow/${TOPIC}"
 mkdir -p "$TOPIC_DIR"
 
 INITIAL_STAGE="$(config_initial_stage)"
@@ -147,28 +112,21 @@ status: $INITIAL_STAGE
 epoch: 1
 resume_status:
 topic: "$TOPIC"
+worktree: "$WORKTREE_ROOT"
 workflow_dir: "$WORKFLOW_DIR"
 project_root: "$PROJECT_ROOT"
-session_id: $SESSION_FULL
 started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ---
 EOF
 
 # ──────────────────────────────────────────────────────────────
-# Phase 3: The run dir is brand-new (run_id is unique), so there's
-#          nothing to clean. Historical runs (same topic, different
-#          run_id) are preserved as sibling dirs for reference.
-# ──────────────────────────────────────────────────────────────
-
-# ──────────────────────────────────────────────────────────────
-# Phase 4: Record baseline (git SHA)
+# Phase 4: Record baseline (the git SHA we just ensured exists)
 # ──────────────────────────────────────────────────────────────
 git -C "${PROJECT_ROOT}" rev-parse HEAD > "${TOPIC_DIR}/baseline"
 
 # ──────────────────────────────────────────────────────────────
 # Phase 5: Surface context to the main agent
 # ──────────────────────────────────────────────────────────────
-PLAN_PATH="${TOPIC_DIR}/planning-report.md"
 INTERRUPTIBLE_HINT=""
 if config_is_interruptible "$INITIAL_STAGE"; then
   INTERRUPTIBLE_HINT=" — interruptible"
@@ -177,14 +135,14 @@ fi
 echo "🔄 Dev workflow activated."
 echo ""
 echo "   Topic: $TOPIC"
-echo "   Session: $SESSION_FULL"
+echo "   Worktree: $WORKTREE_ROOT"
 echo "   Status: $INITIAL_STAGE (epoch 1)$INTERRUPTIBLE_HINT"
 if [[ -n "$AUTO_GIT_MSG" ]]; then
   printf '%b\n' "$AUTO_GIT_MSG"
 fi
 
 if config_is_stage "$INITIAL_STAGE"; then
-  config_show_stage_context "$INITIAL_STAGE" "$RUN_DIR_NAME" "$PROJECT_ROOT"
+  config_show_stage_context "$INITIAL_STAGE" "$TOPIC" "$PROJECT_ROOT"
 fi
 
 echo ""

@@ -19,12 +19,10 @@ HOOK_INPUT=$(cat)
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$(dirname "$HOOK_DIR")/scripts/lib.sh"
 
-# Route by session_id: find the workflow owned by this session (prefer active)
-HOOK_SESSION=$(echo "$HOOK_INPUT" | jq -r '.session_id // ""')
-DESIRED_SESSION="$HOOK_SESSION"
-
+# Worktree-based: find the single workflow (if any) in this worktree.
+# Hooks fire in every Claude session — if this worktree has no active
+# workflow, exit cleanly.
 if ! resolve_state; then
-  # No matching/claimable workflow — nothing to do, allow exit
   exit 0
 fi
 resolve_workflow_dir_from_state
@@ -36,13 +34,6 @@ fi
 FRONTMATTER=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$STATE_FILE")
 STATUS=$(echo "$FRONTMATTER" | grep '^status:' | sed 's/status: *//')
 EPOCH=$(echo "$FRONTMATTER" | grep '^epoch:' | sed 's/epoch: *//' | tr -d '[:space:]')
-
-# If the resolved state.md was unclaimed (empty or nosession-* fallback),
-# claim it for this real Claude session.
-STATE_SESSION=$(echo "$FRONTMATTER" | grep '^session_id:' | sed 's/session_id: *//' | tr -d '[:space:]' || true)
-if [[ -n "$HOOK_SESSION" ]] && { [[ -z "$STATE_SESSION" ]] || [[ "$STATE_SESSION" == nosession-* ]]; }; then
-  sed -i '' "s/^session_id:.*$/session_id: $HOOK_SESSION/" "$STATE_FILE"
-fi
 
 # Terminal states
 if config_is_terminal "$STATUS"; then

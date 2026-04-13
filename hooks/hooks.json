@@ -1,16 +1,6 @@
 {
-  "description": "Dev workflow hooks — session-start caches session_id for setup-workflow.sh; stop-hook prevents exit during active workflow; agent-guard steers subagent launches",
+  "description": "Dev workflow hooks — stop-hook prevents exit during active workflow; agent-guard steers subagent launches",
   "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"
-          }
-        ]
-      }
-    ],
     "Stop": [
       {
         "hooks": [

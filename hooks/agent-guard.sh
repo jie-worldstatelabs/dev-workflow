@@ -12,9 +12,7 @@ HOOK_INPUT=$(cat)
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$(dirname "$HOOK_DIR")/scripts/lib.sh"
 
-HOOK_SESSION=$(echo "$HOOK_INPUT" | jq -r '.session_id // ""' 2>/dev/null || true)
-DESIRED_SESSION="$HOOK_SESSION"
-
+# Worktree-based: find the single workflow in this worktree (if any).
 if ! resolve_state; then
   exit 0
 fi

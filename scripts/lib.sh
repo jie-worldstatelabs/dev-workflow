@@ -177,12 +177,12 @@ resolve_state() {
         return 0
       fi
     done
-    # Fallback: unclaimed (empty session_id), newest first — auto-claim
+    # Fallback: unclaimed (empty or "nosession-*" fallback id) — auto-claim, newest first
     local newest="" newest_mt=0
     for sd in "${all_states[@]}"; do
       local ss
       ss="$(_read_fm_field "$sd" session_id)"
-      if [[ -z "$ss" ]]; then
+      if [[ -z "$ss" ]] || [[ "$ss" == nosession-* ]]; then
         local mt
         mt=$(_file_mtime "$sd")
         if [[ "$mt" -gt "$newest_mt" ]]; then

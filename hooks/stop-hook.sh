@@ -37,10 +37,11 @@ FRONTMATTER=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$STATE_FILE")
 STATUS=$(echo "$FRONTMATTER" | grep '^status:' | sed 's/status: *//')
 EPOCH=$(echo "$FRONTMATTER" | grep '^epoch:' | sed 's/epoch: *//' | tr -d '[:space:]')
 
-# If the resolved state.md was unclaimed, claim it for this session
+# If the resolved state.md was unclaimed (empty or nosession-* fallback),
+# claim it for this real Claude session.
 STATE_SESSION=$(echo "$FRONTMATTER" | grep '^session_id:' | sed 's/session_id: *//' | tr -d '[:space:]' || true)
-if [[ -z "$STATE_SESSION" ]] && [[ -n "$HOOK_SESSION" ]]; then
-  sed -i '' "s/^session_id: *$/session_id: $HOOK_SESSION/" "$STATE_FILE"
+if [[ -n "$HOOK_SESSION" ]] && { [[ -z "$STATE_SESSION" ]] || [[ "$STATE_SESSION" == nosession-* ]]; }; then
+  sed -i '' "s/^session_id:.*$/session_id: $HOOK_SESSION/" "$STATE_FILE"
 fi
 
 # Terminal states

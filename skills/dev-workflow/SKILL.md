@@ -62,14 +62,63 @@ Step 3.5: QA               → workflow-qa → qa-ing-report.md (result: PASS/FA
 
 ---
 
+## State Machine
+
+Every stage artifact is written with a YAML frontmatter block:
+
+```markdown
+---
+epoch: <current epoch from state.md>
+result: <transitionable value, e.g. PASS | FAIL | done | approved | SKIPPED — or a non-terminal placeholder like "pending">
+---
+```
+
+The `epoch` tells the stop hook "this artifact is fresh." The `result` drives transitions:
+
+```
+Stage       Interruptible   Artifact filename                     result        → next status
+─────────   ─────────────   ───────────────────────────────────   ──────────────────────────────
+planning    YES             {topic}-planning-report.md            approved      → executing
+                                                                  (other)       → stay (waiting on user)
+executing   no              {topic}-executing-report.md           done          → verifying
+verifying   no              {topic}-verifying-report.md           PASS          → reviewing
+                                                                  FAIL          → executing
+                                                                  SKIPPED       → reviewing
+reviewing   no              {topic}-reviewing-report.md           PASS          → qa-ing
+                                                                  FAIL          → executing
+qa-ing      no              {topic}-qa-ing-report.md              PASS          → complete
+                                                                  FAIL          → executing
+```
+
+**Result semantics:**
+- **Interruptible stage** (planning): only `approved` triggers a transition. Any other value (conventionally `pending`, or empty, or missing artifact) keeps the stage active and the stop hook shows an informational message — the user is in control of progress.
+- **Uninterruptible stage**: a result listed in the table triggers its transition. An unrecognised non-empty result blocks with an "unknown result" prompt for manual handling. Missing artifact or stale epoch means "stage not done" and triggers a re-run.
+
+**Artifact naming** is uniform: `{topic}-{stage}-report.md` where `{stage}` is the exact `status` value.
+
+**`update-status.sh`** does three things atomically on every call: increment epoch, update status, delete the new stage's artifact (clean slate).
+
+---
+
+## Reading state.md
+
+Before every stage, read:
+```bash
+cat .dev-workflow/state.md
+```
+
+Extract `topic`, `plan_file`, and `epoch` from the YAML frontmatter. Use `epoch` in agent prompts — the agent must write this value into its artifact's frontmatter.
+
+---
+
 ## Step 1: Planning (interruptible stage)
 
 <HARD-GATE>
 Do NOT transition to `executing` until the user explicitly confirms the plan.
-This is the ONLY human checkpoint in the entire workflow.
+User approval is the gating condition for leaving planning.
 </HARD-GATE>
 
-Planning is a stage like any other in the state machine — it produces `{topic}-planning-report.md` and transitions to `executing` when its `result:` becomes `approved`. The difference is that planning is **interruptible**: the stop hook allows the session to pause between user exchanges.
+Planning is a stage like any other in the state machine — it produces `{topic}-planning-report.md` and transitions to `executing` when its `result:` becomes `approved`. Because it is **interruptible**, the stop hook allows the session to pause while waiting for the user.
 
 ### Phase 1A: Pick Topic and Activate the Workflow
 
@@ -172,53 +221,9 @@ Proceed immediately to Step 2.
 
 ---
 
-## State Machine
-
-Every active artifact is written with a YAML frontmatter block:
-
-```markdown
----
-epoch: <current epoch from state.md>
-result: <PASS|FAIL|done|SKIPPED>
----
-```
-
-The `epoch` tells the stop hook "this artifact is fresh." The `result` drives transitions:
-
-```
-Stage       Interruptible   Artifact filename                     result    → next status
-─────────   ─────────────   ───────────────────────────────────   ─────────────────────────
-planning    YES             {topic}-planning-report.md            approved  → executing
-executing   no              {topic}-executing-report.md           done      → verifying
-verifying   no              {topic}-verifying-report.md           PASS      → reviewing
-                                                                  FAIL      → executing
-                                                                  SKIPPED   → reviewing
-reviewing   no              {topic}-reviewing-report.md           PASS      → qa-ing
-                                                                  FAIL      → executing
-qa-ing      no              {topic}-qa-ing-report.md              PASS      → complete
-                                                                  FAIL      → executing
-```
-
-Artifact naming is uniform: `{topic}-{stage}-report.md` where `{stage}` is the exact `status` value.
-
-`update-status.sh` does three things atomically on every call: increment epoch, update status, delete the new stage's artifact (clean slate).
-
----
-
-## Reading state.md
-
-Before every stage, read:
-```bash
-cat .dev-workflow/state.md
-```
-
-Extract `topic`, `plan_file`, and `epoch` from the YAML frontmatter. Use `epoch` in agent prompts — the agent must write this value into its artifact's frontmatter.
-
----
-
 ## Step 2: Execute
 
-1. **Setup already set `status=executing` and `epoch=1`** for the first iteration. For loop-backs from later stages, `update-status.sh --status executing` was already called by that stage.
+1. **`update-status.sh --status executing` has already been called** — either by Phase 1H (first iteration, after user approved the plan) or by the previous stage's FAIL transition (loop-back). state.md now shows `status=executing` with the latest epoch, and `{topic}-executing-report.md` has been cleared.
 
 2. **Read state.md** to get `topic`, `plan_file`, `epoch`.
 

@@ -101,3 +101,11 @@ if config_is_stage "$NEW_STATUS"; then
 fi
 
 echo "[dev-workflow] Status: $NEW_STATUS | epoch: $NEW_EPOCH"
+
+# For active stages, surface the new stage's I/O context so the main agent
+# (especially in inline stages, which have no PreToolUse hook injection)
+# knows which artifacts to read and write without needing to parse
+# workflow.json itself.
+if config_is_stage "$NEW_STATUS"; then
+  config_show_stage_context "$NEW_STATUS" "$TOPIC" "$PROJECT_ROOT"
+fi

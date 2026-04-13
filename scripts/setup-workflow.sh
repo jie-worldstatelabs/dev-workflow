@@ -89,6 +89,13 @@ echo "🔄 Dev workflow activated."
 echo ""
 echo "   Topic: $TOPIC"
 echo "   Status: $INITIAL_STAGE (epoch 1)$INTERRUPTIBLE_HINT"
+
+# Surface the initial stage's I/O context for the main agent
+# (especially important when the initial stage is inline).
+if config_is_stage "$INITIAL_STAGE"; then
+  config_show_stage_context "$INITIAL_STAGE" "$TOPIC" "$PROJECT_ROOT"
+fi
+
 echo ""
 echo "   Plan lives in: $PLAN_PATH"
 echo "   Stage definitions: $CONFIG_FILE"

@@ -101,12 +101,15 @@ A single workflow can mix both — each stage is classified independently.
 - **Check `workflow.json` → `stages.<status>.interruptible`** to determine which applies to the current stage. Different stages in the same workflow can have different settings — don't assume all non-initial stages are uninterruptible.
 - **Loop termination**: the workflow stops only when `status` reaches a value listed in `workflow.json` → `terminal_stages` (arrived at via a legitimate transition in the transition table), or the user runs `/dev-workflow:interrupt` or `/dev-workflow:cancel`.
 
-### When the hooks inject guidance
+### Where stage I/O paths come from
 
-Two hooks surface the current stage's exact paths and parameters at the right moments — you do not need to memorise them here:
+You never need to hardcode artifact paths. At the moments that matter, three channels surface the current stage's required/optional input paths, output path, and execution params:
 
-- **`stop-hook.sh`** fires when you attempt to end your turn (session stop). If the workflow is active, it either blocks (uninterruptible stages) or emits a status hint (interruptible stages), giving you the current stage's artifact path, transition keys, and stage-instructions file path.
-- **`agent-guard.sh`** fires as a PreToolUse hook when you call the Agent tool. It injects the current stage's `subagent_type`, `model`, `mode`, required/optional input paths, and output path.
+1. **`setup-workflow.sh` / `update-status.sh` stdout** (**primary channel for every stage**). When the workflow enters a new stage, the transition script prints the stage's inputs and output. This is the main delivery mechanism for **inline stages**, which have no Agent-tool call and therefore do not trigger `agent-guard.sh`.
+2. **`agent-guard.sh`** — PreToolUse hook that fires when you call the Agent tool. Injects the current stage's `subagent_type`, `model`, `mode`, required/optional input paths, and output path. Applies to **subagent stages** only.
+3. **`stop-hook.sh`** — fires when you attempt to end your turn mid-workflow. If the workflow is active, it either blocks (uninterruptible stages) or emits a `systemMessage` hint (interruptible stages), and re-surfaces the current stage's I/O context. Safety net for when channels 1–2 were missed.
+
+Channels 1 and 2 fire in the normal path; 3 is the recovery path. All three agree on the paths (they read the same `workflow.json`).
 
 ## Error Handling
 

@@ -144,3 +144,42 @@ config_stage_instructions_path() {
   local stage="$1"
   echo "$(dirname "$_LIB_DIR")/skills/dev-workflow/stages/${stage}.md"
 }
+
+# Print a summary of a stage's I/O context (required/optional input paths,
+# output path). Called by setup-workflow.sh and update-status.sh so that
+# Claude sees the new stage's artifact paths right when it enters the stage,
+# without relying on hook injections (which only fire on session-stop or
+# Agent-tool launch). This is the primary delivery mechanism for inline
+# stages — for subagent stages, agent-guard.sh re-injects the same info
+# at Agent-tool launch time (belt-and-suspenders).
+config_show_stage_context() {
+  local stage="$1"
+  local topic="$2"
+  local project_root="$3"
+
+  local required=""
+  while IFS=$'\t' read -r from_stage description; do
+    [[ -z "$from_stage" ]] && continue
+    local path
+    path="$(config_artifact_path "$from_stage" "$topic" "$project_root")"
+    required+="     - ${path} — ${description}"$'\n'
+  done < <(config_required_inputs "$stage")
+
+  local optional=""
+  while IFS=$'\t' read -r from_stage description; do
+    [[ -z "$from_stage" ]] && continue
+    local path
+    path="$(config_artifact_path "$from_stage" "$topic" "$project_root")"
+    optional+="     - ${path} — ${description} (if exists)"$'\n'
+  done < <(config_optional_inputs "$stage")
+
+  if [[ -n "$required" ]]; then
+    echo "   Required inputs:"
+    printf '%s' "$required"
+  fi
+  if [[ -n "$optional" ]]; then
+    echo "   Optional inputs:"
+    printf '%s' "$optional"
+  fi
+  echo "   Output: $(config_artifact_path "$stage" "$topic" "$project_root")"
+}

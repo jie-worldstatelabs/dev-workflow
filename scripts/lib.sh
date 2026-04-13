@@ -71,17 +71,16 @@ _read_fm_field() {
 # reports in the same <topic>/ subdir. Multiple topics may coexist so long
 # as at most ONE is active at any moment (sessions switch focus serially).
 #
-# resolve_state() is the main entry point. Callers populate environment
-# variables to guide the search:
+# resolve_state() is the main entry point. The `session_id` field in
+# state.md IS the run identifier (one session = one run). Callers populate:
 #
-#   DESIRED_RUN_ID=<id>    — exact run: find state.md with matching run_id
-#   DESIRED_TOPIC=<name>   — find by `topic` frontmatter (may match multiple
-#                            runs — prefers active, then most recently modified)
-#   DESIRED_SESSION=<id>   — find state.md owned by this session (prefer active,
-#                            then paused, then unclaimed)
+#   DESIRED_TOPIC=<name>   — find by `topic` frontmatter (prefers active,
+#                            then most recently modified)
+#   DESIRED_SESSION=<id>   — find state.md owned by this session (prefer
+#                            active, then paused, then unclaimed)
 #   (none set)             — if exactly one ACTIVE state.md exists, use it
 #
-# On success, sets: STATE_FILE, TOPIC, RUN_ID, RUN_DIR_NAME, TOPIC_DIR, PROJECT_ROOT
+# On success, sets: STATE_FILE, TOPIC, RUN_DIR_NAME, TOPIC_DIR, PROJECT_ROOT
 # Returns 0 on success, 1 if nothing resolvable.
 
 # Helper: given a state.md path, populate all state vars.
@@ -93,7 +92,6 @@ _populate_state_vars() {
   RUN_DIR_NAME="$(basename "$TOPIC_DIR")"
   TOPIC="$(_read_fm_field "$sd" topic)"
   [[ -z "$TOPIC" ]] && TOPIC="$RUN_DIR_NAME"
-  RUN_ID="$(_read_fm_field "$sd" run_id)"
   PROJECT_ROOT="$project_root"
 }
 
@@ -126,20 +124,7 @@ resolve_state() {
 
   local sd
 
-  # Strategy 1: exact run_id match
-  if [[ -n "${DESIRED_RUN_ID:-}" ]]; then
-    for sd in "${all_states[@]}"; do
-      local rid
-      rid="$(_read_fm_field "$sd" run_id)"
-      if [[ "$rid" == "$DESIRED_RUN_ID" ]]; then
-        _populate_state_vars "$sd" "$project_root"
-        return 0
-      fi
-    done
-    return 1
-  fi
-
-  # Strategy 2: topic match (may be ambiguous across runs — prefer active/newest)
+  # Strategy 1: topic match (may be ambiguous across runs — prefer active/newest)
   if [[ -n "${DESIRED_TOPIC:-}" ]]; then
     local -a topic_matches=()
     for sd in "${all_states[@]}"; do
@@ -235,12 +220,11 @@ list_all_workflows() {
   dw="$(find_dw_root)" || return 1
   for sd in "$dw"/*/state.md; do
     [[ -f "$sd" ]] || continue
-    local topic status session run_id
+    local topic status session
     topic="$(_read_fm_field "$sd" topic)"
     status="$(_read_fm_field "$sd" status)"
     session="$(_read_fm_field "$sd" session_id)"
-    run_id="$(_read_fm_field "$sd" run_id)"
-    echo "  - topic=${topic:-?} run=${run_id:-?} status=$status session=${session:-unclaimed}"
+    echo "  - topic=${topic:-?} status=$status session=${session:-unclaimed}"
   done
 }
 

@@ -57,33 +57,42 @@ fi
 PROJECT_ROOT="$(pwd)"
 
 # ──────────────────────────────────────────────────────────────
-# Compute run_id for this workflow invocation.
-# Format: <session_prefix>-<N>  where
-#   session_prefix = first 8 chars of $CLAUDE_CODE_SESSION_ID (or "nosession")
-#   N              = ordinal of this run in the current session, in this project
-# Artifacts + state belong to this run (directory = <topic>-<run_id>/).
+# One session = one run.
+# run_id = Claude session id.
+# Directory name = <topic>-<session_short>, where session_short is the
+# first 8 chars of the session id for readability.
+# Starting a new run in a session DELETES any prior run owned by that
+# session — artifacts, state, everything. Completed runs keep their
+# dir until the user starts a new one.
 # ──────────────────────────────────────────────────────────────
 SESSION_FULL="${CLAUDE_CODE_SESSION_ID:-}"
-if [[ -n "$SESSION_FULL" ]]; then
-  SESSION_PREFIX="${SESSION_FULL:0:8}"
-else
-  SESSION_PREFIX="nosession"
+if [[ -z "$SESSION_FULL" ]]; then
+  # Not running under Claude Code — fall back to a unique-enough id.
+  SESSION_FULL="nosession-$(date +%s)-$$"
 fi
+SESSION_SHORT="${SESSION_FULL:0:8}"
+RUN_DIR_NAME="${TOPIC}-${SESSION_SHORT}"
 
-N=1
+# Nuke any prior run owned by this session in this project.
 if [[ -d "${PROJECT_ROOT}/.dev-workflow" ]]; then
-  for sd in "${PROJECT_ROOT}/.dev-workflow"/*/state.md; do
-    [[ -f "$sd" ]] || continue
-    ss=$(grep '^session_id:' "$sd" | sed 's/session_id: *//' | tr -d '[:space:]')
-    if [[ -n "$SESSION_FULL" ]] && [[ "$ss" == "$SESSION_FULL" ]]; then
-      N=$((N + 1))
-    elif [[ -z "$SESSION_FULL" ]] && [[ -z "$ss" ]]; then
-      N=$((N + 1))
+  for d in "${PROJECT_ROOT}/.dev-workflow"/*/; do
+    [[ -d "$d" ]] || continue
+    base="$(basename "$d")"
+    # Suffix match: dirs created by this session end with -<SESSION_SHORT>
+    if [[ "$base" == *"-${SESSION_SHORT}" ]]; then
+      rm -rf "$d"
+      continue
+    fi
+    # Also nuke if state.md inside declares this session as owner
+    # (defensive: covers cases where the suffix convention was different)
+    if [[ -f "$d/state.md" ]]; then
+      ss=$(grep '^session_id:' "$d/state.md" | sed 's/session_id: *//' | tr -d '[:space:]')
+      if [[ "$ss" == "$SESSION_FULL" ]]; then
+        rm -rf "$d"
+      fi
     fi
   done
 fi
-RUN_ID="${SESSION_PREFIX}-${N}"
-RUN_DIR_NAME="${TOPIC}-${RUN_ID}"
 
 # ──────────────────────────────────────────────────────────────
 # Phase 1: Ensure git repo with a HEAD commit (baseline)
@@ -125,10 +134,9 @@ status: $INITIAL_STAGE
 epoch: 1
 resume_status:
 topic: "$TOPIC"
-run_id: "$RUN_ID"
 workflow_dir: "$WORKFLOW_DIR"
 project_root: "$PROJECT_ROOT"
-session_id: ${CLAUDE_CODE_SESSION_ID:-}
+session_id: $SESSION_FULL
 started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ---
 EOF
@@ -156,7 +164,7 @@ fi
 echo "🔄 Dev workflow activated."
 echo ""
 echo "   Topic: $TOPIC"
-echo "   Run ID: $RUN_ID"
+echo "   Session: $SESSION_FULL"
 echo "   Status: $INITIAL_STAGE (epoch 1)$INTERRUPTIBLE_HINT"
 if [[ -n "$AUTO_GIT_MSG" ]]; then
   printf '%b\n' "$AUTO_GIT_MSG"
@@ -169,5 +177,5 @@ fi
 echo ""
 echo "   Run dir: $TOPIC_DIR"
 echo "   Workflow dir: $WORKFLOW_DIR"
-echo "   To pause: /dev-workflow:interrupt [--run $RUN_ID]"
-echo "   To cancel: /dev-workflow:cancel [--run $RUN_ID]"
+echo "   To pause: /dev-workflow:interrupt"
+echo "   To cancel: /dev-workflow:cancel"

@@ -9,15 +9,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
 TOPIC_ARG=""
-RUN_ARG=""
 while [[ $# -gt 0 ]]; do
   case $1 in
     --topic)
       TOPIC_ARG="$2"
-      shift 2
-      ;;
-    --run)
-      RUN_ARG="$2"
       shift 2
       ;;
     *)
@@ -26,9 +21,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -n "$RUN_ARG" ]]; then
-  DESIRED_RUN_ID="$RUN_ARG"
-elif [[ -n "$TOPIC_ARG" ]]; then
+if [[ -n "$TOPIC_ARG" ]]; then
   DESIRED_TOPIC="$TOPIC_ARG"
 elif [[ -n "${CLAUDE_CODE_SESSION_ID:-}" ]]; then
   DESIRED_SESSION="$CLAUDE_CODE_SESSION_ID"

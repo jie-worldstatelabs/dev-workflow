@@ -94,6 +94,130 @@ result: <PASS | FAIL | done | approved | SKIPPED — or a non-terminal placehold
 - **Interruptible vs uninterruptible stages** — Planning is interruptible (stop hook allows user Q&A pauses); execute / verify / review / QA are uninterruptible (stop hook blocks exit until transition or artifact).
 - **Context isolation** — Executor, reviewer, and QA run as subagents so their large outputs stay out of the orchestrator's context window.
 
+## Typical Workflow Walkthrough
+
+A concrete end-to-end trace showing which scripts and hooks fire at each step. Example task: **"Build a note-taking app"** → topic `note-app`.
+
+### Bootstrap
+
+```
+USER  ► /dev-workflow:dev Build a note-taking app
+MAIN  ► reads SKILL.md (meta-protocol)
+MAIN  ► derives topic `note-app` from the task
+MAIN  ▶ runs: scripts/setup-workflow.sh --topic note-app
+        └─ auto `git init` if no repo
+        └─ creates initial baseline commit if HEAD doesn't exist
+        └─ writes .dev-workflow/state.md  (status: planning, epoch: 1)
+        └─ writes .dev-workflow/note-app-baseline  = HEAD SHA
+        └─ prints the initial stage's I/O context to stdout
+MAIN  ◀ sees state + inputs + output path, proceeds to planning stage
+```
+
+_From here, `stop-hook` fires on every session-stop attempt; `agent-guard` fires on every Agent-tool call._
+
+### Stage 1 — planning  (interruptible, inline)
+
+```
+MAIN  ► reads stages/planning.md
+MAIN  ⇄ Q&A loop with user:
+        - each turn ends → stop-hook fires
+          └─ planning is interruptible → emits systemMessage hint, does NOT block
+          └─ session exits cleanly, resumes when user replies
+MAIN  ✎ writes note-app-planning-report.md  (epoch: 1, result: pending)
+USER  ► approves
+MAIN  ✎ edits report frontmatter  (result: pending → approved)
+MAIN  ▶ runs: scripts/update-status.sh --status executing
+        └─ validates required inputs for `executing` (planning-report.md exists) ✓
+        └─ bumps epoch 1 → 2, sets status: executing
+        └─ deletes note-app-executing-report.md  (clean slate; file didn't exist)
+        └─ prints executing's I/O context
+```
+
+### Stage 2 — executing  (uninterruptible, subagent)
+
+```
+MAIN  ► reads stages/executing.md
+MAIN  ► calls Agent tool
+        └─ PreToolUse: agent-guard.sh fires in MAIN's context
+            └─ prints ⚠️ "hook output is visible only to main — you MUST transcribe"
+            └─ prints ━ PROMPT TEMPLATE ━ block (paths, epoch, frontmatter spec)
+MAIN  ✎ copies the template verbatim into the Agent tool's `prompt` argument
+SUB   ▶ workflow-executor (opus) runs:
+        └─ reads agents/workflow-executor.md (its own protocol)
+        └─ reads note-app-planning-report.md
+        └─ implements the plan → writes source files
+        └─ writes note-app-executing-report.md  (epoch: 2, result: done)
+MAIN  ◀ subagent returns
+MAIN  ▶ runs: scripts/update-status.sh --status verifying
+        └─ epoch 2 → 3, status: verifying, deletes verifying-report
+```
+
+### Stage 2.5 — verifying  (uninterruptible, inline)
+
+```
+MAIN  ► reads stages/verifying.md
+MAIN  ► detects test command (e.g. package.json → `npm test`)
+MAIN  ▶ runs: npm test  (3-min timeout)
+MAIN  ✎ writes note-app-verifying-report.md  (epoch: 3, result: PASS)
+MAIN  ▶ runs: scripts/update-status.sh --status reviewing
+        └─ epoch 3 → 4, status: reviewing, deletes reviewing-report
+```
+
+_If tests had failed: `update-status.sh --status executing` loops back; the next executing pass reads this verifying report as optional "quick-test failures" feedback._
+
+### Stage 3 — reviewing  (uninterruptible, subagent)
+
+```
+MAIN  ► reads stages/reviewing.md
+MAIN  ► calls Agent tool → agent-guard fires → transcribe template
+SUB   ▶ workflow-reviewer runs:
+        └─ diffs HEAD against .dev-workflow/note-app-baseline
+        └─ reviews against the plan
+        └─ writes note-app-reviewing-report.md  (epoch: 4, result: PASS)
+MAIN  ▶ runs: scripts/update-status.sh --status qa-ing
+        └─ epoch 4 → 5, status: qa-ing, deletes qa-ing-report
+```
+
+_On `result: FAIL`: loop back to `executing`; executor receives reviewing-report as optional feedback._
+
+### Stage 3.5 — qa-ing  (uninterruptible, subagent)
+
+```
+MAIN  ► reads stages/qa-ing.md
+MAIN  ► calls Agent tool → agent-guard fires → transcribe template
+SUB   ▶ workflow-qa runs:
+        └─ runs journey tests (Playwright / XcodeBuildMCP / …)
+        └─ classifies failures (test bug vs app bug)
+        └─ writes note-app-qa-ing-report.md  (epoch: 5, result: PASS)
+MAIN  ▶ runs: scripts/update-status.sh --status complete
+        └─ status: complete (terminal)
+```
+
+_On `result: FAIL`: loop back to `executing`; confirmed app bugs become the next iteration's optional QA feedback._
+
+### Termination
+
+```
+MAIN  ► next turn-end → stop-hook fires
+        └─ sees status: complete (terminal)
+        └─ deletes .dev-workflow/state.md
+        └─ exit allowed
+MAIN  ● announces: "Dev workflow complete. All changes reviewed and QA-passed."
+```
+
+### Safety net: stop-hook during the loop
+
+The stop hook fires at every Claude turn-end. It reads `state.md` and the current stage's artifact:
+
+| Situation | stop-hook behaviour |
+|-----------|--------------------|
+| Uninterruptible stage, artifact missing or stale epoch | **Blocks exit** — re-injects "execute the stage" prompt |
+| Uninterruptible stage, artifact `result:` matches a transition key | **Blocks exit** — re-injects "call update-status.sh --status &lt;next&gt;" |
+| Uninterruptible stage, artifact `result:` unrecognised | **Blocks exit** — asks for manual inspection |
+| Interruptible stage | **Never blocks** — emits a `systemMessage` status hint |
+| Status is terminal (`complete` / `escalated`) | Deletes state.md, allows exit |
+| Status is `interrupted` | Allows exit; keeps state.md for `/dev-workflow:continue` |
+
 ## Configuration
 
 ### Per-workflow config (`workflow.json`)

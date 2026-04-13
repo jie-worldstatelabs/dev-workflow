@@ -13,21 +13,13 @@ Write `result: approved` only after they have said so.
 
 This is an interruptible stage — the stop hook allows natural pauses for Q&A.
 
-## Phase 1A: Pick topic and activate the workflow
+> Note: picking the topic name and activating the workflow (`setup-workflow.sh`) happen in SKILL.md's protocol (Step 1 — Bootstrap), **before** any stage runs. By the time you read this file, `state.md` already exists with `status: planning` and `epoch` is set.
 
-1. Extract a short kebab-case **topic name** from the user's task description (e.g. "add user auth" → `user-auth`; "fix login bug" → `login-bug`). If the task is unclear or empty, ask ONE clarifying question first just to get a topic.
-2. Tell the user the topic briefly: "I'll use topic `<topic>` for this workflow."
-3. Activate the workflow:
-   ```bash
-   "${CLAUDE_PLUGIN_ROOT}/scripts/setup-workflow.sh" --topic "<topic>"
-   ```
-   Creates `state.md` with this stage active (`status: planning, epoch: 1`). The stop hook becomes active but allows interruption for this stage.
-
-## Phase 1B: Explore context
+## Explore context
 
 Understand the project state (files, conventions, tech stack). New project → note it. Existing codebase → respect patterns before proposing anything.
 
-## Phase 1C: Ask clarifying questions
+## Ask clarifying questions
 
 Inline Q&A — the stop hook allows natural pauses.
 
@@ -36,15 +28,15 @@ Inline Q&A — the stop hook allows natural pauses.
 - Focus on: purpose, constraints, scope, success criteria, tech preferences
 - Flag multi-subsystem scopes early and help decompose
 
-## Phase 1D: Propose approaches
+## Propose approaches
 
 2-3 options with trade-offs; lead with your recommendation. Let the user pick or modify.
 
-## Phase 1E: Present design
+## Present design
 
 Architecture, components, data flow, tech stack, error handling. Iterate until agreed.
 
-## Phase 1F: Write the plan into the output artifact
+## Write the plan into the output artifact
 
 Read `epoch` from `state.md`. Write the output artifact:
 
@@ -83,13 +75,13 @@ result: pending
 
 `result: pending` signals "plan written but not approved yet."
 
-## Phase 1G: Get user approval
+## Get user approval
 
 > "Plan saved to `.dev-workflow/<topic>-planning-report.md`. Please review and confirm to start execution, or request changes."
 
 If the user requests changes, iterate on the plan body — keep `result: pending`.
 
-## Phase 1H: Finalize (ATOMIC — do both in ONE response)
+## Finalize (ATOMIC — do both in ONE response)
 
 Once the user explicitly approves:
 

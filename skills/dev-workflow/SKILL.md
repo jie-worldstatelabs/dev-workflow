@@ -73,25 +73,36 @@ A single workflow can mix both — each stage is classified independently.
 
 ## Protocol
 
-```
-1. Extract a topic name from the user's task. Run:
-     ${CLAUDE_PLUGIN_ROOT}/scripts/setup-workflow.sh --topic <topic>
-   This creates <project>/.dev-workflow/state.md with
-     status = workflow.json → initial_stage
-     epoch  = 1
+### Step 1 — Bootstrap (once per workflow, before the state machine exists)
 
-2. Loop forever:
-   a. Read <project>/.dev-workflow/state.md → get current `status` and `epoch`.
-   b. If `status` is in workflow.json → `terminal_stages`:
-        announce completion and stop.
-   c. Read ${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/stages/<status>.md
-        for stage-specific instructions.
-   d. Do the stage's work — produce
-        <project>/.dev-workflow/<topic>-<status>-report.md
-        with `epoch:` and a valid `result:` in frontmatter.
-   e. Look up workflow.json → stages.<status>.transitions[<result>] to get
-        the next status, then run:
-          ${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh --status <next>
+1. Derive a short kebab-case **topic name** from the user's task description (e.g. "add user auth" → `user-auth`; "fix login bug" → `login-bug`). If the task is unclear or empty, ask ONE clarifying question first — just enough to pick a topic.
+2. Briefly tell the user: `I'll use topic \`<topic>\` for this workflow.`
+3. Activate the workflow:
+   ```bash
+   "${CLAUDE_PLUGIN_ROOT}/scripts/setup-workflow.sh" --topic "<topic>"
+   ```
+   Creates `<project>/.dev-workflow/state.md` with:
+   - `status` = `workflow.json` → `initial_stage`
+   - `epoch` = 1
+
+   The stop hook becomes active. The initial stage's I/O context (required/optional inputs + output path) prints to stdout.
+
+### Step 2 — Stage loop (run forever until a terminal status is reached)
+
+```
+Loop:
+  a. Read <project>/.dev-workflow/state.md → get current `status` and `epoch`.
+  b. If `status` is in workflow.json → `terminal_stages`:
+       announce completion and stop the loop.
+  c. Read ${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/stages/<status>.md
+       for stage-specific work instructions.
+  d. Do the stage's work — produce
+       <project>/.dev-workflow/<topic>-<status>-report.md
+       with `epoch:` and a valid `result:` in frontmatter.
+  e. Look up workflow.json → stages.<status>.transitions[<result>] to get
+       the next status, then run:
+         "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status <next>
+     (The next iteration of the loop picks up the new status.)
 ```
 
 ### Rules for advancing between stages

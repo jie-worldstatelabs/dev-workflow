@@ -1,13 +1,10 @@
 # Stage: verifying
 
-**Execution:** inline (main agent) • **Interruptible:** no
-**Artifact:** `{topic}-verifying-report.md`
-**Valid results:** `PASS`, `FAIL`, `SKIPPED`
-**Transitions** _(canonical in workflow.json)_: `PASS → reviewing`, `FAIL → executing`, `SKIPPED → reviewing`
+_Runtime config (canonical): `workflow.json` → `stages.verifying`_
 
-Quick-test verification. Runs the project's unit/integration test suite inline (no subagent — tests are a single shell command). Catches obvious regressions before spending compute on review.
-
----
+**Purpose:** run the project's quick test suite to catch obvious regressions.
+**Output artifact:** `<project>/.dev-workflow/<topic>-verifying-report.md`
+**Valid results this stage writes:** `PASS`, `FAIL`, `SKIPPED`
 
 ## Work
 
@@ -22,7 +19,7 @@ Check the project root in this order:
 | `pubspec.yaml` | `flutter test` |
 | `go.mod` | `go test ./...` |
 | `Makefile` with a `test` target | `make test` |
-| None of the above | result is `SKIPPED` (no test command — proceed without running) |
+| None of the above | skip the run — result is `SKIPPED` |
 
 ### 2. Run the tests
 
@@ -32,7 +29,9 @@ cd <project-directory> && <test-command> 2>&1
 
 Use a 3-minute timeout (`timeout: 180000`). Capture full output.
 
-### 3. Write the verify report
+### 3. Write the report
+
+Output artifact:
 
 ```markdown
 ---
@@ -50,7 +49,9 @@ result: PASS | FAIL | SKIPPED
 
 ### 4. Transition
 
-- `result: FAIL` → `update-status.sh --status executing` (loop back; executor receives this report as `Quick test failures` context)
-- `result: PASS` or `SKIPPED` → `update-status.sh --status reviewing`
+Look up `workflow.json` → `stages.verifying.transitions[<result>]` to get the next status. Run:
 
-Announce the transition in one short line (e.g. "Tests passed. Starting review.").
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status <next>
+```
+(replacing `<result>` with the actual value you wrote and `<next>` with the looked-up status)

@@ -1,29 +1,27 @@
 # Stage: qa-ing
 
-**Execution:** subagent `dev-workflow:workflow-qa` (sonnet) • **Interruptible:** no
-**Artifact:** `{topic}-qa-ing-report.md`
-**Valid results:** `PASS`, `FAIL`
-**Transitions** _(canonical in workflow.json)_: `PASS → complete`, `FAIL → executing`
+_Runtime config (canonical): `workflow.json` → `stages.qa-ing`_
 
-Real user journey tests (Playwright, XcodeBuildMCP, etc.). The QA agent distinguishes test bugs from app bugs — only confirmed app bugs block progress. Test bugs and unresolved uncertainties are tracked in `{topic}-journey-tests.md` for future iterations.
-
----
+**Purpose:** run real user journey tests (Playwright, XcodeBuildMCP, etc.). The QA agent distinguishes test bugs from app bugs — only confirmed app bugs block progress. Test bugs and unresolved uncertainties are tracked in `<project>/.dev-workflow/<topic>-journey-tests.md` for future iterations.
+**Output artifact:** `<project>/.dev-workflow/<topic>-qa-ing-report.md`
+**Valid results this stage writes:** `PASS`, `FAIL`
 
 ## Work
 
 1. Read `state.md` to get `topic` and `epoch`.
-2. Launch the Agent tool.
-   - The `agent-guard.sh` hook injects `subagent_type`, `mode`, and the prompt template — including paths for the plan (required) and the journey-test state file.
-3. The agent MUST write `{topic}-qa-ing-report.md` with frontmatter:
+2. Launch the Agent tool. The `agent-guard.sh` hook injects the exact `subagent_type`, `mode`, and prompt template — including required/optional input paths, the output path, and the journey-test state file path — all sourced from `workflow.json` → `stages.qa-ing`. Follow that injected guidance verbatim.
+3. The agent MUST write the output artifact with frontmatter:
    ```
    ---
    epoch: <epoch>
    result: PASS | FAIL
    ---
    ```
-4. When the agent returns, read the `result` field from the report frontmatter.
-5. Transition:
-   - `result: PASS` → `update-status.sh --status complete`. Announce: "Dev workflow complete. All changes reviewed and QA-passed."
-   - `result: FAIL` → `update-status.sh --status executing`, loop back to `stages/executing.md`. Announce: "QA failed: app bugs found. Starting next execution..."
+4. When the agent returns, read the `result:` field from the output artifact's frontmatter.
+5. Look up `workflow.json` → `stages.qa-ing.transitions[<result>]` to get the next status. Run:
+   ```bash
+   "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status <next>
+   ```
+   (replacing `<result>` with the actual value and `<next>` with the looked-up status)
 
-The loop continues indefinitely until QA returns `result: PASS`.
+If the lookup yields a terminal status (e.g. `complete`), the next `update-status.sh` call drives the workflow to its end; announce completion to the user.

@@ -64,10 +64,23 @@ PROJECT_ROOT="$(pwd)"
 # Starting a new run in a session DELETES any prior run owned by that
 # session — artifacts, state, everything. Completed runs keep their
 # dir until the user starts a new one.
+#
+# Session id resolution:
+#   1. $CLAUDE_CODE_SESSION_ID env var (if exported by Claude Code)
+#   2. <project>/.dev-workflow/.session-cache/$PPID (written by
+#      session-start.sh hook earlier in this Claude session — $PPID is
+#      the Claude Code main process id, shared by hook and bash tool)
+#   3. Fallback nosession-<ts>-<pid> (hooks auto-claim on first fire)
 # ──────────────────────────────────────────────────────────────
 SESSION_FULL="${CLAUDE_CODE_SESSION_ID:-}"
 if [[ -z "$SESSION_FULL" ]]; then
-  # Not running under Claude Code — fall back to a unique-enough id.
+  CACHE_FILE="${PROJECT_ROOT}/.dev-workflow/.session-cache/${PPID}"
+  if [[ -f "$CACHE_FILE" ]]; then
+    SESSION_FULL="$(cat "$CACHE_FILE")"
+  fi
+fi
+if [[ -z "$SESSION_FULL" ]]; then
+  # No session id available — fallback; first hook fire claims.
   SESSION_FULL="nosession-$(date +%s)-$$"
 fi
 SESSION_SHORT="${SESSION_FULL:0:8}"

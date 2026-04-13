@@ -109,8 +109,11 @@ MAIN  ▶ runs: scripts/setup-workflow.sh --topic note-app
         └─ creates initial baseline commit if HEAD doesn't exist
         └─ writes .dev-workflow/state.md  (status: planning, epoch: 1)
         └─ writes .dev-workflow/note-app-baseline  = HEAD SHA
-        └─ prints the initial stage's I/O context to stdout
-MAIN  ◀ sees state + inputs + output path, proceeds to planning stage
+        └─ prints planning's I/O context to stdout:
+            · Required inputs: (none)
+            · Optional inputs: (none)
+            · Output: .dev-workflow/note-app-planning-report.md
+MAIN  ◀ proceeds to the planning stage
 ```
 
 _From here, `stop-hook` fires on every session-stop attempt; `agent-guard` fires on every Agent-tool call._
@@ -119,18 +122,25 @@ _From here, `stop-hook` fires on every session-stop attempt; `agent-guard` fires
 
 ```
 MAIN  ► reads stages/planning.md
+MAIN  ► reads inputs from workflow.json → stages.planning.inputs
+        · Required: (none)
+        · Optional: (none)
 MAIN  ⇄ Q&A loop with user:
-        - each turn ends → stop-hook fires
+        - each turn-end → stop-hook fires
           └─ planning is interruptible → emits systemMessage hint, does NOT block
           └─ session exits cleanly, resumes when user replies
 MAIN  ✎ writes note-app-planning-report.md  (epoch: 1, result: pending)
 USER  ► approves
 MAIN  ✎ edits report frontmatter  (result: pending → approved)
 MAIN  ▶ runs: scripts/update-status.sh --status executing
-        └─ validates required inputs for `executing` (planning-report.md exists) ✓
+        └─ validates executing's required inputs:
+            · note-app-planning-report.md  ✓
         └─ bumps epoch 1 → 2, sets status: executing
         └─ deletes note-app-executing-report.md  (clean slate; file didn't exist)
-        └─ prints executing's I/O context
+        └─ prints executing's I/O context:
+            · Required: note-app-planning-report.md
+            · Optional: note-app-{reviewing,qa-ing,verifying}-report.md (from previous iteration)
+            · Output: note-app-executing-report.md
 ```
 
 ### Stage 2 — executing  (uninterruptible, subagent)
@@ -144,23 +154,46 @@ MAIN  ► calls Agent tool
 MAIN  ✎ copies the template verbatim into the Agent tool's `prompt` argument
 SUB   ▶ workflow-executor (opus) runs:
         └─ reads agents/workflow-executor.md (its own protocol)
-        └─ reads note-app-planning-report.md
+        └─ reads required input:
+            · note-app-planning-report.md  (plan)
+        └─ reads optional inputs (skip if file absent):
+            · note-app-reviewing-report.md   (first iteration: absent)
+            · note-app-qa-ing-report.md      (first iteration: absent)
+            · note-app-verifying-report.md   (first iteration: absent)
         └─ implements the plan → writes source files
         └─ writes note-app-executing-report.md  (epoch: 2, result: done)
 MAIN  ◀ subagent returns
 MAIN  ▶ runs: scripts/update-status.sh --status verifying
-        └─ epoch 2 → 3, status: verifying, deletes verifying-report
+        └─ validates verifying's required inputs: (none) ✓
+        └─ bumps epoch 2 → 3, sets status: verifying
+        └─ deletes note-app-verifying-report.md  (clean slate)
+        └─ prints verifying's I/O context:
+            · Required: (none)
+            · Optional: (none)
+            · Output: note-app-verifying-report.md
 ```
 
 ### Stage 2.5 — verifying  (uninterruptible, inline)
 
 ```
 MAIN  ► reads stages/verifying.md
+MAIN  ► reads inputs from workflow.json → stages.verifying.inputs
+        · Required: (none)
+        · Optional: (none)
 MAIN  ► detects test command (e.g. package.json → `npm test`)
 MAIN  ▶ runs: npm test  (3-min timeout)
 MAIN  ✎ writes note-app-verifying-report.md  (epoch: 3, result: PASS)
 MAIN  ▶ runs: scripts/update-status.sh --status reviewing
-        └─ epoch 3 → 4, status: reviewing, deletes reviewing-report
+        └─ validates reviewing's required inputs:
+            · note-app-planning-report.md   ✓
+            · note-app-executing-report.md  ✓
+            · note-app-verifying-report.md  ✓
+        └─ bumps epoch 3 → 4, sets status: reviewing
+        └─ deletes note-app-reviewing-report.md  (clean slate)
+        └─ prints reviewing's I/O context:
+            · Required: planning, executing, verifying reports
+            · Optional: note-app-qa-ing-report.md (previous iteration; first time: absent)
+            · Output: note-app-reviewing-report.md
 ```
 
 _If tests had failed: `update-status.sh --status executing` loops back; the next executing pass reads this verifying report as optional "quick-test failures" feedback._
@@ -169,13 +202,27 @@ _If tests had failed: `update-status.sh --status executing` loops back; the next
 
 ```
 MAIN  ► reads stages/reviewing.md
-MAIN  ► calls Agent tool → agent-guard fires → transcribe template
-SUB   ▶ workflow-reviewer runs:
-        └─ diffs HEAD against .dev-workflow/note-app-baseline
-        └─ reviews against the plan
+MAIN  ► calls Agent tool → agent-guard fires → MAIN transcribes PROMPT TEMPLATE
+SUB   ▶ workflow-reviewer (sonnet) runs:
+        └─ reads agents/workflow-reviewer.md
+        └─ reads required inputs:
+            · note-app-planning-report.md   (plan to review against)
+            · note-app-executing-report.md  (what the executor did)
+            · note-app-verifying-report.md  (test results)
+            · note-app-baseline              (git SHA for diff)
+        └─ reads optional input:
+            · note-app-qa-ing-report.md      (first iteration: absent)
+        └─ diffs HEAD against baseline
         └─ writes note-app-reviewing-report.md  (epoch: 4, result: PASS)
 MAIN  ▶ runs: scripts/update-status.sh --status qa-ing
-        └─ epoch 4 → 5, status: qa-ing, deletes qa-ing-report
+        └─ validates qa-ing's required inputs:
+            · note-app-planning-report.md  ✓
+        └─ bumps epoch 4 → 5, sets status: qa-ing
+        └─ deletes note-app-qa-ing-report.md  (clean slate)
+        └─ prints qa-ing's I/O context:
+            · Required: note-app-planning-report.md
+            · Optional: (none)
+            · Output: note-app-qa-ing-report.md
 ```
 
 _On `result: FAIL`: loop back to `executing`; executor receives reviewing-report as optional feedback._
@@ -184,13 +231,22 @@ _On `result: FAIL`: loop back to `executing`; executor receives reviewing-report
 
 ```
 MAIN  ► reads stages/qa-ing.md
-MAIN  ► calls Agent tool → agent-guard fires → transcribe template
-SUB   ▶ workflow-qa runs:
+MAIN  ► calls Agent tool → agent-guard fires → MAIN transcribes PROMPT TEMPLATE
+SUB   ▶ workflow-qa (sonnet) runs:
+        └─ reads agents/workflow-qa.md
+        └─ reads required input:
+            · note-app-planning-report.md  (journey test spec)
+        └─ reads optional inputs: (none declared)
+        └─ reads/updates note-app-journey-tests.md  (cross-iteration QA state)
         └─ runs journey tests (Playwright / XcodeBuildMCP / …)
         └─ classifies failures (test bug vs app bug)
         └─ writes note-app-qa-ing-report.md  (epoch: 5, result: PASS)
 MAIN  ▶ runs: scripts/update-status.sh --status complete
-        └─ status: complete (terminal)
+        └─ `complete` is a terminal stage:
+            · no required-input validation
+            · no artifact deletion
+            · no I/O context print
+        └─ bumps epoch 5 → 6, sets status: complete
 ```
 
 _On `result: FAIL`: loop back to `executing`; confirmed app bugs become the next iteration's optional QA feedback._

@@ -28,7 +28,7 @@ Interruptible: the stop hook allows natural session pauses so you can take your 
 
 ### 2 · executing (uninterruptible, subagent — Opus)
 
-The `dev-workflow:workflow-executor` subagent reads the plan and any optional feedback from prior iterations (reviewer feedback, QA feedback, verify failures), then implements the changes: tests-first when specified in the plan, minimal focused edits, incremental commits. Writes `executing-report.md` with `result: done`.
+The generic `dev-workflow:workflow-subagent` is launched with `executing.md` as its stage instructions file. It reads the plan and any optional feedback from prior iterations (reviewer feedback, QA feedback, verify failures), then implements the changes: tests-first when specified in the plan, minimal focused edits, incremental commits. Writes `executing-report.md` with `result: done`.
 
 Opus is used here because the code-change step benefits most from the deepest reasoning.
 
@@ -42,14 +42,14 @@ The main agent runs the project's quick-test command (unit/integration tests, ty
 
 ### 4 · reviewing (uninterruptible, subagent)
 
-The `dev-workflow:workflow-reviewer` subagent runs an adversarial code review: diffs HEAD against the baseline commit recorded at setup, checks for correctness, completeness, design quality, edge cases, and security issues. Only reports code-level issues (not bugs the executor can reproduce at runtime — those are QA's job).
+The generic `dev-workflow:workflow-subagent` is launched with `reviewing.md` as its stage instructions file. It runs an adversarial code review: diffs HEAD against the baseline commit recorded at setup, checks for correctness, completeness, design quality, edge cases, and security issues. Only reports code-level issues (not bugs the executor can reproduce at runtime — those are QA's job).
 
 - `PASS` → move to `qa-ing`
 - `FAIL` → loop back to `executing` with the reviewer feedback as optional input
 
 ### 5 · qa-ing (uninterruptible, subagent)
 
-The `dev-workflow:workflow-qa` subagent runs real user-journey tests (Playwright, XcodeBuildMCP, etc.), maintains a persistent journey-test state file across iterations, and distinguishes test bugs from app bugs. Only confirmed app bugs block progress — flaky tests or test-harness issues get auto-corrected.
+The generic `dev-workflow:workflow-subagent` is launched with `qa-ing.md` as its stage instructions file. It runs real user-journey tests (Playwright, XcodeBuildMCP, etc.), maintains a persistent journey-test state file across iterations, and distinguishes test bugs from app bugs. Only confirmed app bugs block progress — flaky tests or test-harness issues get auto-corrected.
 
 - `PASS` → `complete` (terminal)
 - `FAIL` → loop back to `executing` with only the confirmed app bugs as optional feedback

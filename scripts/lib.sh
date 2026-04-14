@@ -441,11 +441,16 @@ config_validate() {
           errors=$((errors + 1)) ;;
     esac
 
-    # subagent must declare subagent_type
+    # subagent stages must NOT declare subagent_type. There is one generic
+    # dev-workflow:workflow-subagent hardcoded in agent-guard.sh and
+    # stop-hook.sh — per-stage behavior comes entirely from the stage
+    # instructions file. Accepting a per-stage subagent_type here would
+    # create a silent mismatch between workflow.json and what actually
+    # gets launched.
     if [[ "$etype" == "subagent" ]]; then
       local sub; sub="$(jq -r --arg s "$stage" '.stages[$s].execution.subagent_type // ""' "$CONFIG_FILE")"
-      if [[ -z "$sub" ]]; then
-        echo "❌ $prefix execution.type=subagent but execution.subagent_type is empty" >&2
+      if [[ -n "$sub" ]]; then
+        echo "❌ $prefix execution.subagent_type is not supported — the plugin uses a single generic workflow-subagent for all subagent stages. Remove this field; per-stage behavior comes from the stage instructions file." >&2
         errors=$((errors + 1))
       fi
 
@@ -532,10 +537,6 @@ config_is_interruptible() {
 
 config_execution_type() {
   jq -r --arg s "$1" '.stages[$s].execution.type // ""' "$CONFIG_FILE"
-}
-
-config_subagent_type() {
-  jq -r --arg s "$1" '.stages[$s].execution.subagent_type // ""' "$CONFIG_FILE"
 }
 
 config_model() {

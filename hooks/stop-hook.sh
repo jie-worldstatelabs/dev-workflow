@@ -168,7 +168,9 @@ INSTRUCTIONS_PATH="$(config_stage_instructions_path "$STATUS")"
 # Render the "execute this stage" instruction based on execution type.
 # Always point to the stage instructions file — it owns the full per-stage protocol.
 if [[ "$EXEC_TYPE" == "subagent" ]]; then
-  SUBAGENT_TYPE="$(config_subagent_type "$STATUS")"
+  # Single generic subagent for all stages; per-stage behavior lives in
+  # the stage instructions file, which the subagent must read first.
+  SUBAGENT_TYPE="dev-workflow:workflow-subagent"
   MODEL="$(config_model "$STATUS")"
   MODEL_LINE=""
   if [[ -n "$MODEL" ]]; then
@@ -186,6 +188,8 @@ $MODEL_LINE  - mode: bypassPermissions
 
 The prompt you pass to the Agent tool must include (transcribe every path
 literally — do NOT write \"see injected paths\"):
+  - Stage name: $STATUS
+  - Stage instructions file: $INSTRUCTIONS_PATH  ← subagent reads this FIRST
   - Project directory: $PROJECT_ROOT
   - Epoch: $EPOCH
   - Output: $ARTIFACT

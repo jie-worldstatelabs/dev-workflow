@@ -73,7 +73,7 @@ if [[ "$EXEC_TYPE" == "inline" ]]; then
 [dev-workflow] Active workflow (phase: $STATUS, epoch: $EPOCH).
 This stage is INLINE — the main agent runs it directly.
 Do NOT launch a subagent for this phase.
-If you're about to launch workflow-executor/reviewer/qa, you probably need to transition out of $STATUS first via \${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh.
+If you're about to launch workflow-subagent, you probably need to transition out of $STATUS first via \${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh.
 
 Stage instructions: $INSTRUCTIONS_PATH
 Expected output: $ARTIFACT
@@ -85,8 +85,11 @@ EOF
   exit 0
 fi
 
-# Subagent stage: inject prompt template
-SUBAGENT_TYPE="$(config_subagent_type "$STATUS")"
+# Subagent stage: inject prompt template. Every subagent-typed stage uses
+# the single generic workflow-subagent; per-stage behavior comes from the
+# stage instructions file, not from per-stage agent definitions. Model
+# can still be overridden per stage via workflow.json.stages.<s>.execution.model.
+SUBAGENT_TYPE="dev-workflow:workflow-subagent"
 MODEL="$(config_model "$STATUS")"
 
 cat <<EOF
@@ -109,6 +112,12 @@ Agent tool parameters to use:
 
 Execute the $STATUS stage of the dev-workflow.
 
+Stage name: $STATUS
+Stage instructions file: $INSTRUCTIONS_PATH
+  → READ THIS FILE FIRST. It is the full protocol for this stage — what
+    to do, what constraints apply, and what the report body must contain.
+    Do not guess from the stage name alone.
+
 Project directory: $PROJECT_ROOT
 Epoch: $EPOCH
 Output artifact path: $ARTIFACT
@@ -123,7 +132,7 @@ epoch: $EPOCH
 result: <one of: $TRANSITION_KEYS>
 ---
 
-Then write the body according to your agent definition.
+Then write the body according to the stage instructions file.
 
 ━━━━━━━━━━ END PROMPT TEMPLATE ━━━━━━━━━━
 EOF

@@ -83,9 +83,7 @@ commands/
   continue.md            ← /dev-workflow:continue to resume
   cancel.md              ← /dev-workflow:cancel to abort and clear state
 agents/
-  workflow-executor.md   ← Opus-powered implementation agent
-  workflow-reviewer.md   ← Adversarial code review (correctness, security, edge cases)
-  workflow-qa.md         ← Journey test agent; reports only confirmed app bugs
+  workflow-subagent.md   ← Single generic stage executor; reads the active stage's instructions file and follows that protocol (replaces the old per-stage workflow-executor / reviewer / qa agents)
 skills/
   dev-workflow/
     SKILL.md             ← Meta-protocol: how to drive the state machine (workflow-agnostic)
@@ -239,8 +237,8 @@ MAIN  ► calls Agent tool
             └─ prints ⚠️ "hook output is visible only to main — you MUST transcribe"
             └─ prints ━ PROMPT TEMPLATE ━ block (paths, epoch, frontmatter spec)
 MAIN  ✎ copies the template verbatim into the Agent tool's `prompt` argument
-SUB   ▶ workflow-executor (opus) runs:
-        └─ reads agents/workflow-executor.md (its own protocol)
+SUB   ▶ workflow-subagent (opus, per workflow.json.stages.executing.execution.model) runs:
+        └─ reads skills/dev-workflow/workflow/executing.md (the stage protocol)
         └─ reads required input:
             · note-app/planning-report.md  (plan)
         └─ reads optional inputs (skip if file absent):
@@ -290,8 +288,8 @@ _If tests had failed: `update-status.sh --status executing` loops back; the next
 ```
 MAIN  ► reads stages/reviewing.md
 MAIN  ► calls Agent tool → agent-guard fires → MAIN transcribes PROMPT TEMPLATE
-SUB   ▶ workflow-reviewer (sonnet) runs:
-        └─ reads agents/workflow-reviewer.md
+SUB   ▶ workflow-subagent (sonnet) runs:
+        └─ reads skills/dev-workflow/workflow/reviewing.md (the stage protocol)
         └─ reads required inputs:
             · note-app/planning-report.md   (plan to review against)
             · note-app/executing-report.md  (what the executor did)
@@ -319,8 +317,8 @@ _On `result: FAIL`: loop back to `executing`; executor receives reviewing-report
 ```
 MAIN  ► reads stages/qa-ing.md
 MAIN  ► calls Agent tool → agent-guard fires → MAIN transcribes PROMPT TEMPLATE
-SUB   ▶ workflow-qa (sonnet) runs:
-        └─ reads agents/workflow-qa.md
+SUB   ▶ workflow-subagent (sonnet) runs:
+        └─ reads skills/dev-workflow/workflow/qa-ing.md (the stage protocol)
         └─ reads required input:
             · note-app/planning-report.md  (journey test spec)
         └─ reads optional inputs: (none declared)

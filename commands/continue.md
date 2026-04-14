@@ -36,9 +36,11 @@ Based on the **Phase** reported above, jump directly into the matching skill ste
 | Phase reported | Jump to |
 |---------------|---------|
 | `planning`    | Step 1 — resume planning conversation (interruptible) |
-| `executing`   | Step 2 — launch `dev-workflow:workflow-executor` |
+| `executing`   | Step 2 — launch `dev-workflow:workflow-subagent` with `executing.md` as the stage instructions file |
 | `verifying`   | Step 2.5 — run quick tests inline |
-| `reviewing`   | Step 3 — launch `dev-workflow:workflow-reviewer` |
-| `qa-ing`      | Step 3.5 — launch `dev-workflow:workflow-qa` |
+| `reviewing`   | Step 3 — launch `dev-workflow:workflow-subagent` with `reviewing.md` as the stage instructions file |
+| `qa-ing`      | Step 3.5 — launch `dev-workflow:workflow-subagent` with `qa-ing.md` as the stage instructions file |
+
+The actual subagent_type and the exact stage-instructions path are injected into your prompt by the `agent-guard.sh` PreToolUse hook — copy them verbatim, don't hand-write.
 
 Run the loop without stopping. To interrupt again: `/dev-workflow:interrupt`. To cancel: `/dev-workflow:cancel`.

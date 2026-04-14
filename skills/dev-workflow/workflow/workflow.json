@@ -17,7 +17,6 @@
       "interruptible": false,
       "execution": {
         "type": "subagent",
-        "subagent_type": "dev-workflow:workflow-executor",
         "model": "opus"
       },
       "transitions": {
@@ -50,8 +49,7 @@
     "reviewing": {
       "interruptible": false,
       "execution": {
-        "type": "subagent",
-        "subagent_type": "dev-workflow:workflow-reviewer"
+        "type": "subagent"
       },
       "transitions": {
         "PASS": "qa-ing",
@@ -71,8 +69,7 @@
     "qa-ing": {
       "interruptible": false,
       "execution": {
-        "type": "subagent",
-        "subagent_type": "dev-workflow:workflow-qa"
+        "type": "subagent"
       },
       "transitions": {
         "PASS": "complete",

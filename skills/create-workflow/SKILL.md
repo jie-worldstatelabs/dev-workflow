@@ -1,6 +1,6 @@
 ---
 name: create-workflow
-description: "Create a new workflow suite from a natural-language description, or edit an existing one when --workflow=<name> is passed. Interviews the user, proposes a stage design, writes files to ~/.dev-workflow/workflows/<name>/, and validates the result."
+description: "Create a new workflow suite from a natural-language description, or edit an existing one when --path=<path> is passed. Interviews the user, proposes a stage design, writes files to a local directory, and validates the result."
 ---
 
 # Create / Edit Workflow
@@ -8,7 +8,7 @@ description: "Create a new workflow suite from a natural-language description, o
 This skill **creates or edits** a dev-workflow definition. It does NOT run one.
 
 - **Create mode** (no `--workflow` flag): interviews the user, designs a new workflow from scratch.
-- **Edit mode** (`--workflow=<name>`): loads an existing workflow and applies the requested changes.
+- **Edit mode** (`--path=<path>`): loads an existing workflow and applies the requested changes.
 
 <CRITICAL>
 - Do NOT invoke any other skill before, during, or after.
@@ -302,7 +302,7 @@ If no changes are needed (user just wanted to view), say so and stop without wri
 
 Write only the files that changed (workflow.json and/or the affected stage `.md` files) back to the working directory. Follow the same file guidelines as Create Mode Step 4.
 
-If this was a cloud workflow: tell the user the edits are saved locally at `$LOCAL_DIR`. To use the updated workflow, pass `--path=<LOCAL_DIR>` to `/dev-workflow:dev`. Pushing changes back to the server is not yet supported.
+If this was a cloud workflow: tell the user the edits are saved locally at `$LOCAL_DIR`. To use the updated workflow, pass `--workflow=<LOCAL_DIR>` to `/dev-workflow:dev`. Pushing changes back to the server is not yet supported.
 
 ### Edit Step 6 — Validate
 

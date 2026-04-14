@@ -448,6 +448,16 @@ config_validate() {
         echo "❌ $prefix execution.type=subagent but execution.subagent_type is empty" >&2
         errors=$((errors + 1))
       fi
+
+      # subagent stages cannot be interruptible — the main agent blocks on
+      # the Agent tool call for the duration, so the stop hook has no turn
+      # boundary to fire at. Accepting the flag would silently lie.
+      local intr
+      intr="$(jq -r --arg s "$stage" '.stages[$s].interruptible // false' "$CONFIG_FILE")"
+      if [[ "$intr" == "true" ]]; then
+        echo "❌ $prefix execution.type=subagent cannot be interruptible — main agent blocks on the Agent tool call, stop hook has no chance to fire" >&2
+        errors=$((errors + 1))
+      fi
     fi
 
     # transitions point to a declared stage OR a terminal

@@ -22,7 +22,7 @@ label="$(jq -r '.label // empty' "$AUTH_FILE" 2>/dev/null || true)"
 server="$(jq -r '.server // empty' "$AUTH_FILE" 2>/dev/null || true)"
 created_at="$(jq -r '.created_at // empty' "$AUTH_FILE" 2>/dev/null || true)"
 
-: "${server:=${DEV_WORKFLOW_SERVER:-https://workflowui.vercel.app}}"
+: "${server:=${DEV_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}}"
 
 echo "Signed in:"
 echo "  user_id:    ${user_id:-(unknown)}"

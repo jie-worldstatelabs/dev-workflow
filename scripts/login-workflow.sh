@@ -28,7 +28,7 @@ if [[ -z "$LABEL" ]]; then
   LABEL="$(hostname 2>/dev/null || echo unknown)"
 fi
 
-SERVER="${DEV_WORKFLOW_SERVER:-https://workflowui.vercel.app}"
+SERVER="${DEV_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}"
 AUTH_DIR="${HOME}/.dev-workflow"
 AUTH_FILE="${AUTH_DIR}/auth.json"
 

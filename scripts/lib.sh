@@ -632,7 +632,7 @@ CLOUD_SCRATCH_BASE="${HOME}/.cache/dev-workflow/sessions"
 # to export DEV_WORKFLOW_API_TOKEN; the server URL is baked in. Override by
 # exporting DEV_WORKFLOW_SERVER=... (useful for pointing at a local dev
 # webapp, a staging deployment, or a fork).
-: "${DEV_WORKFLOW_SERVER:=https://workflowui.vercel.app}"
+: "${DEV_WORKFLOW_SERVER:=https://workflows.worldstatelabs.com}"
 export DEV_WORKFLOW_SERVER
 
 cloud_scratch_dir() {

@@ -25,7 +25,7 @@ claude plugin install dev-workflow
 
 ## Usage
 
-### Local mode (default)
+### Cloud mode (default)
 
 ```
 /dev-workflow:dev Build a REST API with user authentication
@@ -33,29 +33,28 @@ claude plugin install dev-workflow
 /dev-workflow:dev Add dark mode support to the dashboard
 ```
 
-State and stage reports go under `<project>/.dev-workflow/<session_id>/`. Good for offline, personal, no-infra runs.
-
-### Cloud mode
-
-```
-/dev-workflow:dev --mode cloud Build a REST API with user authentication
-```
-
 The setup script prints a line like:
 
 ```
-UI: https://workflowui.vercel.app/s/2056c1dc-6009-4094-8260-4f937f23903c
+UI: https://workflows.worldstatelabs.com/s/2056c1dc-6009-4094-8260-4f937f23903c
 ```
 
-Paste that URL in any browser (no login) to watch the stage timeline, rendered markdown artifacts, and `git diff baseline..HEAD` update live via SSE. The project worktree gets **nothing** under `.dev-workflow/` — a transient shadow at `~/.cache/dev-workflow/sessions/<session_id>/` backs Claude's filesystem tools and is wiped on any terminal status.
+Paste that URL in any browser to watch the stage timeline, rendered markdown artifacts, and `git diff baseline..HEAD` update live via SSE. The project worktree gets **nothing** under `.dev-workflow/` — a transient shadow at `~/.cache/dev-workflow/sessions/<session_id>/` backs Claude's filesystem tools and is wiped on any terminal status. Authoritative state lives on the server, so you can resume from a different machine with `/dev-workflow:continue --session <id>`.
 
-Cloud mode is auto-detected when `--workflow` starts with `server://` or `http(s)://`, so:
+### Local mode (opt-out)
+
+For fully offline / no-infra runs, opt out of cloud mode in one of two ways:
 
 ```
-/dev-workflow:dev --workflow=server://default Ship the payments page
+/dev-workflow:dev --mode=local Build a REST API with user authentication
 ```
 
-…is equivalent to passing `--mode cloud` explicitly.
+```bash
+# or flip the default for your whole shell
+export DEV_WORKFLOW_DEFAULT_MODE=local
+```
+
+In local mode, state and stage reports go under `<project>/.dev-workflow/<session_id>/` and nothing touches the network.
 
 ### Control commands
 

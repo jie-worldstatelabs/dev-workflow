@@ -37,7 +37,12 @@ TOPIC=""
 WORKFLOW_NAME=""
 FORCE=""
 VALIDATE_ONLY=""
-MODE="local"
+# Default mode is cloud — authoritative state lives on the workflowUI
+# server, with a local shadow for Claude's Read/Write tools. Users who
+# want a fully-offline, local-only run can either:
+#   • pass `--mode=local` on the command line, or
+#   • export DEV_WORKFLOW_DEFAULT_MODE=local in their shell env
+MODE="${DEV_WORKFLOW_DEFAULT_MODE:-cloud}"
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -76,10 +81,13 @@ if [[ "$MODE" != "local" ]] && [[ "$MODE" != "cloud" ]]; then
   exit 1
 fi
 
-# --validate-only is local-only (it just checks config structure and exits).
-if [[ -n "$VALIDATE_ONLY" ]] && [[ "$MODE" == "cloud" ]]; then
-  echo "❌ Error: --validate-only is not supported in cloud mode" >&2
-  exit 1
+# --validate-only is a pure local filesystem operation — it reads
+# workflow.json + stage .md files and exits. Nothing about the mode
+# affects it, so force local regardless of default / env / explicit
+# --mode (otherwise with the new cloud default, a bare
+# --validate-only would hit the cloud branch that's inapplicable).
+if [[ -n "$VALIDATE_ONLY" ]]; then
+  MODE="local"
 fi
 
 # ──────────────────────────────────────────────────────────────

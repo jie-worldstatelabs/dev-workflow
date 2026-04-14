@@ -39,11 +39,13 @@ Everything this document says is true **regardless of what's in workflow.json or
 
 ## Cloud mode
 
-When the user wants state + artifacts to live on a remote server (the **workflowUI** webapp) instead of under the project's `.dev-workflow/`, activate cloud mode at bootstrap.
+**Cloud mode is the default.** When the user runs `/dev-workflow:dev <task>` without any flag, state + artifacts live on the remote **workflowUI** server. The project's `.dev-workflow/` gets nothing; a transient shadow at `~/.cache/dev-workflow/sessions/<session_id>/` backs Claude's filesystem tools locally.
 
-**Opt in** in one of two ways:
-- Pass `--mode cloud` to `setup-workflow.sh`, OR
-- Pass `--workflow=server://<name>` or `--workflow=https://...` (auto-detected — the scheme flips the mode). The plugin parser accepts both `--workflow=<value>` (canonical) and `--workflow <value>` (legacy space-separated) forms.
+**To opt OUT** (fully-offline local mode) in one of two ways:
+- Pass `--mode=local` to `setup-workflow.sh`, OR
+- Export `DEV_WORKFLOW_DEFAULT_MODE=local` in the shell env before launching Claude Code, which flips the default for every run in that shell.
+
+**Auto-detect**: if the user passes `--workflow=server://<name>` or `--workflow=https://...` alongside `--mode=local`, the URL scheme wins and the mode flips to cloud (you can't load a remote workflow in local mode). The plugin parser accepts both `--workflow=<value>` (canonical) and `--workflow <value>` (legacy space-separated) forms.
 
 **Requirements**: none — the user configures nothing. The server URL is baked into `scripts/lib.sh` (default `https://workflowui.vercel.app`) and there is currently no authentication: whoever knows a `session_id` can read and write that session, same model as an unguessable share link. `DEV_WORKFLOW_SERVER` can still be exported to point at a self-hosted/staging/local deployment. A multi-user auth layer is deferred — when it lands it will plug into `cloud_require_env` / `_cloud_auth_header` in `lib.sh` without touching any caller.
 
@@ -158,7 +160,7 @@ A single workflow can mix both — each stage is classified independently.
    - **Do NOT try to auto-fix a custom workflow config.** If the user passed `--workflow=<path-or-name>` pointing at their own workflow, that file belongs to them. Tell them which file has errors and what the errors say, then wait for them to fix it and retry. Do not write to their workflow.json or stage instruction files yourself.
    - **If the failure is in the plugin's default workflow** (the user did NOT pass `--workflow`), that's a plugin bug — surface it as such, point the user at the config path shown in the warning, and stop. Do not try to patch the default workflow from inside the skill.
    - **If the error says `session_id is unknown`** (the SessionStart hook cache wasn't populated), tell the user to restart their Claude Code session and retry. That's the only fix.
-   - **If the error is a cloud fetch failure** (`cloud fetch failed`, `could not pull session ... from server`, `DEV_WORKFLOW_SERVER` issues), relay the error and suggest either retrying, checking network, or falling back to local mode (`/dev-workflow:dev` without `--mode cloud`).
+   - **If the error is a cloud fetch failure** (`cloud fetch failed`, `could not pull session ... from server`, `DEV_WORKFLOW_SERVER` issues), relay the error and suggest retrying, checking the network, or opting into local mode for this run (`/dev-workflow:dev --mode=local <task>` — cloud is the default, `--mode=local` is the escape hatch).
    - **Do NOT proceed to Step 2** until the user explicitly confirms a retry. A failed setup means there is no state.md to drive anything.
 
 On success, setup-workflow.sh creates `<project>/.dev-workflow/<session_id>/state.md` with:

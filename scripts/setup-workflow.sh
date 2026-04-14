@@ -16,6 +16,7 @@ source "${SCRIPT_DIR}/lib.sh"
 TOPIC=""
 WORKFLOW_NAME=""
 FORCE=""
+VALIDATE_ONLY=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -31,15 +32,22 @@ while [[ $# -gt 0 ]]; do
       FORCE="yes"
       shift
       ;;
+    --validate-only)
+      VALIDATE_ONLY="yes"
+      shift
+      ;;
     *)
       shift
       ;;
   esac
 done
 
-if [[ -z "$TOPIC" ]]; then
+# --topic is required for real setup but not for --validate-only (no state.md
+# gets written in that mode).
+if [[ -z "$VALIDATE_ONLY" ]] && [[ -z "$TOPIC" ]]; then
   echo "❌ Error: --topic is required" >&2
   echo "Usage: setup-workflow.sh --topic <topic> [--workflow <name-or-path>]" >&2
+  echo "       setup-workflow.sh --validate-only [--workflow <name-or-path>]" >&2
   exit 1
 fi
 
@@ -66,6 +74,29 @@ if ! config_validate; then
   echo "⚠️  Workflow config has errors — fix them before starting a run." >&2
   echo "   Config: $CONFIG_FILE" >&2
   exit 1
+fi
+
+# --validate-only: print a human-readable summary and exit. Useful for
+# authoring custom workflows without needing a tempdir + real setup run.
+if [[ -n "$VALIDATE_ONLY" ]]; then
+  _stages=$(config_all_stages | tr '\n' ' ' | sed 's/ $//')
+  _stage_count=$(config_all_stages | wc -l | tr -d '[:space:]')
+  _terminal_count=$(config_terminal_stages | wc -l | tr -d '[:space:]')
+  _terminals=$(config_terminal_stages | tr '\n' ' ' | sed 's/ $//')
+  _initial=$(config_initial_stage)
+  echo "✓ Workflow validated: $_stage_count stages, $_terminal_count terminal"
+  echo "   dir:      $WORKFLOW_DIR"
+  echo "   initial:  $_initial"
+  echo "   stages:   $_stages"
+  echo "   terminal: $_terminals"
+  exit 0
+fi
+
+# Condensed success line when the user explicitly picked a non-default
+# workflow — confirms the custom config passed validation without spamming
+# the default case.
+if [[ -n "$WORKFLOW_NAME" ]]; then
+  echo "✓ Custom workflow validated: $WORKFLOW_DIR"
 fi
 
 PROJECT_ROOT="$(pwd)"

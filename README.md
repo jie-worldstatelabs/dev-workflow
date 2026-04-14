@@ -72,19 +72,19 @@ hooks/
   agent-guard.sh         ← Templates agent prompts from config at Agent-tool launch
 scripts/
   lib.sh                 ← Shared helpers + config reader + state routing (jq-based)
-  setup-workflow.sh      ← Creates .dev-workflow/<topic>/state.md (--workflow, --topic)
-  update-status.sh       ← The only legal way to transition (--topic, session routing)
-  interrupt-workflow.sh  ← Pauses without clearing state (--topic)
-  continue-workflow.sh   ← Restores active status for resumption (--topic)
-  cancel-workflow.sh     ← Removes the topic subdir entirely (--topic)
+  setup-workflow.sh      ← Creates .dev-workflow/<session_id>/state.md (--workflow, --topic, --force, --validate-only)
+  update-status.sh       ← The only legal way to transition (session-routed)
+  interrupt-workflow.sh  ← Pauses without clearing state (--topic to disambiguate)
+  continue-workflow.sh   ← Resumes an interrupted run, takes over cross-session (--session)
+  cancel-workflow.sh     ← Archives the run to .archive/<ts>-<topic>-cancelled/ (--hard for rm)
 ```
 
-Runtime files (in the user's project). Rule: one worktree = one run. Starting a new run replaces any prior workflow in the worktree.
+Runtime files (in the user's project). Rule: **one Claude session = one run**. Each session's run lives in its own session-keyed subdir, so multiple Claude sessions in the same worktree can run independent workflows without interfering. Completed or replaced runs are archived, not deleted.
 
 ```
 <project>/.dev-workflow/
-  <topic>/                             ← the single active workflow in this worktree
-    state.md                           ← status, epoch, topic, worktree, workflow_dir
+  <session_id>/                        ← one subdir per Claude session's run
+    state.md                           ← status, epoch, topic, session_id, worktree, workflow_dir
     baseline                           ← git SHA at workflow start
     planning-report.md                 ← one file per stage; frontmatter carries epoch+result
     executing-report.md
@@ -92,9 +92,12 @@ Runtime files (in the user's project). Rule: one worktree = one run. Starting a 
     reviewing-report.md
     qa-ing-report.md
     journey-tests.md                   ← cross-iteration QA state (optional)
+  .archive/
+    <YYYYMMDD-HHMMSS>-<topic>/                 ← natural-replace archive (new setup in same session)
+    <YYYYMMDD-HHMMSS>-<topic>-cancelled/       ← soft /dev-workflow:cancel archive
 ```
 
-For parallel workflows, use separate git worktrees. Any Claude session that enters a worktree interacts with that worktree's single workflow.
+For parallel independent workflows in one project, just open a second Claude Code session — its session_id becomes a sibling subdir and the two runs don't interact. Sidecar "observer" sessions in the same worktree are never blocked by another session's stop hook.
 
 ### State Machine
 
@@ -109,7 +112,7 @@ result: <PASS | FAIL | done | approved | SKIPPED — or a non-terminal placehold
 
 - **`epoch`** — monotonic counter incremented on every `update-status.sh` call. Tells the stop hook "this artifact is fresh, produced in the current phase."
 - **`result`** — looked up in the stage's `transitions` table (from `workflow.json`) to determine the next status. Missing or unrecognized result = stage not done.
-- **Artifact naming** is uniform: `{topic}/{stage}-report.md`.
+- **Artifact naming** is uniform: `<session_id>/<stage>-report.md`.
 
 ### Key Design Decisions
 

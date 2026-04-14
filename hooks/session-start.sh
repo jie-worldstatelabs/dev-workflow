@@ -1,7 +1,8 @@
 #!/bin/bash
 # SessionStart hook — caches the current Claude Code session_id so that
-# setup-workflow.sh (and continue-workflow.sh) can stamp it into state.md
-# as `owner_session_id`.
+# setup-workflow.sh can use it both as the run directory name
+# (.dev-workflow/<session_id>/) and as the `session_id` field inside
+# state.md.
 #
 # Why: hooks receive session_id via stdin JSON, but Claude Code does NOT
 # expose it as an env variable to Bash-tool subprocesses. Without this

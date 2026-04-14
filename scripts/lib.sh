@@ -45,14 +45,6 @@ find_dw_root() {
   return 1
 }
 
-# Returns 0 if the given status is terminal/paused (i.e. inactive).
-_is_inactive_status() {
-  case "$1" in
-    complete|escalated|interrupted) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
 # Read a YAML frontmatter scalar from a file; echoes the value.
 _read_fm_field() {
   local file="$1" field="$2"
@@ -165,8 +157,8 @@ archive_run_dir() {
 #                     the Claude Code harness PID (same as hook's $PPID)
 #
 # Readers try both, walking the process tree on the ppid path. If neither
-# matches, the session_id is unknown and owner_session_id stays empty —
-# callers fall back to worktree-level blocking semantics.
+# matches, the session_id is unknown and setup-workflow.sh fails fast
+# (it can't create a session-keyed run dir without one).
 
 _DW_SESSION_CACHE_DIR="${HOME}/.dev-workflow/session-cache"
 
@@ -202,19 +194,22 @@ read_cached_session_id() {
 # State resolution
 # ──────────────────────────────────────────────────────────────
 #
-# Layout (v1.11+): <project>/.dev-workflow/<topic>/state.md plus per-stage
-# reports in the same <topic>/ subdir. Multiple topics may coexist so long
-# as at most ONE is active at any moment (sessions switch focus serially).
+# Layout: <project>/.dev-workflow/<session_id>/state.md plus per-stage
+# reports in the same <session_id>/ subdir. Each Claude session gets its
+# own isolated run, so multiple sessions in the same worktree coexist
+# without stepping on each other.
 #
-# resolve_state() is the main entry point. Worktree-based model: at most
-# one workflow per worktree, so resolution is simple — find the single
-# state.md in .dev-workflow/*/state.md.
+# resolve_state() is the main entry point. It keys by session_id: either
+# DESIRED_SESSION (set by callers, e.g. hooks parsing HOOK_INPUT.session_id)
+# or the cached session_id for the current Claude session
+# (read_cached_session_id, populated by hooks/session-start.sh).
 #
-# Optional:
-#   DESIRED_TOPIC=<name>   — if set, filter to the state.md whose topic
-#                            frontmatter matches (for cross-worktree CLI
-#                            commands, or to pick among multiple dirs if
-#                            ever more than one coexists)
+# Optional inputs (callers may set as shell vars before calling):
+#   DESIRED_SESSION=<id>   — use this session's subdir (primary resolution)
+#   DESIRED_TOPIC=<name>   — fallback: scan all session subdirs for one
+#                            whose `topic:` frontmatter matches. Useful
+#                            for CLI commands that want to target a
+#                            specific run without knowing its session_id.
 #
 # On success, sets: STATE_FILE, TOPIC, RUN_DIR_NAME, TOPIC_DIR, PROJECT_ROOT
 # Returns 0 on success, 1 if nothing resolvable.
@@ -519,7 +514,7 @@ config_optional_inputs() {
 
 # Artifact path for a stage's output.
 # Convention: <project>/.dev-workflow/<run_dir_name>/<stage>-report.md
-# where <run_dir_name> = "<topic>-<run_id>" (the run's own subdir).
+# where <run_dir_name> = the Claude session_id (session-keyed layout).
 config_artifact_path() {
   local stage="$1"
   local run_dir_name="$2"

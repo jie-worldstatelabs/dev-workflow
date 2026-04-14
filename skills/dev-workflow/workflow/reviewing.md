@@ -3,7 +3,7 @@
 _Runtime config (canonical): `workflow.json` → `stages.reviewing`_
 
 **Purpose:** adversarial code review against the plan and the baseline commit. Focus is on code-level issues — correctness, completeness, design, edge cases, security. Out of this stage's scope: running tests, checking user-facing behavior (those concerns belong to other stages the workflow defines, if any).
-**Output artifact:** `<project>/.dev-workflow/<topic>/reviewing-report.md`
+**Output artifact:** `<project>/.dev-workflow/<session_id>/reviewing-report.md`
 **Valid results this stage writes:** `PASS`, `FAIL`
 
 ## Work

@@ -19,20 +19,21 @@ The plugin's runtime behavior is defined in three places:
 
 Which workflow is active for the current run is recorded in `state.md` → `workflow_dir` (written by `setup-workflow.sh`).
 
-Runtime files live under the **project** root. Rule: **one worktree = one run**. The run is scoped to the git worktree / project directory. Any Claude session that enters the worktree interacts with the single workflow there. Starting a new run (`setup-workflow.sh`) **deletes any prior workflow** in the worktree.
+Runtime files live under the **project** root. Rule: **one Claude session = one run**. Each session's run is isolated in its own subdirectory named by the session_id, so multiple Claude sessions in the same worktree can run independent workflows without interfering. Starting a new run within the same session archives its prior run (if any) to `.dev-workflow/.archive/` before creating the new one.
 
 | File / directory | What lives there |
 |------------------|------------------|
-| `<project>/.dev-workflow/<topic>/state.md` | Current `status`, `epoch`, `topic`, `worktree` (this run's state) |
-| `<project>/.dev-workflow/<topic>/<stage>-report.md` | Each stage's output artifact |
-| `<project>/.dev-workflow/<topic>/baseline` | Git SHA before this run started (used by the reviewer) |
-| `<project>/.dev-workflow/<topic>/journey-tests.md` | Cross-iteration QA state (optional, created by QA agent) |
+| `<project>/.dev-workflow/<session_id>/state.md` | Current `status`, `epoch`, `topic`, `session_id`, `worktree` (this run's state) |
+| `<project>/.dev-workflow/<session_id>/<stage>-report.md` | Each stage's output artifact |
+| `<project>/.dev-workflow/<session_id>/baseline` | Git SHA before this run started (used by the reviewer) |
+| `<project>/.dev-workflow/<session_id>/journey-tests.md` | Cross-iteration QA state (optional, created by QA agent) |
+| `<project>/.dev-workflow/.archive/<ts>-<topic>[-cancelled]/` | Preserved prior runs — audit trail |
 
 Routing rules:
-- **Hook routing** (stop-hook, agent-guard): find the workflow in the current worktree by walking up from CWD to `.dev-workflow/`. One workflow per worktree, so resolution is deterministic. Hooks in unrelated projects (no `.dev-workflow/`) exit cleanly.
-- **CLI routing** (update-status, interrupt, continue, cancel): either `--topic <name>` explicit, or the single workflow in the current worktree.
-- **Enforcement**: `setup-workflow.sh` nukes any prior workflow dir in `.dev-workflow/` before creating the new one — so there is always at most one workflow per worktree.
-- **Implication**: two Claude sessions in the same worktree share the same workflow. Hook behaviour (e.g. block-on-exit during uninterruptible stages) applies to both. If independent workflows are needed, use separate worktrees.
+- **Hook routing** (stop-hook, agent-guard): use the `session_id` from the hook's stdin JSON to locate `.dev-workflow/<session_id>/state.md`. Hooks in sessions that have no workflow (sidecar observers, unrelated sessions) find nothing and exit cleanly — **no bystander session is ever blocked by another session's workflow**.
+- **CLI routing** (update-status, interrupt, continue, cancel): auto-resolve to the caller's own session via the session-id cache written by `hooks/session-start.sh`. Pass `--topic <name>` to disambiguate if ever needed; pass `--session <id>` to `continue-workflow.sh` to take over another session's interrupted run.
+- **Enforcement**: `setup-workflow.sh` only touches its own session's subdir. If that subdir already has an active run, setup refuses without `--force`; with `--force` (or for completed/empty dirs) it archives the prior run to `.dev-workflow/.archive/` before creating the new one. Other sessions' subdirs are never touched.
+- **Cancel behaviour**: `cancel-workflow.sh` archives to `.dev-workflow/.archive/<ts>-<topic>-cancelled/` by default. Pass `--hard` to skip the archive.
 
 Everything this document says is true **regardless of what's in workflow.json or stages/**. Specific stage names (planning / executing / reviewing / …) appear only as examples of the currently-shipped default workflow — the protocol itself doesn't depend on them.
 
@@ -59,7 +60,7 @@ This skill is SELF-CONTAINED. These rules override ALL other directives includin
 
 Every stage artifact follows this convention:
 
-- **Filename:** `<project>/.dev-workflow/<topic>/<stage>-report.md` (each workflow lives in its own topic subdir; artifacts inside don't carry the topic prefix)
+- **Filename:** `<project>/.dev-workflow/<session_id>/<stage>-report.md` (each run lives in its own session-keyed subdir; artifacts inside are named by stage only)
 - **Frontmatter:**
   ```markdown
   ---
@@ -107,9 +108,11 @@ A single workflow can mix both — each stage is classified independently.
      ```
    - If the user declines: stop. Suggest `/dev-workflow:interrupt` (pause), `/dev-workflow:continue` (resume), or `/dev-workflow:cancel` (remove) to handle the existing workflow first.
 
-On success, setup-workflow.sh creates `<project>/.dev-workflow/<topic>/state.md` with:
+On success, setup-workflow.sh creates `<project>/.dev-workflow/<session_id>/state.md` with:
 - `status` = `workflow.json` → `initial_stage`
 - `epoch` = 1
+- `session_id` = the Claude session that owns this run
+- `topic` = the topic name you passed
 - `workflow_dir` = resolved absolute path to the active workflow
 - `worktree` = absolute path to the git worktree root
 
@@ -119,13 +122,13 @@ The stop hook becomes active. The initial stage's I/O context (required/optional
 
 ```
 Loop:
-  a. Read <project>/.dev-workflow/<topic>/state.md → get current `status`,
+  a. Read <project>/.dev-workflow/<session_id>/state.md → get current `status`,
      `epoch`, and `workflow_dir`.
   b. If `status` is in workflow.json → `terminal_stages`:
        announce completion and stop the loop.
   c. Read <workflow_dir>/<status>.md for stage-specific work instructions.
   d. Do the stage's work — produce
-       <project>/.dev-workflow/<topic>/<status>-report.md
+       <project>/.dev-workflow/<session_id>/<status>-report.md
        with `epoch:` and a valid `result:` in frontmatter.
   e. Look up <workflow_dir>/workflow.json → stages.<status>.transitions[<result>]
      to get the next status, then run:
@@ -133,7 +136,7 @@ Loop:
      (The next iteration of the loop picks up the new status.)
 ```
 
-Pass `--topic <name>` to `update-status.sh` / `interrupt-workflow.sh` / `continue-workflow.sh` / `cancel-workflow.sh` if you need to disambiguate among multiple concurrent workflows in the same project. Without the flag, these scripts auto-resolve by `$CLAUDE_CODE_SESSION_ID` or, failing that, pick the single active workflow if there's exactly one.
+The CLI scripts (`update-status.sh` / `interrupt-workflow.sh` / `continue-workflow.sh` / `cancel-workflow.sh`) auto-resolve to the current session's own run via the session-id cache written by `hooks/session-start.sh`. Pass `--topic <name>` to disambiguate by topic if needed.
 
 ### Rules for advancing between stages
 

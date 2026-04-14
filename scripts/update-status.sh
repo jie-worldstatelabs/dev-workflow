@@ -72,8 +72,7 @@ if ! config_is_stage "$NEW_STATUS" && ! config_is_terminal "$NEW_STATUS"; then
 fi
 
 # Read current state
-FRONTMATTER=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$STATE_FILE")
-CURRENT_EPOCH=$(echo "$FRONTMATTER" | grep '^epoch:' | sed 's/epoch: *//' | tr -d '[:space:]')
+CURRENT_EPOCH=$(_read_fm_field "$STATE_FILE" epoch)
 if [[ -z "$CURRENT_EPOCH" ]] || ! [[ "$CURRENT_EPOCH" =~ ^[0-9]+$ ]]; then
   CURRENT_EPOCH=0
 fi
@@ -103,12 +102,9 @@ if config_is_stage "$NEW_STATUS"; then
   fi
 fi
 
-# Atomically update status AND epoch
-TEMP_FILE="${STATE_FILE}.tmp.$$"
-sed -e "s/^status: .*/status: $NEW_STATUS/" \
-    -e "s/^epoch: .*/epoch: $NEW_EPOCH/" \
-    "$STATE_FILE" > "$TEMP_FILE"
-mv "$TEMP_FILE" "$STATE_FILE"
+# Update status + epoch (two calls; set_fm_field already does atomic temp+mv)
+set_fm_field "$STATE_FILE" status "$NEW_STATUS"
+set_fm_field "$STATE_FILE" epoch "$NEW_EPOCH"
 
 # Invalidate the artifact the new stage will produce
 if config_is_stage "$NEW_STATUS"; then

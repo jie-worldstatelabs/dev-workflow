@@ -59,6 +59,15 @@ if ! config_check; then
   exit 1
 fi
 
+# Structural validation: stage.md presence, transition targets, inputs refs,
+# execution.type sanity. Fail fast so a broken workflow doesn't get partway
+# through a run before exploding.
+if ! config_validate; then
+  echo "⚠️  Workflow config has errors — fix them before starting a run." >&2
+  echo "   Config: $CONFIG_FILE" >&2
+  exit 1
+fi
+
 PROJECT_ROOT="$(pwd)"
 
 # ──────────────────────────────────────────────────────────────

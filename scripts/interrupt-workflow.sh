@@ -42,8 +42,7 @@ if ! resolve_state; then
   exit 1
 fi
 
-FRONTMATTER=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$STATE_FILE")
-STATUS=$(echo "$FRONTMATTER" | grep '^status:' | sed 's/status: *//')
+STATUS=$(_read_fm_field "$STATE_FILE" status)
 
 if [[ "$STATUS" == "interrupted" ]]; then
   echo "⚠️  Workflow is already interrupted (topic: $TOPIC)." >&2
@@ -58,10 +57,8 @@ if [[ "$STATUS" == "complete" ]] || [[ "$STATUS" == "escalated" ]]; then
 fi
 
 # Save current status as resume_status, then set interrupted.
-TEMP_FILE="${STATE_FILE}.tmp.$$"
-sed "s/^status: .*/status: interrupted/" "$STATE_FILE" | \
-  sed "s/^resume_status:.*$/resume_status: $STATUS/" > "$TEMP_FILE"
-mv "$TEMP_FILE" "$STATE_FILE"
+set_fm_field "$STATE_FILE" resume_status "$STATUS"
+set_fm_field "$STATE_FILE" status interrupted
 
 echo "⏸️  Dev workflow interrupted."
 echo ""

@@ -33,9 +33,8 @@ if ! config_check; then
   exit 0
 fi
 
-FRONTMATTER=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$STATE_FILE")
-STATUS=$(echo "$FRONTMATTER" | grep '^status:' | sed 's/status: *//')
-EPOCH=$(echo "$FRONTMATTER" | grep '^epoch:' | sed 's/epoch: *//' | tr -d '[:space:]')
+STATUS=$(_read_fm_field "$STATE_FILE" status)
+EPOCH=$(_read_fm_field "$STATE_FILE" epoch)
 
 # Terminal states
 if config_is_terminal "$STATUS"; then
@@ -79,9 +78,8 @@ ARTIFACT="$(config_artifact_path "$STATUS" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
 ARTIFACT_EPOCH=""
 ARTIFACT_RESULT=""
 if [[ -f "$ARTIFACT" ]]; then
-  ART_FM=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$ARTIFACT" 2>/dev/null || true)
-  ARTIFACT_EPOCH=$(echo "$ART_FM" | grep '^epoch:' | sed 's/epoch: *//' | tr -d '[:space:]' || true)
-  ARTIFACT_RESULT=$(echo "$ART_FM" | grep '^result:' | sed 's/result: *//' | tr -d '[:space:]' || true)
+  ARTIFACT_EPOCH=$(_read_fm_field "$ARTIFACT" epoch)
+  ARTIFACT_RESULT=$(_read_fm_field "$ARTIFACT" result)
 fi
 
 # ──────────────────────────────────────────────────────────────

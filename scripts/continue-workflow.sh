@@ -66,9 +66,8 @@ else
   fi
 fi
 
-FRONTMATTER=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$STATE_FILE")
-STATUS=$(echo "$FRONTMATTER" | grep '^status:' | sed 's/status: *//')
-RESUME_STATUS=$(echo "$FRONTMATTER" | grep '^resume_status:' | sed 's/resume_status: *//')
+STATUS=$(_read_fm_field "$STATE_FILE" status)
+RESUME_STATUS=$(_read_fm_field "$STATE_FILE" resume_status)
 
 if [[ "$STATUS" != "interrupted" ]]; then
   echo "⚠️  Workflow '$TOPIC' is not interrupted (status: $STATUS)." >&2
@@ -100,10 +99,8 @@ if [[ -n "$NEW_SESSION" ]] && [[ "$NEW_SESSION" != "$OLD_SESSION" ]]; then
 fi
 
 # Restore active status and clear resume_status
-TEMP_FILE="${STATE_FILE}.tmp.$$"
-sed "s/^status: .*/status: $RESUME_STATUS/" "$STATE_FILE" | \
-  sed "s/^resume_status:.*$/resume_status:/" > "$TEMP_FILE"
-mv "$TEMP_FILE" "$STATE_FILE"
+set_fm_field "$STATE_FILE" status "$RESUME_STATUS"
+set_fm_field "$STATE_FILE" resume_status ""
 
 echo "▶️  Dev workflow resumed."
 echo ""

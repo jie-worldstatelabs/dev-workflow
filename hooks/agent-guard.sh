@@ -24,9 +24,8 @@ if ! config_check; then
   exit 0
 fi
 
-FRONTMATTER=$(sed -n '/^---$/,/^---$/{ /^---$/d; p; }' "$STATE_FILE")
-STATUS=$(echo "$FRONTMATTER" | grep '^status:' | sed 's/status: *//')
-EPOCH=$(echo "$FRONTMATTER" | grep '^epoch:' | sed 's/epoch: *//' | tr -d '[:space:]')
+STATUS=$(_read_fm_field "$STATE_FILE" status)
+EPOCH=$(_read_fm_field "$STATE_FILE" epoch)
 
 # Terminal / paused: nothing to advise
 if config_is_terminal "$STATUS" || [[ "$STATUS" == "interrupted" ]]; then

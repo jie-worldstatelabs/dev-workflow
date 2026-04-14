@@ -291,6 +291,105 @@ config_check() {
   return 0
 }
 
+# Structural validation of the resolved workflow config + directory. Checks:
+#   - initial_stage is set and references a declared stage
+#   - terminal_stages is a non-empty array
+#   - each stage has a matching <stage>.md next to workflow.json
+#   - each stage's execution.type is inline | subagent
+#   - subagent stages must declare subagent_type
+#   - each transition target is either another stage or a terminal stage
+#   - each required/optional input's from_stage references a declared stage
+# Emits one "❌ ..." line per issue on stderr; returns 0 only on clean.
+# Assumes config_check has already passed (file exists, valid JSON).
+config_validate() {
+  local errors=0
+
+  # initial_stage
+  local init; init="$(jq -r '.initial_stage // ""' "$CONFIG_FILE")"
+  if [[ -z "$init" ]]; then
+    echo "❌ .initial_stage is missing" >&2; errors=$((errors + 1))
+  elif ! config_is_stage "$init"; then
+    echo "❌ .initial_stage='$init' is not declared under .stages" >&2; errors=$((errors + 1))
+  fi
+
+  # terminal_stages
+  local term_count
+  term_count=$(jq '.terminal_stages | if type=="array" then length else -1 end' "$CONFIG_FILE")
+  if [[ "$term_count" -lt 0 ]]; then
+    echo "❌ .terminal_stages must be an array" >&2; errors=$((errors + 1))
+  elif [[ "$term_count" -eq 0 ]]; then
+    echo "❌ .terminal_stages is empty (need at least one, e.g. \"complete\")" >&2
+    errors=$((errors + 1))
+  fi
+
+  # stages must be an object
+  local stage_type
+  stage_type=$(jq -r '.stages | type' "$CONFIG_FILE")
+  if [[ "$stage_type" != "object" ]]; then
+    echo "❌ .stages must be an object (got $stage_type)" >&2
+    return $((errors + 1))
+  fi
+
+  # Per-stage checks
+  local stage
+  while read -r stage; do
+    [[ -z "$stage" ]] && continue
+    local prefix="stage '$stage':"
+
+    # .md file exists next to workflow.json
+    local md; md="$(config_stage_instructions_path "$stage")"
+    if [[ ! -f "$md" ]]; then
+      echo "❌ $prefix instructions file missing: $md" >&2; errors=$((errors + 1))
+    fi
+
+    # execution.type sanity
+    local etype; etype="$(jq -r --arg s "$stage" '.stages[$s].execution.type // ""' "$CONFIG_FILE")"
+    case "$etype" in
+      inline|subagent) ;;
+      "") echo "❌ $prefix execution.type is missing" >&2; errors=$((errors + 1)) ;;
+      *)  echo "❌ $prefix execution.type='$etype' must be 'inline' or 'subagent'" >&2
+          errors=$((errors + 1)) ;;
+    esac
+
+    # subagent must declare subagent_type
+    if [[ "$etype" == "subagent" ]]; then
+      local sub; sub="$(jq -r --arg s "$stage" '.stages[$s].execution.subagent_type // ""' "$CONFIG_FILE")"
+      if [[ -z "$sub" ]]; then
+        echo "❌ $prefix execution.type=subagent but execution.subagent_type is empty" >&2
+        errors=$((errors + 1))
+      fi
+    fi
+
+    # transitions point to a declared stage OR a terminal
+    local result next
+    while IFS=$'\t' read -r result next; do
+      [[ -z "$result" ]] && continue
+      if [[ -z "$next" ]]; then
+        echo "❌ $prefix transitions['$result'] has no target" >&2
+        errors=$((errors + 1)); continue
+      fi
+      if ! config_is_stage "$next" && ! config_is_terminal "$next"; then
+        echo "❌ $prefix transitions['$result'] → '$next' is neither a declared stage nor a terminal" >&2
+        errors=$((errors + 1))
+      fi
+    done < <(jq -r --arg s "$stage" '.stages[$s].transitions // {} | to_entries[]? | "\(.key)\t\(.value)"' "$CONFIG_FILE")
+
+    # inputs.required[*] / inputs.optional[*] from_stage refs exist
+    local kind from
+    for kind in required optional; do
+      while read -r from; do
+        [[ -z "$from" ]] && continue
+        if ! config_is_stage "$from"; then
+          echo "❌ $prefix inputs.$kind references unknown from_stage '$from'" >&2
+          errors=$((errors + 1))
+        fi
+      done < <(jq -r --arg s "$stage" --arg k "$kind" '.stages[$s].inputs[$k][]? | .from_stage // empty' "$CONFIG_FILE")
+    done
+  done < <(config_all_stages)
+
+  return $errors
+}
+
 config_initial_stage() {
   jq -r '.initial_stage' "$CONFIG_FILE"
 }

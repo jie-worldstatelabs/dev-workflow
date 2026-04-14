@@ -7,7 +7,7 @@ description: "Full development workflow: brainstorm a plan, execute with an agen
 
 Orchestrate any development cycle as a **config-driven state machine**. This document is the workflow-agnostic meta-protocol; the specific stages, transitions, and per-stage work are declared elsewhere.
 
-A **workflow** is a directory containing `workflow.json` (config) plus one `<stage>.md` per stage (instructions). The default workflow ships at `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/workflow/`; alternate workflows can be selected via `setup-workflow.sh --workflow=<path>` where `<path>` is a local directory path, an HTTP(S) URL, or a `server://<name>` shorthand for a named template on the hub. Remote workflows can also be fetched from an HTTP(S) URL or from a named template hosted by the workflowUI webapp — see the **Cloud mode** section below.
+A **workflow** is a directory containing `workflow.json` (config) plus one `<stage>.md` per stage (instructions). The default workflow ships at `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/workflow/`; alternate workflows can be selected via `setup-workflow.sh --workflow=<path>` where `<path>` is a local directory path, an HTTP(S) URL, or a `server://<name>` shorthand for a named template on the hub — see the **Cloud mode** section below.
 
 The plugin's runtime behavior is defined in three places:
 
@@ -47,7 +47,7 @@ Everything this document says is true **regardless of what's in workflow.json or
 
 **Auto-detect**: if the user passes `--workflow=server://<name>` or `--workflow=https://...` alongside `--mode=local`, the URL scheme wins and the mode flips to cloud (you can't load a remote workflow in local mode). The plugin parser accepts both `--workflow=<value>` (canonical) and `--workflow <value>` (legacy space-separated) forms.
 
-**Requirements**: none — the user configures nothing. The server URL is baked into `scripts/lib.sh` (default `https://workflowui.vercel.app`) and there is currently no authentication: whoever knows a `session_id` can read and write that session, same model as an unguessable share link. `DEV_WORKFLOW_SERVER` can still be exported to point at a self-hosted/staging/local deployment. A multi-user auth layer is deferred — when it lands it will plug into `cloud_require_env` / `_cloud_auth_header` in `lib.sh` without touching any caller.
+**Requirements**: none for basic use. Authenticated users get workflow ownership (required for editing cloud workflows via `/dev-workflow:create-workflow --workflow=<path>`). Log in with `/dev-workflow:login` — a bearer token is stored at `~/.dev-workflow/auth.json` and sent on every cloud API call via `_cloud_auth_header` in `lib.sh`. Anonymous (unauthenticated) sessions are still accepted by endpoints that don't check ownership. `DEV_WORKFLOW_SERVER` can be exported to point at a self-hosted/staging/local deployment.
 
 **Workflow source resolution** in cloud mode:
 - `server://<name>` — fetches a named template bundle from `$DEV_WORKFLOW_SERVER/api/workflows/<name>`.
@@ -171,7 +171,7 @@ Note that **`P` does NOT persist across Bash-tool calls** — every Bash-tool ca
      ```bash
      P=~/.claude/plugins/dev-workflow
      [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"
-     "$P/scripts/setup-workflow.sh" --topic="<topic>" [--workflow="<name>"] --force
+     "$P/scripts/setup-workflow.sh" --topic="<topic>" [--workflow="<path>"] --force
      ```
    - If the user declines: stop. Suggest `/dev-workflow:interrupt` (pause), `/dev-workflow:continue` (resume), or `/dev-workflow:cancel` (remove) to handle the existing workflow first.
 
@@ -242,7 +242,7 @@ All three channels read the same `workflow.json`, so the paths they show always 
 - **Agent fails mid-run, missing artifact, or stale epoch** → stop hook sees "stage not done" and tells you to re-run. No manual intervention.
 - **Unknown `result:` value** (not in the current stage's transition table) → stop hook blocks with "unknown result"; inspect the artifact and run `"$P/scripts/update-status.sh" --status <correct-next>` manually (discover `$P` via the pattern at the top of the Protocol section). Do NOT rewrite the artifact to bypass.
 - **Required input missing** → `update-status.sh` refuses the transition with a clear error listing the missing paths. Fix the prerequisite (usually by completing an earlier stage), then retry.
-- **Stage-specific edge cases** (e.g. what an agent should do when it cannot complete the work) live in `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/stages/<stage>.md` — consult that file rather than inventing behavior here.
+- **Stage-specific edge cases** (e.g. what an agent should do when it cannot complete the work) live in the active workflow's `<workflow_dir>/<stage>.md` — consult that file rather than inventing behavior here.
 - **Unrecoverable workflow error** → run:
   ```bash
   P=~/.claude/plugins/dev-workflow
@@ -261,12 +261,12 @@ All three channels read the same `workflow.json`, so the paths they show always 
   "$P/scripts/setup-workflow.sh" --topic "<topic>"
   ```
   Never hand-write `state.md`.
-- **`update-status.sh` is the only way to transition.** It's atomic: inputs-validation + epoch + status + artifact-delete. Always invoke it by its full path `${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh`.
+- **`update-status.sh` is the only way to transition.** It's atomic: inputs-validation + epoch + status + artifact-delete. Always invoke it via the `$P` discovery pattern (never use `${CLAUDE_PLUGIN_ROOT}` directly — it is not set in the main agent's Bash-tool environment).
 - **Every stage artifact MUST start with `epoch:` and `result:` frontmatter.** Missing or wrong frontmatter means the stop hook will re-trigger the stage.
 - **Transitions must come from the config.** Only call `update-status.sh --status <X>` when `<X>` is either a member of `workflow.json` → `terminal_stages` or the destination of a legitimate transition for the current stage's `result:` (i.e. `workflow.json` → `stages.<current>.transitions[<result>] == <X>`). Never guess a transition.
 - **Terminal statuses** (the values in `workflow.json` → `terminal_stages`) release the stop hook and end the workflow. `complete` is the conventional normal terminator reached via the transition table; `escalated` is the escape hatch for unrecoverable errors.
 - **Never self-approve** — only a subagent's or inline stage's legitimate `result:` (written to its artifact and matching a transition key) can move the workflow forward. Do not hand-write results to force a transition.
-- **All artifacts go to `<project>/.dev-workflow/`**.
+- **All artifacts go to the run directory surfaced by `setup-workflow.sh`** — `<project>/.dev-workflow/<session_id>/` in local mode, `~/.cache/dev-workflow/sessions/<session_id>/` (shadow) in cloud mode. Never hardcode either path; read it from `state.md` → `workflow_dir` or from the paths printed by the transition scripts.
 - **The loop is infinite** — it stops only on reaching a terminal status, `/dev-workflow:interrupt`, or `/dev-workflow:cancel`.
   - `/dev-workflow:interrupt` — pause and preserve state (resumable via `/dev-workflow:continue`)
   - `/dev-workflow:cancel` — cancel and clear all state

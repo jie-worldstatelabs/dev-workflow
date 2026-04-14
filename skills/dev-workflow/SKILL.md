@@ -136,14 +136,14 @@ A single workflow can mix both — each stage is classified independently.
 
 Claude Code sets `$CLAUDE_PLUGIN_ROOT` **only for hook subprocesses**. It is NOT present in the main agent's Bash-tool environment. If you copy a `"${CLAUDE_PLUGIN_ROOT}/scripts/..."` snippet literally into a `Bash` tool call, the shell will expand `${CLAUDE_PLUGIN_ROOT}` to an empty string and the command will fail with `no such file or directory: /scripts/setup-workflow.sh`.
 
-**Always resolve the plugin root yourself inside every Bash-tool call that runs a plugin script**, with this two-line pattern:
+To bridge the gap, `hooks/session-start.sh` writes the absolute plugin root path to **`~/.dev-workflow/plugin-root`** on every session start (the hook runs with `$CLAUDE_PLUGIN_ROOT` set). Every Bash-tool call that needs to run a plugin script should read that file:
 
 ```bash
-P=~/.claude/plugins/dev-workflow
-[[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"
+P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
 ```
 
-The first line is the source/dev layout; the second line falls back to the marketplace cache path (versioned). After those two lines, `"$P/scripts/<name>.sh"` is the absolute path you invoke.
+Line 1: read the SessionStart-populated cache (the happy path). Line 2: fallback to a filesystem search if the cache file is missing (plugin not loaded yet, session-start hook didn't fire, etc.). After those two lines, `"$P/scripts/<name>.sh"` is the absolute path you invoke.
 
 Note that **`P` does NOT persist across Bash-tool calls** — every Bash-tool call is a fresh shell, so you must repeat the two discovery lines (or an equivalent) at the top of each call that runs a plugin script.
 

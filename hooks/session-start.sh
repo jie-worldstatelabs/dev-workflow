@@ -1,18 +1,23 @@
 #!/bin/bash
-# SessionStart hook — caches the current Claude Code session_id so that
-# setup-workflow.sh can use it both as the run directory name
-# (.dev-workflow/<session_id>/) and as the `session_id` field inside
-# state.md.
+# SessionStart hook — caches two things that Claude Code does NOT hand
+# to the main agent's Bash-tool subprocesses, so setup/update-status
+# scripts and skill instructions can find them later:
 #
-# Why: hooks receive session_id via stdin JSON, but Claude Code does NOT
-# expose it as an env variable to Bash-tool subprocesses. Without this
-# cache, the scripts would have no way to learn the session_id.
+#   1. session_id  → the Claude Code session UUID, keyed by cwd hash
+#      and by harness PPID. Used as the .dev-workflow/<session_id>/
+#      directory name and as the session_id field inside state.md.
 #
-# Cache layout: ~/.dev-workflow/session-cache/
-#   cwd-<sha1-of-pwd>  — primary key, matches on same cwd
-#   ppid-<PPID>        — secondary key, matches via process tree walk
-#                        (harness PID is the hook's PPID and an ancestor
-#                        of any Bash-tool subprocess)
+#   2. plugin_root → the absolute path to this plugin's install
+#      directory. $CLAUDE_PLUGIN_ROOT is set here (the hook runs in a
+#      hook subprocess) but is NOT present in the main agent's Bash-tool
+#      env. Writing it to ~/.dev-workflow/plugin-root lets SKILL.md and
+#      ad-hoc scripts read it back with a single `cat` without a
+#      filesystem discovery pattern.
+#
+# Cache layout: ~/.dev-workflow/
+#   plugin-root                             ← one-line absolute path
+#   session-cache/cwd-<sha1-of-pwd>         ← session_id, primary key
+#   session-cache/ppid-<PPID>               ← session_id, secondary key
 
 set -euo pipefail
 
@@ -27,7 +32,14 @@ CWD_HASH=$(printf '%s' "$(pwd)" | shasum -a 1 | cut -c1-16)
 echo "$SID" > "${CACHE_DIR}/cwd-${CWD_HASH}"
 echo "$SID" > "${CACHE_DIR}/ppid-${PPID}"
 
-# Opportunistic GC: prune entries older than 7 days
+# Plugin root pointer — refreshed on every SessionStart so the file
+# always matches the current install path (useful if the plugin moves
+# between marketplace version bumps).
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]] && [[ -d "$CLAUDE_PLUGIN_ROOT/scripts" ]]; then
+  echo "$CLAUDE_PLUGIN_ROOT" > "${HOME}/.dev-workflow/plugin-root"
+fi
+
+# Opportunistic GC: prune session-cache entries older than 7 days
 find "$CACHE_DIR" -type f -mtime +7 -delete 2>/dev/null || true
 
 exit 0

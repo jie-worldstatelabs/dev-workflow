@@ -1,6 +1,6 @@
 ---
 name: create-workflow
-description: "Create a new workflow suite from a natural-language description, or edit an existing one when --path=<path> is passed. Interviews the user, proposes a stage design, writes files to a local directory, and validates the result."
+description: "Create a new workflow suite from a natural-language description, or edit an existing one when --workflow=<path> is passed. Interviews the user, proposes a stage design, writes files to a local directory, and validates the result."
 ---
 
 # Create / Edit Workflow
@@ -8,7 +8,7 @@ description: "Create a new workflow suite from a natural-language description, o
 This skill **creates or edits** a dev-workflow definition. It does NOT run one.
 
 - **Create mode** (no `--workflow` flag): interviews the user, designs a new workflow from scratch.
-- **Edit mode** (`--path=<path>`): loads an existing workflow and applies the requested changes.
+- **Edit mode** (`--workflow=<path>`): loads an existing workflow and applies the requested changes.
 
 <CRITICAL>
 - Do NOT invoke any other skill before, during, or after.
@@ -16,7 +16,6 @@ This skill **creates or edits** a dev-workflow definition. It does NOT run one.
 - Do NOT write files until the user explicitly approves the design (create mode) or the changes (edit mode).
 - Do NOT overwrite an existing `~/.dev-workflow/workflows/<name>/` without confirmation (create mode).
 - Do NOT edit a cloud workflow if the user is not logged in or does not own it. Hard stop — tell the user and refuse.
-- Do NOT edit plugin-bundled workflows in-place. Copy to `~/.dev-workflow/workflows/<name>/` first and edit the copy.
 </CRITICAL>
 
 ## Plugin path resolution
@@ -65,24 +64,24 @@ The generator MUST respect these. `setup-workflow.sh --validate-only` will rejec
 
 ### Step 0 — Parse arguments and dispatch
 
-Extract the `--path=<path>` flag from `$ARGUMENTS` (if present) and strip it from the remaining description text:
+Extract the `--workflow=<path>` flag from `$ARGUMENTS` (if present) and strip it from the remaining description text:
 
 ```bash
 ARGS='$ARGUMENTS'
-PATH_FLAG=""
+WORKFLOW_FLAG=""
 DESCRIPTION="$ARGS"
-if [[ "$ARGS" =~ (^|[[:space:]])--path=([^[:space:]]+) ]]; then
-  PATH_FLAG="${BASH_REMATCH[2]}"
-  DESCRIPTION="${ARGS/--path=${PATH_FLAG}/}"
+if [[ "$ARGS" =~ (^|[[:space:]])--workflow=([^[:space:]]+) ]]; then
+  WORKFLOW_FLAG="${BASH_REMATCH[2]}"
+  DESCRIPTION="${ARGS/--workflow=${WORKFLOW_FLAG}/}"
   DESCRIPTION="${DESCRIPTION#"${DESCRIPTION%%[![:space:]]*}"}"  # ltrim
   DESCRIPTION="${DESCRIPTION%"${DESCRIPTION##*[![:space:]]}"}"  # rtrim
 fi
-echo "PATH_FLAG=${PATH_FLAG}"
+echo "WORKFLOW_FLAG=${WORKFLOW_FLAG}"
 echo "DESC=${DESCRIPTION}"
 ```
 
-- If `PATH_FLAG` is non-empty → **Edit mode**: skip to the [Edit Mode](#edit-mode) section below.
-- If `PATH_FLAG` is empty → **Create mode**: continue to Step 1.
+- If `WORKFLOW_FLAG` is non-empty → **Edit mode**: skip to the [Edit Mode](#edit-mode) section below.
+- If `WORKFLOW_FLAG` is empty → **Create mode**: continue to Step 1.
 
 ---
 
@@ -198,22 +197,22 @@ Do NOT run `/dev-workflow:dev` yourself — that's the user's next action. Your 
 
 ## Edit Mode
 
-`$PATH_FLAG` is the value extracted from `--path=<path>` in Step 0.
+`$WORKFLOW_FLAG` is the value extracted from `--workflow=<path>` in Step 0.
 
 ### Edit Step 1 — Classify the path
 
-Determine whether `$PATH_FLAG` points to a local directory or a cloud endpoint:
+Determine whether `$WORKFLOW_FLAG` points to a local directory or a cloud endpoint:
 
 ```bash
-PATH_FLAG="<value from Step 0>"
+WORKFLOW_FLAG="<value from Step 0>"
 
-if [[ "$PATH_FLAG" =~ ^(https?://|server://) ]]; then
+if [[ "$WORKFLOW_FLAG" =~ ^(https?://|server://) ]]; then
   echo "TYPE=cloud"
-elif [[ -f "${PATH_FLAG}/workflow.json" ]] || [[ -f "${PATH_FLAG/#\~/$HOME}/workflow.json" ]]; then
-  RESOLVED="${PATH_FLAG/#\~/$HOME}"
+elif [[ -f "${WORKFLOW_FLAG}/workflow.json" ]] || [[ -f "${WORKFLOW_FLAG/#\~/$HOME}/workflow.json" ]]; then
+  RESOLVED="${WORKFLOW_FLAG/#\~/$HOME}"
   echo "TYPE=local DIR=${RESOLVED}"
 else
-  echo "ERROR: ${PATH_FLAG} is not a cloud URL and does not contain workflow.json"
+  echo "ERROR: ${WORKFLOW_FLAG} is not a cloud URL and does not contain workflow.json"
 fi
 ```
 
@@ -290,7 +289,7 @@ Continue to Edit Step 3 with `LOCAL_DIR` as the working directory.
 
 Read `workflow.json` and all stage `.md` files from the working directory (`LOCAL_DIR` for cloud, or the resolved local path from Edit Step 1). Display the current stage decomposition as a table (same format as Create Mode Step 2) and the transition graph.
 
-If `$DESCRIPTION` (the part of `$ARGUMENTS` after stripping `--path=<path>`) is non-empty, treat it as the user's requested change. Otherwise ask: **"What changes do you want to make?"**
+If `$DESCRIPTION` (the part of `$ARGUMENTS` after stripping `--workflow=<path>`) is non-empty, treat it as the user's requested change. Otherwise ask: **"What changes do you want to make?"**
 
 ### Edit Step 4 — Iterate on changes
 
@@ -335,4 +334,4 @@ Tell the user:
 - Never write a `subagent_type` field — all subagent stages use the generic `dev-workflow:workflow-subagent`.
 - Never invoke any other skill or run the full `setup-workflow.sh` (only `--validate-only`).
 - Never edit a cloud workflow unless the user is logged in AND owns it — hard stop otherwise.
-- `--path=` must be an explicit local directory path or cloud URL — never guess or resolve bare names.
+- `--workflow=` in edit mode must be an explicit local directory path or cloud URL — never guess or resolve bare names.

@@ -1047,7 +1047,15 @@ cloud_post_state() {
 
 git_project_fingerprint() {
   local dir="${1:-.}"
-  git -C "$dir" rev-parse --git-dir >/dev/null 2>&1 || { echo ""; return; }
+  # Not a git repo at all → empty fingerprint, success exit.
+  git -C "$dir" rev-parse --git-dir >/dev/null 2>&1 || { echo ""; return 0; }
+  # Git repo with no commits yet (fresh `git init` before first commit):
+  # rev-list on HEAD would fail with exit 128, which combined with
+  # `set -o pipefail` propagates a non-zero status to the caller and
+  # — under `set -e` in setup-workflow.sh — would silently kill the
+  # whole script. Detect the no-HEAD case explicitly and return an
+  # empty fingerprint (success exit) so callers skip the verification.
+  git -C "$dir" rev-parse HEAD >/dev/null 2>&1 || { echo ""; return 0; }
   git -C "$dir" rev-list --max-parents=0 HEAD 2>/dev/null \
     | sort | tr '\n' ',' | sed 's/,$//'
 }

@@ -205,11 +205,31 @@ if [[ "$MODE" == "cloud" ]]; then
       }
       ;;
     http://*|https://*)
-      WORKFLOW_URL="$WORKFLOW_NAME"
-      cloud_fetch_workflow_from_url "$WORKFLOW_NAME" "$WORKFLOW_CACHE" || {
-        rm -rf "$SCRATCH_DIR"
-        exit 1
-      }
+      # Detect the hub's /api/workflows/<name> shape. That endpoint
+      # returns a JSON bundle (not a directory listing of raw files),
+      # so we must route it through cloud_fetch_workflow_from_name
+      # rather than the generic http fetcher. Temporarily override
+      # DEV_WORKFLOW_SERVER with the URL's host so the named-template
+      # helper targets the right server.
+      if [[ "$WORKFLOW_NAME" =~ ^(https?://[^/]+)/api/workflows/([A-Za-z0-9._-]+)/?$ ]]; then
+        WORKFLOW_URL="$WORKFLOW_NAME"
+        _host="${BASH_REMATCH[1]}"
+        _name="${BASH_REMATCH[2]}"
+        _saved_server="${DEV_WORKFLOW_SERVER:-}"
+        DEV_WORKFLOW_SERVER="$_host"
+        if ! cloud_fetch_workflow_from_name "$_name" "$WORKFLOW_CACHE"; then
+          DEV_WORKFLOW_SERVER="$_saved_server"
+          rm -rf "$SCRATCH_DIR"
+          exit 1
+        fi
+        DEV_WORKFLOW_SERVER="$_saved_server"
+      else
+        WORKFLOW_URL="$WORKFLOW_NAME"
+        cloud_fetch_workflow_from_url "$WORKFLOW_NAME" "$WORKFLOW_CACHE" || {
+          rm -rf "$SCRATCH_DIR"
+          exit 1
+        }
+      fi
       ;;
     /*)
       cp -R "${WORKFLOW_NAME%/}/." "${WORKFLOW_CACHE}/" || {

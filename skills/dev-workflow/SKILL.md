@@ -7,7 +7,7 @@ description: "Full development workflow: brainstorm a plan, execute with an agen
 
 Orchestrate any development cycle as a **config-driven state machine**. This document is the workflow-agnostic meta-protocol; the specific stages, transitions, and per-stage work are declared elsewhere.
 
-A **workflow** is a directory containing `workflow.json` (config) plus one `<stage>.md` per stage (instructions). The default workflow ships at `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/workflow/`; alternate workflows can live as siblings under `skills/dev-workflow/<name>/` and be selected via `setup-workflow.sh --workflow=<name>`. Remote workflows can also be fetched from an HTTP(S) URL or from a named template hosted by the workflowUI webapp — see the **Cloud mode** section below.
+A **workflow** is a directory containing `workflow.json` (config) plus one `<stage>.md` per stage (instructions). The default workflow ships at `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/workflow/`; alternate workflows can be selected via `setup-workflow.sh --workflow=<path>` where `<path>` is a local directory path, an HTTP(S) URL, or a `server://<name>` shorthand for a named template on the hub. Remote workflows can also be fetched from an HTTP(S) URL or from a named template hosted by the workflowUI webapp — see the **Cloud mode** section below.
 
 The plugin's runtime behavior is defined in three places:
 
@@ -151,16 +151,17 @@ Note that **`P` does NOT persist across Bash-tool calls** — every Bash-tool ca
 
 1. Derive a short kebab-case **topic name** from the user's task description (e.g. "add user auth" → `user-auth`; "fix login bug" → `login-bug`). If the task is unclear or empty, ask ONE clarifying question first — just enough to pick a topic.
 2. Briefly tell the user: `I'll use topic \`<topic>\` for this workflow.`
-3. If the user's task mentions a specific workflow name (e.g. `--workflow=<name>` flag — both `--workflow=<value>` and `--workflow <value>` are accepted), parse it out; otherwise the default workflow applies.
+3. If the user's task mentions a specific workflow path (e.g. `--workflow=<path>` flag — both `--workflow=<value>` and `--workflow <value>` are accepted), parse it out; otherwise the default workflow applies.
 4. Activate the workflow (discover plugin root → run setup in one Bash-tool call):
    ```bash
    P=~/.claude/plugins/dev-workflow
    [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"
-   "$P/scripts/setup-workflow.sh" --topic="<topic>" [--workflow="<name>"]
+   "$P/scripts/setup-workflow.sh" --topic="<topic>" [--workflow="<path>"]
    ```
    The `--workflow` argument accepts:
-   - bare name (e.g. `custom-workflow`) → resolves to `<plugin-root>/skills/dev-workflow/<name>/`
-   - absolute path → used as-is
+   - local directory path (absolute or `~/…`) → used as-is
+   - `server://<name>` → resolved to a named template on the hub
+   - HTTP(S) URL → fetched directly
    - omitted → defaults to `<plugin-root>/skills/dev-workflow/workflow/`
 
 5. **If setup-workflow.sh exits with code 2** (existing workflow detected), it will have printed the existing workflow's topic + status to stderr. Do NOT proceed blindly:

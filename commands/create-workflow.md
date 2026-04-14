@@ -16,5 +16,5 @@ Invoke `Skill("dev-workflow:create-workflow")` and follow its instructions exact
 When the skill finishes, the workflow is ready to launch with:
 
 ```
-/dev-workflow:dev --workflow=<name> <task description>
+/dev-workflow:dev --workflow=<path> <task description>
 ```

@@ -186,7 +186,7 @@ Tell the user:
 - **What's in it**: `workflow.json` + one `.md` per stage
 - **How to launch**:
   ```
-  /dev-workflow:dev --workflow=<name> <your task>
+  /dev-workflow:dev --workflow=<path> <your task>
   ```
   The `--workflow=<bare-name>` resolution checks the plugin's bundled workflows first, then falls back to `~/.dev-workflow/workflows/<name>/`, so both work. If the user prefers an absolute path, `--workflow=~/.dev-workflow/workflows/<name>` is also fine.
 - **Validator summary** from Step 5 (one line, N stages / M terminal).

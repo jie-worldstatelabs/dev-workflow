@@ -94,7 +94,7 @@ skills/
       reviewing.md       ← …reviewing stage
       qa-ing.md          ← …qa-ing stage
     (alt-workflow/)      ← Optional: sibling dirs for alternate workflows
-                           (select via --workflow=<name>)
+                           (select via --workflow=<path>)
 hooks/
   hooks.json             ← Hook wiring (SessionStart, Stop, PreToolUse:Agent, PostToolUse:Write|Edit|MultiEdit)
   session-start.sh       ← Caches the Claude session_id so scripts can find their own run dir

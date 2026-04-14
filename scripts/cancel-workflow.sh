@@ -1,7 +1,12 @@
 #!/bin/bash
-# Cancel a dev workflow — removes its entire topic subdir (state.md + all artifacts).
+# Cancel a dev workflow.
 #
-# Usage: cancel-workflow.sh [--topic <name>]
+# Default:  move the run dir to .dev-workflow/.archive/<ts>-<topic>-cancelled/
+#           so the audit trail (reports + baseline) is preserved.
+# --hard:   rm -rf the run dir (no archive). Use when you really don't want
+#           the artifacts.
+#
+# Usage: cancel-workflow.sh [--topic <name>] [--hard]
 
 set -euo pipefail
 
@@ -9,11 +14,16 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
 TOPIC_ARG=""
+HARD=""
 while [[ $# -gt 0 ]]; do
   case $1 in
     --topic)
       TOPIC_ARG="$2"
       shift 2
+      ;;
+    --hard)
+      HARD="yes"
+      shift
       ;;
     *)
       shift
@@ -35,12 +45,29 @@ if ! resolve_state; then
   exit 1
 fi
 
-# Remove the whole topic subdir (state.md + baseline + all stage artifacts).
-# Leaves the parent .dev-workflow/ alone so other workflows aren't affected.
-if [[ -d "$TOPIC_DIR" ]]; then
-  rm -rf "$TOPIC_DIR"
-  echo "Dev workflow '$TOPIC' cancelled (removed $TOPIC_DIR)."
-else
-  rm -f "$STATE_FILE"
-  echo "Dev workflow '$TOPIC' cancelled."
+if [[ -n "$HARD" ]]; then
+  # Hard delete — no archive, no audit trail.
+  if [[ -d "$TOPIC_DIR" ]]; then
+    rm -rf "$TOPIC_DIR"
+    echo "Dev workflow '$TOPIC' cancelled (hard-deleted $TOPIC_DIR)."
+  else
+    rm -f "$STATE_FILE"
+    echo "Dev workflow '$TOPIC' cancelled."
+  fi
+  exit 0
 fi
+
+# Default: archive to .dev-workflow/.archive/<ts>-<topic>-cancelled/
+rc=0
+archive_run_dir "$TOPIC_DIR" "$TOPIC" "cancelled" || rc=$?
+case $rc in
+  0) echo "Dev workflow '$TOPIC' cancelled (archived to $ARCHIVE_RESULT_PATH)." ;;
+  1)
+    # Nothing to archive — dir already missing or empty.
+    rm -f "$STATE_FILE"
+    echo "Dev workflow '$TOPIC' cancelled."
+    ;;
+  2)
+    echo "⚠️  Archive failed; run '$TOPIC' removed." >&2
+    ;;
+esac

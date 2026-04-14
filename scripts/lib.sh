@@ -80,6 +80,78 @@ set_fm_field() {
 }
 
 # ──────────────────────────────────────────────────────────────
+# Archive helper — move a run dir to .dev-workflow/.archive/
+# ──────────────────────────────────────────────────────────────
+#
+# Shared by setup-workflow.sh (archive-on-replace) and cancel-workflow.sh
+# (archive-on-cancel) so the "keep audit trail instead of rm -rf" policy
+# lives in one place.
+#
+# Archive path: <.dev-workflow>/.archive/<YYYYMMDD-HHMMSS>-<topic>[-<suffix>]/
+# Hidden dot-dir so resolve_state's "$dw"/*/state.md glob skips it.
+#
+# Args:
+#   $1 = run dir (absolute), typically .dev-workflow/<session_id>
+#   $2 = topic fallback (optional, used when state.md is missing/empty)
+#   $3 = suffix (optional, e.g. "cancelled" to distinguish intent)
+#
+# Side effects:
+#   On success: sets ARCHIVE_RESULT_PATH to the archive dir, returns 0.
+#   On skip   : run dir missing or empty, ARCHIVE_RESULT_PATH="", returns 1.
+#   On error  : mv failed, falls back to rm -rf the run dir so callers can
+#               proceed, ARCHIVE_RESULT_PATH="", returns 2.
+archive_run_dir() {
+  local run_dir="$1"
+  local topic_fallback="${2:-}"
+  local suffix="${3:-}"
+  ARCHIVE_RESULT_PATH=""
+
+  if [[ ! -d "$run_dir" ]] || [[ -z "$(ls -A "$run_dir" 2>/dev/null)" ]]; then
+    return 1
+  fi
+
+  local dw_root; dw_root="$(dirname "$run_dir")"
+  local archive_root="${dw_root}/.archive"
+
+  # Derive a human-readable topic label for the archive dir name.
+  local topic=""
+  if [[ -f "$run_dir/state.md" ]]; then
+    topic=$(_read_fm_field "$run_dir/state.md" topic)
+  fi
+  if [[ -z "$topic" ]] && [[ -f "$run_dir/planning-report.md" ]]; then
+    topic=$(grep -m1 '^# Planning Report' "$run_dir/planning-report.md" \
+            | sed 's/^# Planning Report:* *//')
+  fi
+  [[ -z "$topic" ]] && topic="${topic_fallback:-orphan}"
+
+  local topic_safe
+  topic_safe=$(printf '%s' "$topic" | tr -c '[:alnum:]_-' '-' \
+               | sed 's/-\{2,\}/-/g; s/^-//; s/-$//' | cut -c1-40)
+  [[ -z "$topic_safe" ]] && topic_safe="orphan"
+
+  local name="$(date -u +%Y%m%d-%H%M%S)-${topic_safe}"
+  [[ -n "$suffix" ]] && name="${name}-${suffix}"
+
+  mkdir -p "$archive_root"
+  local base="${archive_root}/${name}"
+  local target="$base"
+  local n=1
+  while [[ -e "$target" ]]; do
+    target="${base}-${n}"
+    n=$((n + 1))
+  done
+
+  if mv "$run_dir" "$target" 2>/dev/null; then
+    ARCHIVE_RESULT_PATH="$target"
+    return 0
+  fi
+
+  # mv failed — fall back to rm so caller can proceed with setup
+  rm -rf "$run_dir"
+  return 2
+}
+
+# ──────────────────────────────────────────────────────────────
 # Session-id cache (written by hooks/session-start.sh, read by
 # setup-workflow.sh and continue-workflow.sh)
 # ──────────────────────────────────────────────────────────────

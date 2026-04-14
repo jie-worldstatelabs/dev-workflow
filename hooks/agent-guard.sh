@@ -12,6 +12,11 @@ HOOK_INPUT=$(cat)
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$(dirname "$HOOK_DIR")/scripts/lib.sh"
 
+# Fallback-derive CLAUDE_PLUGIN_ROOT if Claude Code didn't set it for this
+# hook invocation. Real hook subprocesses always get it set; this is a
+# safety net so manual invocations don't trip `set -u`.
+: "${CLAUDE_PLUGIN_ROOT:=$(dirname "$HOOK_DIR")}"
+
 # Session-keyed: resolve THIS session's workflow dir (from HOOK_INPUT).
 # If there's no workflow for this session, nothing to advise.
 DESIRED_SESSION=$(echo "$HOOK_INPUT" | jq -r '.session_id // ""' 2>/dev/null || true)
@@ -73,7 +78,7 @@ if [[ "$EXEC_TYPE" == "inline" ]]; then
 [dev-workflow] Active workflow (phase: $STATUS, epoch: $EPOCH).
 This stage is INLINE — the main agent runs it directly.
 Do NOT launch a subagent for this phase.
-If you're about to launch workflow-subagent, you probably need to transition out of $STATUS first via \${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh.
+If you're about to launch workflow-subagent, you probably need to transition out of $STATUS first via ${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh.
 
 Stage instructions: $INSTRUCTIONS_PATH
 Expected output: $ARTIFACT

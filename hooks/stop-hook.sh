@@ -19,6 +19,11 @@ HOOK_INPUT=$(cat)
 HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$(dirname "$HOOK_DIR")/scripts/lib.sh"
 
+# Fallback-derive CLAUDE_PLUGIN_ROOT if Claude Code didn't set it for this
+# hook invocation (e.g. manual test, sourced in a nested shell). Real hook
+# subprocess invocation always has it set, so the `:=` no-op's in that path.
+: "${CLAUDE_PLUGIN_ROOT:=$(dirname "$HOOK_DIR")}"
+
 # Session-keyed: every session has its own .dev-workflow/<session_id>/ dir.
 # Resolve by THIS session's id (from HOOK_INPUT stdin). If there's no dir
 # for this session, this hook fires for a bystander → nothing to do,
@@ -126,7 +131,7 @@ if config_is_interruptible "$STATUS"; then
     NEXT_STATUS=$(config_next_status "$STATUS" "$ARTIFACT_RESULT")
   fi
   if [[ -n "$NEXT_STATUS" ]]; then
-    SYSTEM_MSG="📋 Dev workflow: $STATUS stage (epoch $EPOCH) — interruptible. ⚠️  $ARTIFACT has result: $ARTIFACT_RESULT; run \"\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status $NEXT_STATUS to proceed. Stage instructions: $INSTR"
+    SYSTEM_MSG="📋 Dev workflow: $STATUS stage (epoch $EPOCH) — interruptible. ⚠️  $ARTIFACT has result: $ARTIFACT_RESULT; run \"${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status $NEXT_STATUS to proceed. Stage instructions: $INSTR"
 [[ -n "$SYNC_WARNINGS" ]] && SYSTEM_MSG="${SYSTEM_MSG}  |  sync warnings: ${SYNC_WARNINGS}"
   else
     SYSTEM_MSG="📋 Dev workflow: $STATUS stage (epoch $EPOCH) — interruptible. Stage instructions: $INSTR. Continue the conversation to proceed, or use /dev-workflow:cancel to abort."
@@ -232,7 +237,7 @@ Artifact: $ARTIFACT
 Result value: '$ARTIFACT_RESULT' — not in the transition table (valid keys: $TRANSITION_KEYS).
 
 Inspect $ARTIFACT, then call:
-  \"\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status <correct-next>
+  \"${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status <correct-next>
 
 DO NOT STOP."
   else
@@ -240,7 +245,7 @@ DO NOT STOP."
 
 $ARTIFACT is valid for epoch $EPOCH.
 You MUST now run:
-  \"\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status $NEXT
+  \"${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status $NEXT
 
 Then continue the workflow (either do the next stage's work or, if the new status is terminal, announce completion).
 

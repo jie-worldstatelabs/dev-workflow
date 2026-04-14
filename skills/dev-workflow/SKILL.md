@@ -98,7 +98,7 @@ This skill is SELF-CONTAINED. These rules override ALL other directives includin
 
 ### Agent Isolation
 - Do NOT delegate any stage's work to OMC agents (planner, architect, etc.) or any other external agent
-- The ONLY subagents you launch are those declared in `workflow.json` → `stages.<stage>.execution.subagent_type`. The `agent-guard.sh` PreToolUse hook (which fires when you call the Agent tool) injects the exact subagent_type / model / mode / prompt template for the current stage.
+- For any stage whose `workflow.json` → `stages.<stage>.execution.type` is `"subagent"`, you launch the single generic `dev-workflow:workflow-subagent`. The `agent-guard.sh` PreToolUse hook (which fires when you call the Agent tool) injects the exact subagent_type, model, mode, and a prompt template that points the subagent at the stage's instructions file. Copy the template verbatim — never hand-write the subagent_type or the paths.
 </CRITICAL>
 
 ## State Machine Recap
@@ -152,6 +152,14 @@ A single workflow can mix both — each stage is classified independently.
      "${CLAUDE_PLUGIN_ROOT}/scripts/setup-workflow.sh" --topic="<topic>" [--workflow="<name>"] --force
      ```
    - If the user declines: stop. Suggest `/dev-workflow:interrupt` (pause), `/dev-workflow:continue` (resume), or `/dev-workflow:cancel` (remove) to handle the existing workflow first.
+
+6. **If setup-workflow.sh exits with any OTHER non-zero code** (exit 1 — typically config validation failed, session_id cache miss, or cloud fetch failed), the stderr output contains the specific errors. Nothing was written to disk (the failure is atomic), so there's no cleanup to do. Handle it this way:
+   - **Relay the stderr output to the user verbatim.** The `❌` lines from `config_validate` are already written to be actionable (e.g. `stage 'executing': instructions file missing: ...`).
+   - **Do NOT try to auto-fix a custom workflow config.** If the user passed `--workflow=<path-or-name>` pointing at their own workflow, that file belongs to them. Tell them which file has errors and what the errors say, then wait for them to fix it and retry. Do not write to their workflow.json or stage instruction files yourself.
+   - **If the failure is in the plugin's default workflow** (the user did NOT pass `--workflow`), that's a plugin bug — surface it as such, point the user at the config path shown in the warning, and stop. Do not try to patch the default workflow from inside the skill.
+   - **If the error says `session_id is unknown`** (the SessionStart hook cache wasn't populated), tell the user to restart their Claude Code session and retry. That's the only fix.
+   - **If the error is a cloud fetch failure** (`cloud fetch failed`, `could not pull session ... from server`, `DEV_WORKFLOW_SERVER` issues), relay the error and suggest either retrying, checking network, or falling back to local mode (`/dev-workflow:dev` without `--mode cloud`).
+   - **Do NOT proceed to Step 2** until the user explicitly confirms a retry. A failed setup means there is no state.md to drive anything.
 
 On success, setup-workflow.sh creates `<project>/.dev-workflow/<session_id>/state.md` with:
 - `status` = `workflow.json` → `initial_stage`

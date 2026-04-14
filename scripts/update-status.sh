@@ -137,8 +137,11 @@ if is_cloud_session "$RUN_DIR_NAME"; then
     cloud_post_archive "$RUN_DIR_NAME" || true
     # Terminal status = we're done. Wipe the shadow so nothing stays on
     # this machine; server keeps the audit trail. Same cleanup as cancel.
-    cloud_wipe_scratch "$RUN_DIR_NAME"
-    cloud_unregister_session "$RUN_DIR_NAME"
+    # `|| true` both: the terminal transition has already succeeded on
+    # the server; a cleanup glitch must not surface as a script exit 1
+    # and make the main agent think the transition failed.
+    cloud_wipe_scratch "$RUN_DIR_NAME" || true
+    cloud_unregister_session "$RUN_DIR_NAME" || true
   fi
 fi
 

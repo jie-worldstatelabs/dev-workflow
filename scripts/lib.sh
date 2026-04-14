@@ -723,16 +723,24 @@ cloud_unregister_session() {
     for other in "$CLOUD_REGISTRY_DIR"/*.json; do
       [[ -f "$other" ]] || continue
       other_scratch="$(jq -r '.scratch_dir // ""' "$other" 2>/dev/null)"
-      [[ "$other_scratch" == "$scratch" ]] && rm -f "$other"
+      # Must use `if`, not `[[ ]] && rm` — the && short-circuit returns
+      # non-zero when the test is false, and under `set -e` in callers
+      # that becomes the function's exit code and kills the script.
+      if [[ "$other_scratch" == "$scratch" ]]; then
+        rm -f "$other"
+      fi
     done
   fi
+  return 0
 }
 
-# Wipe the local shadow for a session.
+# Wipe the local shadow for a session. Returns 0 unconditionally —
+# cleanup operations must not trip `set -e` in callers.
 cloud_wipe_scratch() {
   local sid="$1"
   [[ -z "$sid" ]] && return 0
   rm -rf "${CLOUD_SCRATCH_BASE}/${sid}"
+  return 0
 }
 
 # ──────────────────────────────────────────────────────────────

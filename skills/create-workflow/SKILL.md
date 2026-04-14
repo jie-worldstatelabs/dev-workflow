@@ -1,17 +1,24 @@
 ---
 name: create-workflow
-description: "Generate a complete custom workflow suite (workflow.json + stage .md files) from a natural-language description. Interviews the user about their needs, proposes a design, writes the files to ~/.dev-workflow/workflows/<name>/, and validates the result."
+description: "Create a new workflow suite from a natural-language description, or edit an existing one when --workflow=<name> is passed. Interviews the user, proposes a stage design, writes files to ~/.dev-workflow/workflows/<name>/, and validates the result."
 ---
 
-# Create Workflow — natural language to workflow suite
+# Create / Edit Workflow
 
-This skill **generates** a new dev-workflow. It does NOT run one. After this skill finishes, the user can launch the new workflow with `/dev-workflow:dev --workflow=<name> <task>`.
+This skill **creates or edits** a dev-workflow definition. It does NOT run one.
+
+- **Create mode** (no `--workflow` flag): interviews the user, designs a new workflow from scratch.
+- **Edit mode** (`--workflow=<name>`): loads an existing workflow and applies the requested changes.
+
+After this skill finishes, launch the workflow with `/dev-workflow:dev --workflow=<name> <task>`.
 
 <CRITICAL>
 - Do NOT invoke any other skill before, during, or after.
-- Do NOT run `setup-workflow.sh` without `--validate-only`. This skill only creates files; running a real workflow is the user's next action.
-- Do NOT write files until the user explicitly approves the design.
-- Do NOT overwrite an existing `~/.dev-workflow/workflows/<name>/` without confirmation.
+- Do NOT run `setup-workflow.sh` without `--validate-only`. This skill only creates/edits files; running a workflow is the user's next action.
+- Do NOT write files until the user explicitly approves the design (create mode) or the changes (edit mode).
+- Do NOT overwrite an existing `~/.dev-workflow/workflows/<name>/` without confirmation (create mode).
+- Do NOT edit a cloud workflow if the user is not logged in or does not own it. Hard stop — tell the user and refuse.
+- Do NOT edit plugin-bundled workflows in-place. Copy to `~/.dev-workflow/workflows/<name>/` first and edit the copy.
 </CRITICAL>
 
 ## Plugin path resolution
@@ -57,6 +64,29 @@ The generator MUST respect these. `setup-workflow.sh --validate-only` will rejec
 - Every `inputs.required[*].from_stage` and `inputs.optional[*].from_stage` must reference a declared stage.
 
 ## Protocol
+
+### Step 0 — Parse arguments and dispatch
+
+Extract the `--workflow=<name>` flag from `$ARGUMENTS` (if present) and strip it from the remaining description text:
+
+```bash
+ARGS='$ARGUMENTS'
+WORKFLOW_FLAG=""
+DESCRIPTION="$ARGS"
+if [[ "$ARGS" =~ (^|[[:space:]])--workflow=([^[:space:]]+) ]]; then
+  WORKFLOW_FLAG="${BASH_REMATCH[2]}"
+  DESCRIPTION="${ARGS/--workflow=${WORKFLOW_FLAG}/}"
+  DESCRIPTION="${DESCRIPTION#"${DESCRIPTION%%[![:space:]]*}"}"  # ltrim
+  DESCRIPTION="${DESCRIPTION%"${DESCRIPTION##*[![:space:]]}"}"  # rtrim
+fi
+echo "FLAG=${WORKFLOW_FLAG}"
+echo "DESC=${DESCRIPTION}"
+```
+
+- If `WORKFLOW_FLAG` is non-empty → **Edit mode**: skip to the [Edit Mode](#edit-mode) section below.
+- If `WORKFLOW_FLAG` is empty → **Create mode**: continue to Step 1.
+
+---
 
 ### Step 1 — Understand the user's goal
 
@@ -166,13 +196,136 @@ Tell the user:
 
 Do NOT run `/dev-workflow:dev` yourself — that's the user's next action. Your job is done when the files are on disk and validation passed.
 
+---
+
+## Edit Mode
+
+### Edit Step 1 — Resolve workflow location
+
+Run the following to determine whether `<name>` is local, bundled, or cloud:
+
+```bash
+P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
+
+WORKFLOW_NAME="<name>"
+LOCAL_DIR="${HOME}/.dev-workflow/workflows/${WORKFLOW_NAME}"
+BUNDLED_DIR="${P}/skills/dev-workflow/${WORKFLOW_NAME}"
+
+if [[ -f "${LOCAL_DIR}/workflow.json" ]]; then
+  echo "TYPE=local DIR=${LOCAL_DIR}"
+elif [[ -f "${BUNDLED_DIR}/workflow.json" ]]; then
+  echo "TYPE=bundled DIR=${BUNDLED_DIR}"
+else
+  echo "TYPE=cloud"
+fi
+```
+
+- **`local`**: `~/.dev-workflow/workflows/<name>/` exists → edit directly. Skip to Edit Step 3.
+- **`bundled`**: plugin-built-in workflow → do NOT edit in place. Tell the user you will copy it to `~/.dev-workflow/workflows/<name>/` as a local override and edit that copy. Ask confirmation, then `cp -R "${BUNDLED_DIR}/." "${LOCAL_DIR}/"`. Skip to Edit Step 3.
+- **`cloud`**: not found locally → must validate ownership first. Continue to Edit Step 2.
+
+### Edit Step 2 — Cloud ownership validation
+
+**This step only runs for cloud workflows.**
+
+#### 2a — Check login
+
+```bash
+P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
+source "$P/scripts/lib.sh"
+cloud_is_logged_in && echo "LOGGED_IN" || echo "NOT_LOGGED_IN"
+```
+
+If `NOT_LOGGED_IN` → **hard stop**: tell the user they must run `/dev-workflow:login` first, then refuse to proceed.
+
+#### 2b — Verify ownership
+
+```bash
+P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
+source "$P/scripts/lib.sh"
+
+MY_USER_ID="$(jq -r '.user_id // empty' ~/.dev-workflow/auth.json 2>/dev/null)"
+AUTH_HEADER="$(_cloud_auth_header)"
+BUNDLE="$(curl -sf -H "$AUTH_HEADER" "${DEV_WORKFLOW_SERVER}/api/workflows/${WORKFLOW_NAME}" 2>/dev/null || echo "")"
+
+if [[ -z "$BUNDLE" ]]; then
+  echo "NOT_FOUND"
+elif [[ "$(echo "$BUNDLE" | jq -r '.user_id // empty')" == "$MY_USER_ID" && -n "$MY_USER_ID" ]]; then
+  echo "AUTHORIZED"
+else
+  OWNER="$(echo "$BUNDLE" | jq -r '.user_id // "unknown"')"
+  echo "NOT_OWNER owner=${OWNER} me=${MY_USER_ID}"
+fi
+```
+
+- `NOT_FOUND` → hard stop: workflow `<name>` not found on server.
+- `NOT_OWNER` → hard stop: tell the user the workflow belongs to another account and refuse to edit.
+- `AUTHORIZED` → download the workflow files locally:
+
+```bash
+P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
+source "$P/scripts/lib.sh"
+DEST="${HOME}/.dev-workflow/workflows/${WORKFLOW_NAME}"
+mkdir -p "$DEST"
+cloud_fetch_workflow_from_name "$WORKFLOW_NAME" "$DEST"
+echo "Downloaded to $DEST"
+```
+
+Continue to Edit Step 3.
+
+### Edit Step 3 — Load and display current design
+
+Read `~/.dev-workflow/workflows/<name>/workflow.json` and all stage `.md` files. Display the current stage decomposition as a table (same format as Create Mode Step 2) and the transition graph.
+
+If `$DESCRIPTION` (the part of `$ARGUMENTS` after stripping `--workflow=<name>`) is non-empty, treat it as the user's requested change. Otherwise ask: **"What changes do you want to make?"**
+
+### Edit Step 4 — Iterate on changes
+
+Apply requested changes to the in-memory design. Show the updated table + transition graph. Ask: **"Does this look right? Any further changes?"** Iterate until the user approves.
+
+If no changes are needed (user just wanted to view), say so and stop without writing files.
+
+### Edit Step 5 — Write updated files
+
+Write only the files that changed (workflow.json and/or the affected stage `.md` files). Follow the same file guidelines as Create Mode Step 4.
+
+If this was a cloud workflow: add a note that the edits are saved locally at `~/.dev-workflow/workflows/<name>/`. To use the updated workflow, pass `--workflow=<name>` — the local copy takes precedence over the server copy.
+
+### Edit Step 6 — Validate
+
+Same as Create Mode Step 5:
+
+```bash
+P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
+"$P/scripts/setup-workflow.sh" --validate-only --workflow="$HOME/.dev-workflow/workflows/<name>"
+```
+
+Fix any errors and re-run until validation passes.
+
+### Edit Step 7 — Report success
+
+Tell the user:
+- **Where**: `~/.dev-workflow/workflows/<name>/` (absolute path)
+- **What changed**: list of files written
+- **How to launch**: `/dev-workflow:dev --workflow=<name> <your task>`
+- **Validator summary** from Edit Step 6
+
+---
+
 ## Key Rules
 
-- Always read the default workflow files as reference before proposing a design.
+- Always read the default workflow files as reference before proposing a design (create mode).
 - Always iterate on the design with the user before writing files.
 - Always run `--validate-only` before reporting success.
 - Never write to `~/.dev-workflow/workflows/<name>/` without user approval.
-- Never overwrite an existing workflow dir without confirmation.
+- Never overwrite an existing workflow dir without confirmation (create mode).
 - Never set `interruptible: true` on a subagent stage.
 - Never write a `subagent_type` field — all subagent stages use the generic `dev-workflow:workflow-subagent`.
 - Never invoke any other skill or run the full `setup-workflow.sh` (only `--validate-only`).
+- Never edit a cloud workflow unless the user is logged in AND owns it — hard stop otherwise.
+- Never edit plugin-bundled workflows in-place — copy to `~/.dev-workflow/workflows/<name>/` first.

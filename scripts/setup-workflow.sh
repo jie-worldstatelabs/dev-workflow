@@ -139,11 +139,44 @@ fi
 WORKTREE_ROOT="$(git -C "${PROJECT_ROOT}" rev-parse --show-toplevel 2>/dev/null || echo "$PROJECT_ROOT")"
 
 # ──────────────────────────────────────────────────────────────
-# Phase 2: Nuke only THIS session's prior workflow dir.
-# Other sessions' dirs under .dev-workflow/ are independent and
-# must not be touched.
+# Phase 2: Archive this session's prior run (if any) before starting fresh.
+# Other sessions' dirs are independent and must not be touched.
+# Archive target: .dev-workflow/.archive/<ts>-<old_topic>/
+# Hidden (.archive) so resolve_state's "$dw"/*/state.md glob — which does
+# not match dot-prefixed entries in bash default globbing — skips it.
 # ──────────────────────────────────────────────────────────────
-rm -rf "$SESSION_RUN_DIR"
+ARCHIVE_ROOT="${PROJECT_ROOT}/.dev-workflow/.archive"
+if [[ -d "$SESSION_RUN_DIR" ]] && [[ -n "$(ls -A "$SESSION_RUN_DIR" 2>/dev/null)" ]]; then
+  # Derive a human-readable topic label for the archive dir name.
+  OLD_TOPIC=""
+  if [[ -f "$SESSION_RUN_DIR/state.md" ]]; then
+    OLD_TOPIC=$(_read_fm_field "$SESSION_RUN_DIR/state.md" topic)
+  fi
+  if [[ -z "$OLD_TOPIC" ]] && [[ -f "$SESSION_RUN_DIR/planning-report.md" ]]; then
+    OLD_TOPIC=$(grep -m1 '^# Planning Report' "$SESSION_RUN_DIR/planning-report.md" \
+                | sed 's/^# Planning Report:* *//')
+  fi
+  [[ -z "$OLD_TOPIC" ]] && OLD_TOPIC="orphan"
+  OLD_TOPIC_SAFE=$(printf '%s' "$OLD_TOPIC" | tr -c '[:alnum:]_-' '-' \
+                   | sed 's/-\{2,\}/-/g; s/^-//; s/-$//' | cut -c1-40)
+  [[ -z "$OLD_TOPIC_SAFE" ]] && OLD_TOPIC_SAFE="orphan"
+
+  mkdir -p "$ARCHIVE_ROOT"
+  ARCHIVE_BASE="${ARCHIVE_ROOT}/$(date -u +%Y%m%d-%H%M%S)-${OLD_TOPIC_SAFE}"
+  ARCHIVE_DIR="$ARCHIVE_BASE"
+  n=1
+  while [[ -e "$ARCHIVE_DIR" ]]; do
+    ARCHIVE_DIR="${ARCHIVE_BASE}-${n}"
+    n=$((n + 1))
+  done
+
+  if mv "$SESSION_RUN_DIR" "$ARCHIVE_DIR" 2>/dev/null; then
+    ARCHIVE_MSG="   📦 Archived previous run: $ARCHIVE_DIR"
+  else
+    rm -rf "$SESSION_RUN_DIR"
+    ARCHIVE_MSG="   ⚠️  Archive failed; previous run removed."
+  fi
+fi
 # Also clean up legacy flat layout if it happens to exist
 rm -f "${PROJECT_ROOT}/.dev-workflow/state.md"
 
@@ -189,6 +222,9 @@ echo "   Topic: $TOPIC"
 echo "   Session: $SESSION_ID"
 echo "   Worktree: $WORKTREE_ROOT"
 echo "   Status: $INITIAL_STAGE (epoch 1)$INTERRUPTIBLE_HINT"
+if [[ -n "${ARCHIVE_MSG:-}" ]]; then
+  echo "$ARCHIVE_MSG"
+fi
 if [[ -n "$AUTO_GIT_MSG" ]]; then
   printf '%b\n' "$AUTO_GIT_MSG"
 fi

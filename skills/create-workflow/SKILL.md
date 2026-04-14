@@ -65,24 +65,24 @@ The generator MUST respect these. `setup-workflow.sh --validate-only` will rejec
 
 ### Step 0 — Parse arguments and dispatch
 
-Extract the `--workflow=<name>` flag from `$ARGUMENTS` (if present) and strip it from the remaining description text:
+Extract the `--path=<path>` flag from `$ARGUMENTS` (if present) and strip it from the remaining description text:
 
 ```bash
 ARGS='$ARGUMENTS'
-WORKFLOW_FLAG=""
+PATH_FLAG=""
 DESCRIPTION="$ARGS"
-if [[ "$ARGS" =~ (^|[[:space:]])--workflow=([^[:space:]]+) ]]; then
-  WORKFLOW_FLAG="${BASH_REMATCH[2]}"
-  DESCRIPTION="${ARGS/--workflow=${WORKFLOW_FLAG}/}"
+if [[ "$ARGS" =~ (^|[[:space:]])--path=([^[:space:]]+) ]]; then
+  PATH_FLAG="${BASH_REMATCH[2]}"
+  DESCRIPTION="${ARGS/--path=${PATH_FLAG}/}"
   DESCRIPTION="${DESCRIPTION#"${DESCRIPTION%%[![:space:]]*}"}"  # ltrim
   DESCRIPTION="${DESCRIPTION%"${DESCRIPTION##*[![:space:]]}"}"  # rtrim
 fi
-echo "FLAG=${WORKFLOW_FLAG}"
+echo "PATH_FLAG=${PATH_FLAG}"
 echo "DESC=${DESCRIPTION}"
 ```
 
-- If `WORKFLOW_FLAG` is non-empty → **Edit mode**: skip to the [Edit Mode](#edit-mode) section below.
-- If `WORKFLOW_FLAG` is empty → **Create mode**: continue to Step 1.
+- If `PATH_FLAG` is non-empty → **Edit mode**: skip to the [Edit Mode](#edit-mode) section below.
+- If `PATH_FLAG` is empty → **Create mode**: continue to Step 1.
 
 ---
 
@@ -198,34 +198,36 @@ Do NOT run `/dev-workflow:dev` yourself — that's the user's next action. Your 
 
 ## Edit Mode
 
-### Edit Step 1 — Resolve workflow location
+`$PATH_FLAG` is the value extracted from `--path=<path>` in Step 0.
 
-Run the following to determine whether `<name>` is local, bundled, or cloud:
+### Edit Step 1 — Classify the path
+
+Determine whether `$PATH_FLAG` points to a local directory or a cloud endpoint:
 
 ```bash
-P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
+PATH_FLAG="<value from Step 0>"
 
-WORKFLOW_NAME="<name>"
-LOCAL_DIR="${HOME}/.dev-workflow/workflows/${WORKFLOW_NAME}"
-BUNDLED_DIR="${P}/skills/dev-workflow/${WORKFLOW_NAME}"
-
-if [[ -f "${LOCAL_DIR}/workflow.json" ]]; then
-  echo "TYPE=local DIR=${LOCAL_DIR}"
-elif [[ -f "${BUNDLED_DIR}/workflow.json" ]]; then
-  echo "TYPE=bundled DIR=${BUNDLED_DIR}"
-else
+if [[ "$PATH_FLAG" =~ ^(https?://|server://) ]]; then
   echo "TYPE=cloud"
+elif [[ -f "${PATH_FLAG}/workflow.json" ]] || [[ -f "${PATH_FLAG/#\~/$HOME}/workflow.json" ]]; then
+  RESOLVED="${PATH_FLAG/#\~/$HOME}"
+  echo "TYPE=local DIR=${RESOLVED}"
+else
+  echo "ERROR: ${PATH_FLAG} is not a cloud URL and does not contain workflow.json"
 fi
 ```
 
-- **`local`**: `~/.dev-workflow/workflows/<name>/` exists → edit directly. Skip to Edit Step 3.
-- **`bundled`**: plugin-built-in workflow → do NOT edit in place. Tell the user you will copy it to `~/.dev-workflow/workflows/<name>/` as a local override and edit that copy. Ask confirmation, then `cp -R "${BUNDLED_DIR}/." "${LOCAL_DIR}/"`. Skip to Edit Step 3.
-- **`cloud`**: not found locally → must validate ownership first. Continue to Edit Step 2.
+- **`local`**: a filesystem directory containing `workflow.json` → edit directly. Skip to Edit Step 3.
+- **`cloud`**: `http://`, `https://`, or `server://` prefix → must validate ownership. Continue to Edit Step 2.
+- **error**: path is neither → hard stop, tell the user the path is invalid.
 
 ### Edit Step 2 — Cloud ownership validation
 
-**This step only runs for cloud workflows.**
+**This step only runs for cloud paths.**
+
+Normalize the URL:
+- `server://<name>` → `${DEV_WORKFLOW_SERVER}/api/workflows/<name>`
+- `http(s)://host/api/workflows/<name>` → use as-is
 
 #### 2a — Check login
 
@@ -245,9 +247,12 @@ P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
 [[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
 source "$P/scripts/lib.sh"
 
+# Normalize server:// shorthand
+CLOUD_URL="<normalized URL>"
+
 MY_USER_ID="$(jq -r '.user_id // empty' ~/.dev-workflow/auth.json 2>/dev/null)"
 AUTH_HEADER="$(_cloud_auth_header)"
-BUNDLE="$(curl -sf -H "$AUTH_HEADER" "${DEV_WORKFLOW_SERVER}/api/workflows/${WORKFLOW_NAME}" 2>/dev/null || echo "")"
+BUNDLE="$(curl -sf -H "$AUTH_HEADER" "$CLOUD_URL" 2>/dev/null || echo "")"
 
 if [[ -z "$BUNDLE" ]]; then
   echo "NOT_FOUND"
@@ -259,27 +264,33 @@ else
 fi
 ```
 
-- `NOT_FOUND` → hard stop: workflow `<name>` not found on server.
+- `NOT_FOUND` → hard stop: the cloud path returned nothing.
 - `NOT_OWNER` → hard stop: tell the user the workflow belongs to another account and refuse to edit.
-- `AUTHORIZED` → download the workflow files locally:
+- `AUTHORIZED` → download the workflow files to a local working directory, then continue.
+
+To download, derive a local dir name from the URL (last path segment) and fetch:
 
 ```bash
 P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
 [[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
 source "$P/scripts/lib.sh"
-DEST="${HOME}/.dev-workflow/workflows/${WORKFLOW_NAME}"
-mkdir -p "$DEST"
-cloud_fetch_workflow_from_name "$WORKFLOW_NAME" "$DEST"
-echo "Downloaded to $DEST"
+
+WF_NAME="$(basename "$CLOUD_URL")"
+LOCAL_DIR="${HOME}/.dev-workflow/workflows/${WF_NAME}"
+mkdir -p "$LOCAL_DIR"
+# Use cloud_fetch_workflow_from_url for full URLs,
+# or cloud_fetch_workflow_from_name for server://<name> (pass just the name)
+cloud_fetch_workflow_from_url "$CLOUD_URL" "$LOCAL_DIR"
+echo "Downloaded to $LOCAL_DIR"
 ```
 
-Continue to Edit Step 3.
+Continue to Edit Step 3 with `LOCAL_DIR` as the working directory.
 
 ### Edit Step 3 — Load and display current design
 
-Read `~/.dev-workflow/workflows/<name>/workflow.json` and all stage `.md` files. Display the current stage decomposition as a table (same format as Create Mode Step 2) and the transition graph.
+Read `workflow.json` and all stage `.md` files from the working directory (`LOCAL_DIR` for cloud, or the resolved local path from Edit Step 1). Display the current stage decomposition as a table (same format as Create Mode Step 2) and the transition graph.
 
-If `$DESCRIPTION` (the part of `$ARGUMENTS` after stripping `--workflow=<name>`) is non-empty, treat it as the user's requested change. Otherwise ask: **"What changes do you want to make?"**
+If `$DESCRIPTION` (the part of `$ARGUMENTS` after stripping `--path=<path>`) is non-empty, treat it as the user's requested change. Otherwise ask: **"What changes do you want to make?"**
 
 ### Edit Step 4 — Iterate on changes
 
@@ -289,18 +300,16 @@ If no changes are needed (user just wanted to view), say so and stop without wri
 
 ### Edit Step 5 — Write updated files
 
-Write only the files that changed (workflow.json and/or the affected stage `.md` files). Follow the same file guidelines as Create Mode Step 4.
+Write only the files that changed (workflow.json and/or the affected stage `.md` files) back to the working directory. Follow the same file guidelines as Create Mode Step 4.
 
-If this was a cloud workflow: add a note that the edits are saved locally at `~/.dev-workflow/workflows/<name>/`. To use the updated workflow, pass `--workflow=<name>` — the local copy takes precedence over the server copy.
+If this was a cloud workflow: tell the user the edits are saved locally at `$LOCAL_DIR`. To use the updated workflow, pass `--path=<LOCAL_DIR>` to `/dev-workflow:dev`. Pushing changes back to the server is not yet supported.
 
 ### Edit Step 6 — Validate
-
-Same as Create Mode Step 5:
 
 ```bash
 P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
 [[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
-"$P/scripts/setup-workflow.sh" --validate-only --workflow="$HOME/.dev-workflow/workflows/<name>"
+"$P/scripts/setup-workflow.sh" --validate-only --workflow="<working directory absolute path>"
 ```
 
 Fix any errors and re-run until validation passes.
@@ -308,9 +317,9 @@ Fix any errors and re-run until validation passes.
 ### Edit Step 7 — Report success
 
 Tell the user:
-- **Where**: `~/.dev-workflow/workflows/<name>/` (absolute path)
+- **Where**: absolute path to the working directory
 - **What changed**: list of files written
-- **How to launch**: `/dev-workflow:dev --workflow=<name> <your task>`
+- **How to launch**: `/dev-workflow:dev --workflow=<path> <your task>`
 - **Validator summary** from Edit Step 6
 
 ---
@@ -326,4 +335,4 @@ Tell the user:
 - Never write a `subagent_type` field — all subagent stages use the generic `dev-workflow:workflow-subagent`.
 - Never invoke any other skill or run the full `setup-workflow.sh` (only `--validate-only`).
 - Never edit a cloud workflow unless the user is logged in AND owns it — hard stop otherwise.
-- Never edit plugin-bundled workflows in-place — copy to `~/.dev-workflow/workflows/<name>/` first.
+- `--path=` must be an explicit local directory path or cloud URL — never guess or resolve bare names.

@@ -499,6 +499,19 @@ config_is_terminal() {
   jq -e --arg s "$1" '.terminal_stages | index($s)' "$CONFIG_FILE" > /dev/null 2>&1
 }
 
+# Treats both the workflow's declared terminal_stages and the plugin-
+# reserved status "cancelled" as terminal. Server-side /cancel sets
+# status=cancelled, which may not be in an older session's stored
+# workflow_json.terminal_stages — this wrapper closes that gap so any
+# script reasoning about "is this done?" gets the right answer even
+# for older sessions that were created before we added cancelled.
+is_terminal_status() {
+  local s="$1"
+  [[ -z "$s" ]] && return 1
+  [[ "$s" == "cancelled" ]] && return 0
+  config_is_terminal "$s"
+}
+
 config_is_interruptible() {
   local s="$1"
   local v

@@ -70,7 +70,7 @@ fi
 ensure_baseline_and_fingerprint "$STATE_FILE" || true
 
 # Validate: the new status must be either an active stage or a terminal stage.
-if ! config_is_stage "$NEW_STATUS" && ! config_is_terminal "$NEW_STATUS"; then
+if ! config_is_stage "$NEW_STATUS" && ! is_terminal_status "$NEW_STATUS"; then
   echo "❌ Unknown status: '$NEW_STATUS'" >&2
   echo "   Valid stages: $(config_all_stages | tr '\n' ' ')" >&2
   echo "   Terminal stages: $(config_terminal_stages | tr '\n' ' ')" >&2
@@ -124,7 +124,7 @@ fi
 # ──────────────────────────────────────────────────────────────
 if is_cloud_session "$RUN_DIR_NAME"; then
   _active="true"
-  if config_is_terminal "$NEW_STATUS"; then
+  if is_terminal_status "$NEW_STATUS"; then
     _active="false"
   fi
   cloud_post_state "$RUN_DIR_NAME" "$NEW_STATUS" "$NEW_EPOCH" "" "$_active" || {
@@ -137,7 +137,7 @@ if is_cloud_session "$RUN_DIR_NAME"; then
   # step with whatever the executor committed. Cheap (git diff + curl) and
   # best-effort — failures never block the transition.
   cloud_post_diff "$RUN_DIR_NAME" || true
-  if config_is_terminal "$NEW_STATUS"; then
+  if is_terminal_status "$NEW_STATUS"; then
     cloud_post_archive "$RUN_DIR_NAME" || true
     # Terminal status = we're done. Wipe the shadow so nothing stays on
     # this machine; server keeps the audit trail. Same cleanup as cancel.

@@ -28,7 +28,7 @@ STATUS=$(_read_fm_field "$STATE_FILE" status)
 EPOCH=$(_read_fm_field "$STATE_FILE" epoch)
 
 # Terminal / paused: nothing to advise
-if config_is_terminal "$STATUS" || [[ "$STATUS" == "interrupted" ]]; then
+if is_terminal_status "$STATUS" || [[ "$STATUS" == "interrupted" ]]; then
   exit 0
 fi
 

@@ -148,9 +148,17 @@ case $verify_rc in
     ;;
 esac
 
-# Terminal workflows can't be resumed.
-if config_is_terminal "$STATUS" 2>/dev/null; then
-  echo "⚠️  Workflow '$TOPIC' is already $STATUS — nothing to resume." >&2
+# Terminal workflows (including user-cancelled ones) can't be resumed.
+if is_terminal_status "$STATUS" 2>/dev/null; then
+  case "$STATUS" in
+    cancelled)
+      echo "⚠️  Workflow '$TOPIC' was cancelled — resume unavailable." >&2
+      echo "    Start a new workflow with /dev-workflow:dev if you want to retry." >&2
+      ;;
+    *)
+      echo "⚠️  Workflow '$TOPIC' is already $STATUS — nothing to resume." >&2
+      ;;
+  esac
   exit 1
 fi
 

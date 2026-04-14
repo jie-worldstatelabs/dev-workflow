@@ -1,6 +1,6 @@
 {
   "initial_stage": "planning",
-  "terminal_stages": ["complete", "escalated"],
+  "terminal_stages": ["complete", "escalated", "cancelled"],
   "stages": {
     "planning": {
       "interruptible": true,

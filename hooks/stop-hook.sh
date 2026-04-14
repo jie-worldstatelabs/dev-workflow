@@ -47,7 +47,7 @@ EPOCH=$(_read_fm_field "$STATE_FILE" epoch)
 #  - Idempotent; re-running is cheap
 #  - Never blocks — returns 0 even on failure (failures logged to
 #    .sync-warnings.log which we surface below)
-if is_cloud_session "$RUN_DIR_NAME" && ! config_is_terminal "$STATUS" && [[ "$STATUS" != "interrupted" ]]; then
+if is_cloud_session "$RUN_DIR_NAME" && ! is_terminal_status "$STATUS" && [[ "$STATUS" != "interrupted" ]]; then
   cloud_reconcile_state "$RUN_DIR_NAME" || true
   ensure_baseline_and_fingerprint "$STATE_FILE" || true
 fi
@@ -60,8 +60,8 @@ if [[ -f "${TOPIC_DIR}/.sync-warnings.log" ]]; then
   SYNC_WARNINGS="$(tail -3 "${TOPIC_DIR}/.sync-warnings.log" 2>/dev/null)"
 fi
 
-# Terminal states
-if config_is_terminal "$STATUS"; then
+# Terminal states (workflow's declared ones + the reserved "cancelled")
+if is_terminal_status "$STATUS"; then
   case "$STATUS" in
     interrupted)
       # This shouldn't happen (interrupted isn't in terminal_stages by default)

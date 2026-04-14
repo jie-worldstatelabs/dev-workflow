@@ -170,7 +170,7 @@ if [[ "$MODE" == "cloud" ]]; then
     existing_status=$(_read_fm_field "${SCRATCH_DIR}/state.md" status)
     existing_topic=$(_read_fm_field "${SCRATCH_DIR}/state.md" topic)
     case "$existing_status" in
-      complete|escalated|"") ;;
+      complete|escalated|cancelled|"") ;;
       *)
         echo "⚠️  This session already has an active cloud workflow." >&2
         echo "" >&2
@@ -400,7 +400,7 @@ if [[ -z "$FORCE" ]] && [[ -f "${SESSION_RUN_DIR}/state.md" ]]; then
   etopic=$(_read_fm_field "${SESSION_RUN_DIR}/state.md" topic)
   estatus=$(_read_fm_field "${SESSION_RUN_DIR}/state.md" status)
   case "$estatus" in
-    complete|escalated|"")
+    complete|escalated|cancelled|"")
       # Terminal or unreadable — safe to replace without --force.
       ;;
     *)

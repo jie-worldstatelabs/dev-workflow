@@ -51,7 +51,7 @@ if [[ "$STATUS" == "interrupted" ]]; then
   exit 0
 fi
 
-if [[ "$STATUS" == "complete" ]] || [[ "$STATUS" == "escalated" ]]; then
+if is_terminal_status "$STATUS"; then
   echo "⚠️  Workflow already finished (status: $STATUS)." >&2
   exit 1
 fi

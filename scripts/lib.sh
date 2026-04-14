@@ -106,15 +106,16 @@ archive_run_dir() {
   local archive_root="${dw_root}/.archive"
 
   # Derive a human-readable topic label for the archive dir name.
+  # Primary source is state.md; if that's missing/corrupt we fall back
+  # to whatever the caller supplied, or the run dir basename, or the
+  # literal "orphan". No stage-name-specific parsing.
   local topic=""
   if [[ -f "$run_dir/state.md" ]]; then
     topic=$(_read_fm_field "$run_dir/state.md" topic)
   fi
-  if [[ -z "$topic" ]] && [[ -f "$run_dir/planning-report.md" ]]; then
-    topic=$(grep -m1 '^# Planning Report' "$run_dir/planning-report.md" \
-            | sed 's/^# Planning Report:* *//')
-  fi
-  [[ -z "$topic" ]] && topic="${topic_fallback:-orphan}"
+  [[ -z "$topic" ]] && topic="${topic_fallback:-}"
+  [[ -z "$topic" ]] && topic="$(basename "$run_dir")"
+  [[ -z "$topic" ]] && topic="orphan"
 
   local topic_safe
   topic_safe=$(printf '%s' "$topic" | tr -c '[:alnum:]_-' '-' \

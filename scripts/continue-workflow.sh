@@ -169,7 +169,16 @@ fi
 #     status as the display phase, stop-hook will drive the stage from there
 DISPLAY_PHASE=""
 if [[ "$STATUS" == "interrupted" ]]; then
-  [[ -z "$RESUME_STATUS" ]] && RESUME_STATUS="executing"
+  # If resume_status is empty (corrupt state.md or a legacy run), fall
+  # back to the workflow's own initial_stage. No hardcoded stage names.
+  if [[ -z "$RESUME_STATUS" ]]; then
+    RESUME_STATUS="$(config_initial_stage 2>/dev/null || true)"
+  fi
+  if [[ -z "$RESUME_STATUS" ]]; then
+    echo "⚠️  Workflow '$TOPIC' has no resume_status and no initial_stage — cannot resume safely." >&2
+    echo "   Inspect $STATE_FILE and set resume_status manually, or start over with /dev-workflow:dev." >&2
+    exit 1
+  fi
   DISPLAY_PHASE="$RESUME_STATUS"
 elif [[ "$IS_CLOUD" == "true" ]]; then
   DISPLAY_PHASE="$STATUS"

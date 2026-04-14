@@ -40,10 +40,9 @@ fi
 BASELINE="${TOPIC_DIR}/baseline"
 ARTIFACT="$(config_artifact_path "$STATUS" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
 
-# Auto-record baseline at the start of an executing phase (belt-and-suspenders)
-if [[ "$STATUS" == "executing" ]] && [[ ! -f "$BASELINE" ]]; then
-  git -C "${PROJECT_ROOT}" rev-parse HEAD > "$BASELINE" 2>/dev/null || echo "EMPTY" > "$BASELINE"
-fi
+# Baseline is recorded at setup time by setup-workflow.sh and refreshed
+# on every transition by ensure_baseline_and_fingerprint (called from
+# update-status.sh). No stage-name-specific fallback needed here.
 
 EXEC_TYPE="$(config_execution_type "$STATUS")"
 TRANSITION_KEYS="$(config_transition_keys "$STATUS")"

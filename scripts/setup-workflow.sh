@@ -140,6 +140,43 @@ if [[ -z "$SESSION_ID" ]]; then
 fi
 
 # ══════════════════════════════════════════════════════════════
+# Mixed-mode guard — one session_id can only be used in ONE mode.
+# Setting up the same session_id as both cloud and local creates two
+# independent state.md files that drift apart (resolve_state's cloud-first
+# branch makes the local copy invisible), and every cloud_reconcile_state
+# fire ends up overwriting server progress with stale shadow state.
+# ══════════════════════════════════════════════════════════════
+_CLOUD_REG="${HOME}/.dev-workflow/cloud-registry/${SESSION_ID}.json"
+_LOCAL_DIR="${PROJECT_ROOT}/.dev-workflow/${SESSION_ID}"
+
+if [[ "$MODE" == "local" ]] && [[ -f "$_CLOUD_REG" ]]; then
+  echo "❌ Error: session ${SESSION_ID} is already registered as cloud-managed." >&2
+  echo "   Registry: $_CLOUD_REG" >&2
+  echo "   Setting up as local would create a second state.md that drifts apart" >&2
+  echo "   from the shadow at ~/.cache/dev-workflow/sessions/${SESSION_ID}/." >&2
+  echo "" >&2
+  echo "   Resolve this by either:" >&2
+  echo "     1. /dev-workflow:cancel the cloud workflow first (archives + unregisters)" >&2
+  echo "     2. Or re-run with --mode=cloud (same mode as the existing run)" >&2
+  exit 1
+fi
+
+if [[ "$MODE" == "cloud" ]] && [[ -f "$_LOCAL_DIR/state.md" ]]; then
+  echo "❌ Error: session ${SESSION_ID} already has a local workflow at $_LOCAL_DIR/" >&2
+  echo "   Setting up as cloud would create a shadow that drifts apart from the" >&2
+  echo "   local run. resolve_state's cloud-first branch would then make the local" >&2
+  echo "   state.md invisible, so update-status.sh writes would silently stop" >&2
+  echo "   reaching the hooks." >&2
+  echo "" >&2
+  echo "   Resolve this by either:" >&2
+  echo "     1. /dev-workflow:cancel the local workflow first" >&2
+  echo "     2. Or omit --mode=cloud (same mode as the existing run)" >&2
+  exit 1
+fi
+
+unset _CLOUD_REG _LOCAL_DIR
+
+# ══════════════════════════════════════════════════════════════
 # CLOUD MODE
 # ══════════════════════════════════════════════════════════════
 if [[ "$MODE" == "cloud" ]]; then

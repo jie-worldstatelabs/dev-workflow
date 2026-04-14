@@ -1415,12 +1415,28 @@ cloud_reconcile_state() {
   server_status="$(printf '%s' "$snapshot" | jq -r '.session.status // ""')"
   server_epoch="$(printf '%s' "$snapshot" | jq -r '.session.epoch // ""')"
 
-  # State reconcile — local is always authoritative over server
-  # (the skill drives state.md, server is a mirror).
+  # State reconcile — server is authoritative. In cloud mode the server
+  # is the source of truth (SKILL.md's Cloud mode section says so, and
+  # multiple Claude sessions on different machines may be advancing the
+  # same session via update-status.sh). On mismatch we pull server state
+  # DOWN into the local shadow state.md. The local write that just
+  # happened (update-status.sh → set_fm_field + cloud_post_state) is
+  # already visible on the server by this point because stop-hook fires
+  # AFTER the turn's tool calls finished — so a server value newer than
+  # local means another writer advanced the session.
+  #
+  # Trade-off vs the old "local wins" policy: if cloud_post_state silently
+  # fails during a transition (network blip between set_fm_field and this
+  # reconcile), the local advance will be silently reverted on the next
+  # reconcile. That's safer than the previous behavior where reconcile
+  # would keep overwriting a healthy server with stale local state — the
+  # diary 4/14 incident showed that "local wins" corrupted the server side.
+  # If you hit this in practice, inspect the sync-warnings.log and retry
+  # the update-status.sh call.
   if [[ "$server_status" != "$local_status" ]] || [[ "$server_epoch" != "$local_epoch" ]]; then
-    if cloud_post_state "$sid" "$local_status" "$local_epoch" "" "true"; then
-      _cloud_warn "$sid" "reconcile: state caught up (local=${local_status}/${local_epoch} was server=${server_status}/${server_epoch})"
-    fi
+    set_fm_field "$shadow/state.md" status "$server_status"
+    set_fm_field "$shadow/state.md" epoch "$server_epoch"
+    _cloud_warn "$sid" "reconcile: pulled server → local (was local=${local_status}/${local_epoch}, now ${server_status}/${server_epoch})"
   fi
 
   # Artifact reconcile — if the current stage has a local artifact

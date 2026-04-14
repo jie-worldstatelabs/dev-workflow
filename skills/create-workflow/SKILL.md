@@ -10,8 +10,6 @@ This skill **creates or edits** a dev-workflow definition. It does NOT run one.
 - **Create mode** (no `--workflow` flag): interviews the user, designs a new workflow from scratch.
 - **Edit mode** (`--workflow=<name>`): loads an existing workflow and applies the requested changes.
 
-After this skill finishes, launch the workflow with `/dev-workflow:dev --workflow=<name> <task>`.
-
 <CRITICAL>
 - Do NOT invoke any other skill before, during, or after.
 - Do NOT run `setup-workflow.sh` without `--validate-only`. This skill only creates/edits files; running a workflow is the user's next action.

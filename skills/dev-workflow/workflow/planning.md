@@ -88,7 +88,9 @@ Once the user explicitly approves:
 1. Edit the output artifact: change `result: pending` → `result: approved`.
 2. Look up `workflow.json` → `stages.planning.transitions["approved"]` to get the next status. Run:
    ```bash
-   "${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status <next>
+   P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+   [[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
+   "$P/scripts/update-status.sh" --status <next>
    ```
    (replacing `<next>` with the looked-up value)
 

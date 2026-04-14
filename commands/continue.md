@@ -31,16 +31,12 @@ Invoke `Skill("dev-workflow:dev")` and follow its instructions exactly. The skil
 
 ## Step 3: Resume From the Detected Phase
 
-Based on the **Phase** reported above, jump directly into the matching skill step — do NOT restart from Step 1 planning unless the phase is `planning`:
+The script reports the current **Phase** (stage name) and its execution type (`inline` or `subagent`). Jump directly into that stage's work — do NOT restart from the beginning:
 
-| Phase reported | Jump to |
-|---------------|---------|
-| `planning`    | Step 1 — resume planning conversation (interruptible) |
-| `executing`   | Step 2 — launch `dev-workflow:workflow-subagent` with `executing.md` as the stage instructions file |
-| `verifying`   | Step 2.5 — run quick tests inline |
-| `reviewing`   | Step 3 — launch `dev-workflow:workflow-subagent` with `reviewing.md` as the stage instructions file |
-| `qa-ing`      | Step 3.5 — launch `dev-workflow:workflow-subagent` with `qa-ing.md` as the stage instructions file |
+- **Interruptible inline stage** (e.g. a planning/design stage): resume the conversation from where it left off. The stop hook shows a `systemMessage` hint with the stage instructions path.
+- **Uninterruptible subagent stage**: the stop hook will block exit and inject the exact Agent-tool parameters and prompt template — copy them verbatim and launch the subagent.
+- **Uninterruptible inline stage**: the stop hook will block exit and show the stage instructions path and artifact path — execute the stage directly per the instructions file.
 
-The actual subagent_type and the exact stage-instructions path are injected into your prompt by the `agent-guard.sh` PreToolUse hook — copy them verbatim, don't hand-write.
+The actual subagent_type, model, and stage-instructions path are injected by the `agent-guard.sh` PreToolUse hook when you call the Agent tool — copy them verbatim, don't hand-write.
 
 Run the loop without stopping. To interrupt again: `/dev-workflow:interrupt`. To cancel: `/dev-workflow:cancel`.

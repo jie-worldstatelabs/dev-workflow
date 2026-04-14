@@ -79,7 +79,7 @@ The optional inputs are what make the loop converge: if the reviewer rejects the
 To change stage names, add/remove stages, swap models, or tweak transitions, copy this directory, edit `workflow.json`, update the stage `.md` files to match, and either point `--workflow /abs/path` at it or publish it to the hub with:
 
 ```sh
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/publish-workflow.sh" /path/to/your/workflow
+~/.claude/plugins/dev-workflow/scripts/publish-workflow.sh /path/to/your/workflow
 ```
 
 The state-machine protocol (`SKILL.md`) is fully config-driven — it doesn't know or care about the specific stage names, so anything that parses as a valid `workflow.json` runs end to end.

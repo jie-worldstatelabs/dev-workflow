@@ -52,6 +52,8 @@ result: PASS | FAIL | SKIPPED
 Look up `workflow.json` → `stages.verifying.transitions[<result>]` to get the next status. Run:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh" --status <next>
+P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
+"$P/scripts/update-status.sh" --status <next>
 ```
 (replacing `<result>` with the actual value you wrote and `<next>` with the looked-up status)

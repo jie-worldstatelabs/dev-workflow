@@ -1,17 +1,29 @@
 ---
-description: "Resume a paused dev workflow from where it was interrupted"
+description: "Resume a paused dev workflow, or take over a cloud session from another machine"
+argument-hint: "[--session <id>]  (omit for normal resume)"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion
 ---
 
-Resume the interrupted dev workflow.
+Resume the dev workflow. Two usage modes:
+
+1. **Normal resume** — no arguments. The script picks the single
+   interrupted run on this machine (or the one matching `--topic <name>`
+   if given).
+2. **Cross-machine takeover** — pass `--session <server_session_id>` to
+   continue a cloud session that was started on a different machine.
+   The script pulls the full shadow (state + artifacts + workflow
+   config + baseline) from the server before resuming, so nothing
+   needs to be set up ahead of time.
+
+Arguments from the user: `$ARGUMENTS`
 
 ## Step 1: Restore Active Status
 
 ```!
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/continue-workflow.sh"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/continue-workflow.sh" $ARGUMENTS
 ```
 
-The output reports the **Topic** and **Phase** (the phase at which the workflow was interrupted).
+The output reports the **Topic** and **Phase** (the phase to jump back into).
 
 ## Step 2: Load the Workflow Skill
 

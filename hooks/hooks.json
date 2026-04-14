@@ -1,5 +1,5 @@
 {
-  "description": "Dev workflow hooks — session-start caches session_id for setup/continue; stop-hook prevents exit during active workflow (skips bystander sessions); agent-guard steers subagent launches",
+  "description": "Dev workflow hooks — session-start caches session_id for setup/continue; stop-hook prevents exit during active workflow (skips bystander sessions); agent-guard steers subagent launches; postwrite mirrors cloud-mode shadow writes to the server",
   "hooks": {
     "SessionStart": [
       {
@@ -28,6 +28,17 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/agent-guard.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/postwrite-hook.sh"
           }
         ]
       }

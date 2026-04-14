@@ -45,8 +45,16 @@ if config_is_terminal "$STATUS"; then
       exit 0
       ;;
     *)
-      # complete / escalated → done, clean up and allow exit
-      rm -f "$STATE_FILE"
+      # complete / escalated → done, clean up and allow exit.
+      # In cloud mode the whole shadow gets wiped (update-status.sh already
+      # did this on transition, but stop-hook runs as a safety net for the
+      # case where update-status.sh crashed between POST and local cleanup).
+      if is_cloud_session "$RUN_DIR_NAME"; then
+        cloud_wipe_scratch "$RUN_DIR_NAME"
+        cloud_unregister_session "$RUN_DIR_NAME"
+      else
+        rm -f "$STATE_FILE"
+      fi
       exit 0
       ;;
   esac

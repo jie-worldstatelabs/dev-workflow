@@ -60,6 +60,13 @@ fi
 set_fm_field "$STATE_FILE" resume_status "$STATUS"
 set_fm_field "$STATE_FILE" status interrupted
 
+if is_cloud_session "$RUN_DIR_NAME"; then
+  CUR_EPOCH=$(_read_fm_field "$STATE_FILE" epoch)
+  cloud_post_state "$RUN_DIR_NAME" "interrupted" "${CUR_EPOCH:-1}" "$STATUS" "true" || {
+    echo "⚠️  cloud interrupt sync failed" >&2
+  }
+fi
+
 echo "⏸️  Dev workflow interrupted."
 echo ""
 echo "   Topic: $TOPIC"

@@ -107,9 +107,37 @@ set_fm_field "$STATE_FILE" status "$NEW_STATUS"
 set_fm_field "$STATE_FILE" epoch "$NEW_EPOCH"
 
 # Invalidate the artifact the new stage will produce
+NEW_ARTIFACT=""
 if config_is_stage "$NEW_STATUS"; then
   NEW_ARTIFACT="$(config_artifact_path "$NEW_STATUS" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
   rm -f "$NEW_ARTIFACT"
+fi
+
+# ──────────────────────────────────────────────────────────────
+# Cloud mirror — mirror state + artifact wipe to the server.
+# ──────────────────────────────────────────────────────────────
+if is_cloud_session "$RUN_DIR_NAME"; then
+  _active="true"
+  if config_is_terminal "$NEW_STATUS"; then
+    _active="false"
+  fi
+  cloud_post_state "$RUN_DIR_NAME" "$NEW_STATUS" "$NEW_EPOCH" "" "$_active" || {
+    echo "⚠️  cloud state sync failed; local shadow is ahead of server" >&2
+  }
+  if config_is_stage "$NEW_STATUS"; then
+    cloud_delete_artifact "$RUN_DIR_NAME" "$NEW_STATUS" || true
+  fi
+  # Refresh the working-tree diff on every transition so the UI stays in
+  # step with whatever the executor committed. Cheap (git diff + curl) and
+  # best-effort — failures never block the transition.
+  cloud_post_diff "$RUN_DIR_NAME" || true
+  if config_is_terminal "$NEW_STATUS"; then
+    cloud_post_archive "$RUN_DIR_NAME" || true
+    # Terminal status = we're done. Wipe the shadow so nothing stays on
+    # this machine; server keeps the audit trail. Same cleanup as cancel.
+    cloud_wipe_scratch "$RUN_DIR_NAME"
+    cloud_unregister_session "$RUN_DIR_NAME"
+  fi
 fi
 
 echo "[dev-workflow] Topic: $TOPIC | Status: $NEW_STATUS | epoch: $NEW_EPOCH"

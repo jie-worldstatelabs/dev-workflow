@@ -37,7 +37,31 @@ done
 [[ -n "$TOPIC_ARG" ]] && DESIRED_TOPIC="$TOPIC_ARG"
 [[ -n "$SESSION_ARG" ]] && DESIRED_SESSION="$SESSION_ARG"
 
-# Resolve the interrupted workflow to resume. Strategy:
+# Cross-machine takeover: if --session <id> refers to a cloud session
+# that has never been seen on this machine, pull it down from the server
+# and register both the server session_id and this machine's local
+# session_id as aliases pointing at the same scratch dir. After this
+# block, resolve_state will find the shadow via either key.
+if [[ -n "${DESIRED_SESSION:-}" ]] && ! is_cloud_session "$DESIRED_SESSION"; then
+  echo "▶️  Attempting cross-machine takeover of cloud session ${DESIRED_SESSION}..." >&2
+  scratch_path="$(cloud_pull_shadow "$DESIRED_SESSION")" || {
+    echo "❌ could not pull session ${DESIRED_SESSION} from server" >&2
+    exit 1
+  }
+  # Primary alias — matches the server-side session_id and the scratch
+  # dir basename, so cloud_post_* helpers POST to the right row.
+  cloud_register_session "$DESIRED_SESSION" "${DEV_WORKFLOW_SERVER}" "" "$scratch_path"
+  # Local alias — the current Claude session's id, so resolve_state from
+  # hooks/CLI on this machine (which keys on read_cached_session_id)
+  # finds the same scratch dir.
+  LOCAL_SID="$(read_cached_session_id)"
+  if [[ -n "$LOCAL_SID" ]] && [[ "$LOCAL_SID" != "$DESIRED_SESSION" ]]; then
+    cloud_register_session "$LOCAL_SID" "${DEV_WORKFLOW_SERVER}" "" "$scratch_path"
+  fi
+  echo "   Shadow restored at: $scratch_path" >&2
+fi
+
+# Resolve the workflow to resume. Strategy:
 #   1. If DESIRED_TOPIC or DESIRED_SESSION was set, use resolve_state (scoped).
 #   2. Otherwise, scan all .dev-workflow/*/ for a single interrupted run
 #      (cross-session takeover — the common case when the user reopened
@@ -68,44 +92,78 @@ fi
 
 STATUS=$(_read_fm_field "$STATE_FILE" status)
 RESUME_STATUS=$(_read_fm_field "$STATE_FILE" resume_status)
+IS_CLOUD="false"
+if is_cloud_session "$RUN_DIR_NAME"; then
+  IS_CLOUD="true"
+fi
 
-if [[ "$STATUS" != "interrupted" ]]; then
-  echo "⚠️  Workflow '$TOPIC' is not interrupted (status: $STATUS)." >&2
-  echo "   Only interrupted workflows can be continued." >&2
+# Terminal workflows can't be resumed.
+if config_is_terminal "$STATUS" 2>/dev/null; then
+  echo "⚠️  Workflow '$TOPIC' is already $STATUS — nothing to resume." >&2
   exit 1
 fi
 
-[[ -z "$RESUME_STATUS" ]] && RESUME_STATUS="executing"
-
-# ──────────────────────────────────────────────────────────────
-# Cross-session takeover: rename the run dir to this session's id so
-# hooks resolve to it from this session onward.
-# ──────────────────────────────────────────────────────────────
-NEW_SESSION="$(read_cached_session_id)"
-OLD_SESSION="$RUN_DIR_NAME"
-if [[ -n "$NEW_SESSION" ]] && [[ "$NEW_SESSION" != "$OLD_SESSION" ]]; then
-  NEW_DIR="${PROJECT_ROOT}/.dev-workflow/${NEW_SESSION}"
-  if [[ -e "$NEW_DIR" ]]; then
-    echo "⚠️  This session already has a workflow dir at $NEW_DIR — refusing to overwrite." >&2
-    echo "   Cancel or resolve that run first, then retry continue." >&2
-    exit 1
-  fi
-  mv "$TOPIC_DIR" "$NEW_DIR"
-  TOPIC_DIR="$NEW_DIR"
-  STATE_FILE="$NEW_DIR/state.md"
-  RUN_DIR_NAME="$NEW_SESSION"
-  # Record the new session id in state.md for traceability
-  set_fm_field "$STATE_FILE" session_id "$NEW_SESSION"
+# Decide the phase we're resuming into:
+#   - interrupted → restore resume_status (normal /interrupt + /continue flow)
+#   - active stage + local mode → must have been interrupted first
+#   - active stage + cloud mode → cross-machine takeover; keep the current
+#     status as the display phase, stop-hook will drive the stage from there
+DISPLAY_PHASE=""
+if [[ "$STATUS" == "interrupted" ]]; then
+  [[ -z "$RESUME_STATUS" ]] && RESUME_STATUS="executing"
+  DISPLAY_PHASE="$RESUME_STATUS"
+elif [[ "$IS_CLOUD" == "true" ]]; then
+  DISPLAY_PHASE="$STATUS"
+else
+  echo "⚠️  Workflow '$TOPIC' is not interrupted (status: $STATUS)." >&2
+  echo "   Only interrupted workflows can be continued in local mode." >&2
+  exit 1
 fi
 
-# Restore active status and clear resume_status
-set_fm_field "$STATE_FILE" status "$RESUME_STATUS"
-set_fm_field "$STATE_FILE" resume_status ""
+# ──────────────────────────────────────────────────────────────
+# Cross-session takeover (LOCAL MODE ONLY): rename the run dir to this
+# session's id so hooks resolve to it from this session onward. In
+# cloud mode the shadow dir is keyed by the server session_id and
+# resolve_state uses registry aliases, so no rename is needed.
+# ──────────────────────────────────────────────────────────────
+if [[ "$IS_CLOUD" != "true" ]]; then
+  NEW_SESSION="$(read_cached_session_id)"
+  OLD_SESSION="$RUN_DIR_NAME"
+  if [[ -n "$NEW_SESSION" ]] && [[ "$NEW_SESSION" != "$OLD_SESSION" ]]; then
+    NEW_DIR="${PROJECT_ROOT}/.dev-workflow/${NEW_SESSION}"
+    if [[ -e "$NEW_DIR" ]]; then
+      echo "⚠️  This session already has a workflow dir at $NEW_DIR — refusing to overwrite." >&2
+      echo "   Cancel or resolve that run first, then retry continue." >&2
+      exit 1
+    fi
+    mv "$TOPIC_DIR" "$NEW_DIR"
+    TOPIC_DIR="$NEW_DIR"
+    STATE_FILE="$NEW_DIR/state.md"
+    RUN_DIR_NAME="$NEW_SESSION"
+    set_fm_field "$STATE_FILE" session_id "$NEW_SESSION"
+  fi
+fi
+
+# Restore active status. On an interrupted-style resume this flips
+# back to the saved resume_status; on a cloud cross-machine takeover
+# of an already-active stage we leave the status alone (DISPLAY_PHASE
+# equals $STATUS).
+if [[ "$STATUS" == "interrupted" ]]; then
+  set_fm_field "$STATE_FILE" status "$RESUME_STATUS"
+  set_fm_field "$STATE_FILE" resume_status ""
+fi
+
+if [[ "$IS_CLOUD" == "true" ]]; then
+  CUR_EPOCH=$(_read_fm_field "$STATE_FILE" epoch)
+  cloud_post_state "$RUN_DIR_NAME" "$DISPLAY_PHASE" "${CUR_EPOCH:-1}" "" "true" || {
+    echo "⚠️  cloud resume sync failed" >&2
+  }
+fi
 
 echo "▶️  Dev workflow resumed."
 echo ""
 echo "   Topic:  $TOPIC"
-echo "   Phase:  $RESUME_STATUS"
+echo "   Phase:  $DISPLAY_PHASE"
 echo "   Session: $RUN_DIR_NAME"
 echo "   State dir: $TOPIC_DIR"
 echo ""

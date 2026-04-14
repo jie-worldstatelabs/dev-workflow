@@ -45,6 +45,27 @@ if ! resolve_state; then
   exit 1
 fi
 
+# Cloud mode: server is authoritative. Hit the cancel endpoint, wipe the
+# shadow dir, drop the registry entry. No local archive — server holds the
+# audit trail.
+if is_cloud_session "$RUN_DIR_NAME"; then
+  if [[ -n "$HARD" ]]; then
+    cloud_delete_session "$RUN_DIR_NAME" || true
+  else
+    cloud_post_cancel "$RUN_DIR_NAME" || {
+      echo "⚠️  cloud cancel POST failed — the server may still show this run as active" >&2
+    }
+  fi
+  cloud_wipe_scratch "$RUN_DIR_NAME"
+  cloud_unregister_session "$RUN_DIR_NAME"
+  if [[ -n "$HARD" ]]; then
+    echo "Dev workflow '$TOPIC' cancelled (hard-deleted from cloud)."
+  else
+    echo "Dev workflow '$TOPIC' cancelled (archived on server)."
+  fi
+  exit 0
+fi
+
 if [[ -n "$HARD" ]]; then
   # Hard delete — no archive, no audit trail.
   if [[ -d "$TOPIC_DIR" ]]; then

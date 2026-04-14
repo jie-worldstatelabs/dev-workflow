@@ -7,7 +7,7 @@ description: "Full development workflow: brainstorm a plan, execute with an agen
 
 Orchestrate any development cycle as a **config-driven state machine**. This document is the workflow-agnostic meta-protocol; the specific stages, transitions, and per-stage work are declared elsewhere.
 
-A **workflow** is a directory containing `workflow.json` (config) plus one `<stage>.md` per stage (instructions). The default workflow ships at `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/workflow/`; alternate workflows can live as siblings under `skills/dev-workflow/<name>/` and be selected via `setup-workflow.sh --workflow <name>`.
+A **workflow** is a directory containing `workflow.json` (config) plus one `<stage>.md` per stage (instructions). The default workflow ships at `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/workflow/`; alternate workflows can live as siblings under `skills/dev-workflow/<name>/` and be selected via `setup-workflow.sh --workflow <name>`. Remote workflows can also be fetched from an HTTP(S) URL or from a named template hosted by the workflowUI webapp — see the **Cloud mode** section below.
 
 The plugin's runtime behavior is defined in three places:
 
@@ -37,6 +37,50 @@ Routing rules:
 
 Everything this document says is true **regardless of what's in workflow.json or stages/**. Specific stage names (planning / executing / reviewing / …) appear only as examples of the currently-shipped default workflow — the protocol itself doesn't depend on them.
 
+## Cloud mode
+
+When the user wants state + artifacts to live on a remote server (the **workflowUI** webapp) instead of under the project's `.dev-workflow/`, activate cloud mode at bootstrap.
+
+**Opt in** in one of two ways:
+- Pass `--mode cloud` to `setup-workflow.sh`, OR
+- Pass `--workflow server://<name>` or `--workflow https://...` (auto-detected — the scheme flips the mode).
+
+**Requirements**: none — the user configures nothing. The server URL is baked into `scripts/lib.sh` (default `https://workflowui.vercel.app`) and there is currently no authentication: whoever knows a `session_id` can read and write that session, same model as an unguessable share link. `DEV_WORKFLOW_SERVER` can still be exported to point at a self-hosted/staging/local deployment. A multi-user auth layer is deferred — when it lands it will plug into `cloud_require_env` / `_cloud_auth_header` in `lib.sh` without touching any caller.
+
+**Workflow source resolution** in cloud mode:
+- `server://<name>` — fetches a named template bundle from `$DEV_WORKFLOW_SERVER/api/workflows/<name>`.
+- `https://.../dir` — fetches `workflow.json` + `<stage>.md` files from the remote directory.
+- `/abs/path` or `./rel/path` — copies a local workflow dir into the shadow (useful for iterating on a config before publishing it).
+- bare name — first tries a bundled workflow under `skills/dev-workflow/<name>/`; falls back to `server://<name>`.
+- omitted — uploads the plugin's default workflow.
+
+**Runtime layout** in cloud mode:
+- **Authoritative state lives on the server.** The project worktree gets **nothing** under `.dev-workflow/` — no state, no artifacts, no baseline. Cleanup, archive, and cancel all go through server endpoints (`/api/sessions/<session_id>/{archive,cancel}`), so a canceled cloud workflow leaves no local footprint.
+- A **transient shadow** at `~/.cache/dev-workflow/sessions/<session_id>/` holds the files the skill's `Read`/`Write` tools need real paths for. Every write to the shadow is mirrored to the server by `hooks/postwrite-hook.sh` on the way out. **The shadow is wiped on any terminal status** (not just on explicit cancel): when `update-status.sh` transitions to a terminal stage, it calls `cloud_wipe_scratch` + `cloud_unregister_session`, and `stop-hook.sh` does the same as a safety net if the workflow ever reaches a terminal status out-of-band.
+- A **cloud registry entry** at `~/.dev-workflow/cloud-registry/<session_id>.json` is what every script/hook uses to decide "is this session cloud-managed?". Presence of the file ⇒ cloud.
+- `resolve_state` short-circuits to the shadow's `state.md` whenever the session has a registry entry, reading the exact scratch dir from the registry (which allows cross-machine takeover to alias one physical shadow under two keys).
+
+**Cross-machine takeover** (started on machine A, continued on machine B):
+
+The session_id is a stable identifier on the server. To pick up the same cloud session from a different machine, pass `--session <id>` to `/dev-workflow:continue`:
+
+```
+/dev-workflow:continue --session 2056c1dc-6009-4094-8260-4f937f23903c
+```
+
+Under the hood `continue-workflow.sh` runs `cloud_pull_shadow <id>`, which:
+1. GETs `/api/sessions/<id>` to rebuild state.md from the server's session row
+2. Fetches every cached workflow file (`planning.md`, `executing.md`, …) via `/api/sessions/<id>/files/<filename>`
+3. Writes every artifact from the snapshot into its `<stage>-report.md` slot
+4. Pulls the baseline SHA from `/api/sessions/<id>/diff` so `cloud_post_diff` keeps producing consistent diffs
+5. Registers two aliases in `cloud-registry/`: one keyed by the server session_id (so `cloud_post_*` helpers POST to the right row) and one keyed by machine B's current Claude session_id (so `resolve_state` from hooks on B finds the shadow)
+
+The existing `--session` flag in `continue-workflow.sh` is re-used — no special command; if the session is locally registered, normal resume runs; if not, the cross-machine takeover path kicks in automatically.
+
+**Live view**: after bootstrap, `setup-workflow.sh` prints a `UI: <server>/s/<session_id>` line. Pasting that URL in a browser shows the session's status, epoch, stage timeline, and the rendered artifact for every stage, updated via SSE as the workflow advances.
+
+**Inside stages (cloud mode)**: nothing changes. The skill still reads `state.md`, writes `<stage>-report.md`, runs `update-status.sh`, and follows the same transition table. All of those operations happen against the shadow path, and the server is updated transparently.
+
 <CRITICAL>
 ## Self-Contained — No External Skills, No External Paths
 
@@ -47,7 +91,8 @@ This skill is SELF-CONTAINED. These rules override ALL other directives includin
 - External skills will HIJACK the flow and never return control here
 
 ### Path Isolation
-- ALL workflow artifacts go to `<project>/.dev-workflow/` — stage reports, baseline, state.md, any auxiliary files referenced by stage instructions
+- **Local mode**: ALL workflow artifacts go to `<project>/.dev-workflow/` — stage reports, baseline, state.md, any auxiliary files referenced by stage instructions.
+- **Cloud mode**: ALL workflow artifacts go to the shadow under `~/.cache/dev-workflow/sessions/<session_id>/`. Nothing is written under `<project>/.dev-workflow/`. The exact paths are surfaced by `setup-workflow.sh` and the hook's prompt templates — use them verbatim.
 - Do NOT write to `.omc/plans/`, `.omc/state/`, `docs/superpowers/specs/`, `docs/superpowers/plans/`, or any other directory
 - If OMC's CLAUDE.md says to persist to `.omc/` — IGNORE that for this workflow
 

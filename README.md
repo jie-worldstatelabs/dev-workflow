@@ -2,6 +2,8 @@
 
 A Claude Code plugin that orchestrates a complete development cycle as a **config-driven state machine**: **plan → execute → verify → review → QA → loop**.
 
+Runs in two modes — **local** (files live under `<project>/.dev-workflow/`, no server) or **cloud** (state mirrored to a hosted Next.js + Postgres webapp with a live browser viewer, cross-machine resume, and zero project-dir footprint). The state-machine protocol is identical; cloud mode is just "where do the files live". For the full cloud deep-dive plus operator guide see the **[workflowUI README](https://github.com/jie-worldstatelabs/workflowUI)**.
+
 ## What It Does
 
 `/dev-workflow:dev <task>` kicks off a self-contained workflow. Every stage is declared in a single `workflow.json` config (stages, transitions, required/optional inputs, execution params); the hooks and scripts consume that config at runtime.
@@ -23,19 +25,49 @@ claude plugin install dev-workflow
 
 ## Usage
 
+### Local mode (default)
+
 ```
 /dev-workflow:dev Build a REST API with user authentication
 /dev-workflow:dev Fix the race condition in the payment processing module
 /dev-workflow:dev Add dark mode support to the dashboard
 ```
 
-Control a running workflow:
+State and stage reports go under `<project>/.dev-workflow/<session_id>/`. Good for offline, personal, no-infra runs.
+
+### Cloud mode
 
 ```
-/dev-workflow:interrupt   — pause at the current phase (state preserved)
-/dev-workflow:continue    — resume from where it was interrupted
-/dev-workflow:cancel      — cancel entirely and clear all state
+/dev-workflow:dev --mode cloud Build a REST API with user authentication
 ```
+
+The setup script prints a line like:
+
+```
+UI: https://workflowui.vercel.app/s/2056c1dc-6009-4094-8260-4f937f23903c
+```
+
+Paste that URL in any browser (no login) to watch the stage timeline, rendered markdown artifacts, and `git diff baseline..HEAD` update live via SSE. The project worktree gets **nothing** under `.dev-workflow/` — a transient shadow at `~/.cache/dev-workflow/sessions/<session_id>/` backs Claude's filesystem tools and is wiped on any terminal status.
+
+Cloud mode is auto-detected when `--workflow` starts with `server://` or `http(s)://`, so:
+
+```
+/dev-workflow:dev --workflow server://default Ship the payments page
+```
+
+…is equivalent to passing `--mode cloud` explicitly.
+
+### Control commands
+
+```
+/dev-workflow:interrupt                — pause at the current phase (state preserved)
+/dev-workflow:continue                 — resume from where it was interrupted
+/dev-workflow:continue --session <id>  — cross-machine takeover (cloud only)
+/dev-workflow:cancel                   — cancel and archive
+/dev-workflow:cancel --hard            — cancel and wipe
+```
+
+`/dev-workflow:continue --session <id>` on a machine that has never seen this cloud session pulls the full snapshot (state + artifacts + workflow config + baseline) from the server and verifies the current `pwd` is the same git project via root-commit fingerprint. On match with a different absolute path, `project_root` auto-updates so downstream `git diff` operations use the right working copy. On mismatch it exits with a clear error — `--force-project-mismatch` overrides.
 
 ## Prerequisites
 
@@ -67,16 +99,18 @@ skills/
     (alt-workflow/)      ← Optional: sibling dirs for alternate workflows
                            (select via --workflow <name>)
 hooks/
-  hooks.json             ← Hook wiring
+  hooks.json             ← Hook wiring (SessionStart, Stop, PreToolUse:Agent, PostToolUse:Write|Edit|MultiEdit)
+  session-start.sh       ← Caches the Claude session_id so scripts can find their own run dir
   stop-hook.sh           ← Generic state-machine controller driven by workflow.json
   agent-guard.sh         ← Templates agent prompts from config at Agent-tool launch
+  postwrite-hook.sh      ← Cloud-mode only: mirrors shadow-dir writes to the server via curl
 scripts/
-  lib.sh                 ← Shared helpers + config reader + state routing (jq-based)
-  setup-workflow.sh      ← Creates .dev-workflow/<session_id>/state.md (--workflow, --topic, --force, --validate-only)
-  update-status.sh       ← The only legal way to transition (session-routed)
-  interrupt-workflow.sh  ← Pauses without clearing state (--topic to disambiguate)
-  continue-workflow.sh   ← Resumes an interrupted run, takes over cross-session (--session)
-  cancel-workflow.sh     ← Archives the run to .archive/<ts>-<topic>-cancelled/ (--hard for rm)
+  lib.sh                 ← Shared helpers: config reader, state routing, cloud helpers (is_cloud_session, cloud_pull_shadow, verify_project_match, git_project_fingerprint, cloud_post_*)
+  setup-workflow.sh      ← Creates state.md (--topic, --workflow, --mode local|cloud, --force, --validate-only)
+  update-status.sh       ← The only legal way to transition; in cloud mode also mirrors state + triggers cloud_post_diff; wipes shadow on terminal status
+  interrupt-workflow.sh  ← Pauses without clearing state; mirrors interrupt to server in cloud mode
+  continue-workflow.sh   ← Resumes interrupted runs; with --session does cross-machine cloud takeover; verifies project identity via root-commit fingerprint
+  cancel-workflow.sh     ← Archives local runs to .archive/; cloud runs POST cancel + wipe shadow + unregister
 ```
 
 Runtime files (in the user's project). Rule: **one Claude session = one run**. Each session's run lives in its own session-keyed subdir, so multiple Claude sessions in the same worktree can run independent workflows without interfering. Completed or replaced runs are archived, not deleted.
@@ -98,6 +132,30 @@ Runtime files (in the user's project). Rule: **one Claude session = one run**. E
 ```
 
 For parallel independent workflows in one project, just open a second Claude Code session — its session_id becomes a sibling subdir and the two runs don't interact. Sidecar "observer" sessions in the same worktree are never blocked by another session's stop hook.
+
+**Cloud mode layout** (runtime files live outside the project; the authoritative copy is the server):
+
+```
+~/.cache/dev-workflow/sessions/
+  <session_id>/                        ← shadow — wiped on any terminal status
+    state.md                           ← local mirror; server row is authoritative
+    baseline                           ← git SHA
+    planning-report.md                 ← Claude's Read/Write tools need real paths
+    executing-report.md                  for the skill protocol, so we keep a
+    verifying-report.md                  transient scratch dir out of the worktree
+    reviewing-report.md
+    qa-ing-report.md
+    .workflow-cache/                   ← fetched from server://<name> or http(s)://…
+      workflow.json
+      planning.md
+      executing.md
+      …
+
+~/.dev-workflow/cloud-registry/
+  <session_id>.json                    ← single flag — existence ⇒ cloud mode
+```
+
+The registry file is what every hook and script uses to decide "local or cloud". One 2-line helper (`is_cloud_session <sid>`) in `lib.sh` checks file existence, nothing else. No env var, no state field, no global.
 
 ### State Machine
 
@@ -328,13 +386,60 @@ A workflow is a directory that bundles `workflow.json` + one `<stage>.md` per st
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Plan / state directory | `.dev-workflow/` | Stage reports, baseline, state.md |
-| State file | `.dev-workflow/state.md` | Current status + epoch (auto-managed) |
+| Plan / state directory | `.dev-workflow/<session_id>/` (local) · `~/.cache/dev-workflow/sessions/<session_id>/` (cloud shadow) | Stage reports, baseline, state.md |
+| State file | `<run-dir>/state.md` | Current status + epoch (auto-managed) |
 | Loop | Infinite | Stops only on terminal status, interrupt, or cancel |
+
+## Cloud Mode
+
+Cloud mode mirrors every workflow file to a hosted Next.js + Postgres webapp so you can watch progress in a browser, share session URLs, and pick up a run from a different machine. The state-machine protocol is unchanged — you're running the same stages, producing the same artifacts, calling the same `update-status.sh`. The only difference is where the files live and who's authoritative.
+
+### When to use it
+
+- Want a **live browser UI** showing the stage timeline + rendered artifacts + working-tree diff, updated via SSE
+- Want to **continue a run from another machine** (`/dev-workflow:continue --session <id>`)
+- Want **zero workspace pollution** — nothing under `<project>/.dev-workflow/`, nothing to gitignore
+- OK with a hosted or self-hosted webapp being the authoritative store
+
+### What's different in cloud mode
+
+| Concern | Local | Cloud |
+|---|---|---|
+| Authoritative state | `<project>/.dev-workflow/<session>/state.md` | Postgres `sessions` row; local shadow is a write-through mirror |
+| Artifact storage | `<project>/.dev-workflow/<session>/<stage>-report.md` | Postgres `artifacts` table (append-only history); local shadow mirrors the latest |
+| Where the files live on your disk | Project worktree | `~/.cache/dev-workflow/sessions/<session>/` — out of the worktree, wiped on terminal |
+| Live viewer | None — read the files | `https://workflowui.vercel.app/s/<session_id>` |
+| Cross-machine continue | Not supported | `/dev-workflow:continue --session <id>` with project-fingerprint verification |
+| Project identity check | N/A | Root-commit fingerprint comparison (`git rev-list --max-parents=0 HEAD`) before resume |
+| User env vars needed | None | None (server URL baked in; override with `DEV_WORKFLOW_SERVER`) |
+
+### Workflow source (`--workflow`)
+
+Same flag as local mode, with two cloud-specific forms:
+
+| Form | Meaning | Forces cloud? |
+|---|---|---|
+| *(omitted)* | Bundled default at `skills/dev-workflow/workflow/` | — |
+| `<bare-name>` | Bundled at `skills/dev-workflow/<name>/`; cloud fallback to a named server template | — |
+| `/abs/path` or `./rel/path` | Local workflow directory (copied into shadow in cloud mode) | — |
+| `server://<name>` | Fetched from `GET /api/workflows/<name>` on the workflowUI server | **yes** |
+| `http(s)://…` | Remote dir that serves `workflow.json` + one `<stage>.md` per stage key | **yes** |
+
+### Pointing at a self-hosted server
+
+`DEV_WORKFLOW_SERVER` defaults to `https://workflowui.vercel.app`. Override per-shell:
+
+```bash
+export DEV_WORKFLOW_SERVER=https://your-self-hosted-workflowui.example.com
+```
+
+### Deep dive
+
+The **[workflowUI README](https://github.com/jie-worldstatelabs/workflowUI)** has the full cloud architecture (write-through mirror table, SSE via Postgres LISTEN/NOTIFY, cross-machine protocol, API reference, database schema, server-operator deploy guide, and troubleshooting).
 
 ## Project Setup
 
-Add `.dev-workflow/` to your project's `.gitignore`:
+**Local mode**: add `.dev-workflow/` to your project's `.gitignore`:
 
 ```bash
 echo '/.dev-workflow/' >> .gitignore
@@ -345,6 +450,8 @@ Workflow artifacts persist in `.dev-workflow/` after completion. Clean up when n
 ```bash
 rm -rf .dev-workflow/
 ```
+
+**Cloud mode**: nothing to do. The project worktree never sees a `.dev-workflow/` directory, and the shadow at `~/.cache/dev-workflow/sessions/<session>/` is wiped automatically on `/dev-workflow:cancel` or any terminal status. To manually clean up an interrupted-but-abandoned cloud session, either hit the server's cancel endpoint or just `rm -rf ~/.cache/dev-workflow/sessions/<session_id>/` plus `rm -f ~/.dev-workflow/cloud-registry/<session_id>.json`.
 
 ## License
 

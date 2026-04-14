@@ -103,7 +103,21 @@ if [[ "$MODE" == "local" ]]; then
   elif [[ "$WORKFLOW_NAME" == */* ]]; then
     WORKFLOW_DIR="$(cd "$WORKFLOW_NAME" 2>/dev/null && pwd || echo "$WORKFLOW_NAME")"
   else
-    WORKFLOW_DIR="${PLUGIN_ROOT}/skills/dev-workflow/${WORKFLOW_NAME}"
+    # Bare name resolution:
+    #   1. plugin-bundled  ${PLUGIN_ROOT}/skills/dev-workflow/<name>/
+    #   2. user-local      ~/.dev-workflow/workflows/<name>/  (written by create-workflow skill)
+    # Plugin-bundled wins if both exist, so users can't shadow the default workflow.
+    _bundled="${PLUGIN_ROOT}/skills/dev-workflow/${WORKFLOW_NAME}"
+    _user="${HOME}/.dev-workflow/workflows/${WORKFLOW_NAME}"
+    if [[ -d "$_bundled" ]]; then
+      WORKFLOW_DIR="$_bundled"
+    elif [[ -d "$_user" ]]; then
+      WORKFLOW_DIR="$_user"
+    else
+      # Keep the bundled path as the reported value so the config_check
+      # error message points somewhere meaningful.
+      WORKFLOW_DIR="$_bundled"
+    fi
   fi
   CONFIG_FILE="${WORKFLOW_DIR}/workflow.json"
 
@@ -279,10 +293,15 @@ if [[ "$MODE" == "cloud" ]]; then
       cp -R "${_abs}/." "${WORKFLOW_CACHE}/"
       ;;
     *)
-      # Bare name — try bundled first, fall back to named template on server.
+      # Bare name — try bundled first, then user-local (~/.dev-workflow/
+      # workflows/<name>/, written by the create-workflow skill), finally
+      # fall back to a named template on the server.
       _bundled="${PLUGIN_ROOT}/skills/dev-workflow/${WORKFLOW_NAME}"
+      _user_local="${HOME}/.dev-workflow/workflows/${WORKFLOW_NAME}"
       if [[ -f "${_bundled}/workflow.json" ]]; then
         cp -R "${_bundled}/." "${WORKFLOW_CACHE}/"
+      elif [[ -f "${_user_local}/workflow.json" ]]; then
+        cp -R "${_user_local}/." "${WORKFLOW_CACHE}/"
       else
         WORKFLOW_URL="${DEV_WORKFLOW_SERVER}/api/workflows/${WORKFLOW_NAME}"
         cloud_fetch_workflow_from_name "$WORKFLOW_NAME" "$WORKFLOW_CACHE" || {

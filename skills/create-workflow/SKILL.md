@@ -1,0 +1,178 @@
+---
+name: create-workflow
+description: "Generate a complete custom workflow suite (workflow.json + stage .md files) from a natural-language description. Interviews the user about their needs, proposes a design, writes the files to ~/.dev-workflow/workflows/<name>/, and validates the result."
+---
+
+# Create Workflow — natural language to workflow suite
+
+This skill **generates** a new dev-workflow. It does NOT run one. After this skill finishes, the user can launch the new workflow with `/dev-workflow:dev --workflow=<name> <task>`.
+
+<CRITICAL>
+- Do NOT invoke any other skill before, during, or after.
+- Do NOT run `setup-workflow.sh` without `--validate-only`. This skill only creates files; running a real workflow is the user's next action.
+- Do NOT write files until the user explicitly approves the design.
+- Do NOT overwrite an existing `~/.dev-workflow/workflows/<name>/` without confirmation.
+</CRITICAL>
+
+## Plugin path resolution
+
+`$CLAUDE_PLUGIN_ROOT` is **not** set in the main agent's Bash-tool env — use the session-cached path (written by the SessionStart hook), with a filesystem fallback:
+
+```bash
+P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
+```
+
+Re-derive `$P` inside every Bash-tool call — shell vars don't persist across calls.
+
+## Reference material
+
+**Before drafting anything, read the plugin's default workflow as your schema reference and stage-file style guide**:
+
+- `"$P/skills/dev-workflow/workflow/workflow.json"` — the canonical schema shape
+- `"$P/skills/dev-workflow/workflow/planning.md"` — interruptible inline stage example
+- `"$P/skills/dev-workflow/workflow/verifying.md"` — uninterruptible inline stage example
+- `"$P/skills/dev-workflow/workflow/executing.md"` — subagent stage addressed to `workflow-subagent`, model override (opus)
+- `"$P/skills/dev-workflow/workflow/reviewing.md"` — subagent stage, sonnet
+- `"$P/skills/dev-workflow/workflow/qa-ing.md"` — subagent stage, loops back to executing on failure
+
+Read all six files once before proposing a stage decomposition. Match their style in the files you generate.
+
+## Schema constraints (enforced by `config_validate`)
+
+The generator MUST respect these. `setup-workflow.sh --validate-only` will reject anything that violates them:
+
+- `.initial_stage` must be one of the declared stages
+- `.terminal_stages` must be a non-empty array of strings. Conventional terminal stages are `complete` and `escalated` (and optionally `cancelled`). Terminal stage names do NOT need to appear in `.stages`; they're just the values the state machine settles into.
+- `.stages` must be an object. Each stage has:
+  - `interruptible`: boolean
+  - `execution`: `{ "type": "inline" }` OR `{ "type": "subagent", "model": "<opus|sonnet|haiku>" }`. Model is optional; omit to use the generic subagent's default (sonnet).
+  - `transitions`: object mapping result-value strings to next-status strings (another declared stage OR a terminal)
+  - `inputs.required`: array of `{ "from_stage": "<name>", "description": "<text>" }`
+  - `inputs.optional`: same shape, may be empty
+- **Subagent stages MUST have `"interruptible": false`.** The main agent blocks on the Agent tool call — the stop hook has no chance to fire during a subagent run, so `interruptible: true` on a subagent stage is a silent lie the validator rejects.
+- `subagent_type` as a per-stage field is **NOT supported**. All subagent stages run under the single generic `dev-workflow:workflow-subagent`, whose system prompt is the stage file the main agent passes in the prompt template. Don't write this field; the validator rejects it.
+- Every declared stage must have a corresponding `<stage>.md` file next to `workflow.json`.
+- Every transition target must be either another declared stage name OR a terminal stage name.
+- Every `inputs.required[*].from_stage` and `inputs.optional[*].from_stage` must reference a declared stage.
+
+## Protocol
+
+### Step 1 — Understand the user's goal
+
+Read `$ARGUMENTS` (the description the user typed after `/dev-workflow:create-workflow`). If it's empty or too vague to decompose, ask ONE clarifying question at a time (cap at 5 questions total). Useful axes:
+
+- What kind of work does this workflow orchestrate? (coding, writing, data analysis, review, etc.)
+- What are the rough phases? (a 3-line sketch is enough — you'll refine them in Step 2.)
+- Any phase where the user should pause for input? (interruptible inline stages)
+- Any phase that benefits from a stronger model? (subagent stages with `model: opus`)
+- Any external validation or test run? (subagent or inline stage that runs a command)
+- What's the success terminal? (usually `complete`. If the workflow has a meaningful "ship it" action, you might name a different terminal.)
+
+Stop asking once you can draft a stage decomposition.
+
+### Step 2 — Propose a stage decomposition
+
+Present the proposed workflow as a table, followed by the transition graph. Include **every** field the schema requires:
+
+| Stage | Execution | Model | Interruptible | Purpose | Result values |
+|---|---|---|---|---|---|
+| <name> | inline / subagent | (if subagent) | true/false | <one-line role> | `result: X` → next stage |
+
+Then show the transition graph as a list:
+
+```
+<initial_stage> --(<result>)--> <stage2>
+<stage2> --(done)--> <stage3>
+<stage3> --(PASS)--> complete
+<stage3> --(FAIL)--> <stage2>
+```
+
+Call out inputs each stage consumes (`required` and `optional`). Required inputs are enforced at transition time by `update-status.sh`.
+
+Ask the user: **"Does this design look right? Any changes to stages, order, or inputs?"** Iterate until they approve.
+
+### Step 3 — Pick a workflow name
+
+Derive a short, kebab-case name from the user's description (e.g. "Python library dev with docs and publish" → `python-lib`, "research paper drafting" → `paper-draft`). Show the name and ask for confirmation.
+
+Check for collision: if `~/.dev-workflow/workflows/<name>/` already exists, tell the user and ask whether to pick a different name or overwrite. Do NOT overwrite silently.
+
+### Step 4 — Write the files
+
+Create the target directory:
+
+```bash
+mkdir -p ~/.dev-workflow/workflows/<name>
+```
+
+Write `workflow.json` strictly matching the schema (see the Schema constraints section + read the default `workflow.json` as reference). Validate locally by eye against the constraints list — don't leak a per-stage `subagent_type` field or set `interruptible: true` on a subagent stage.
+
+Write one `<stage>.md` per declared stage. Guidelines:
+
+**All stage files should include**:
+- A short header (`# Stage: <name>`)
+- A purpose line
+- An output-artifact path template: `<project>/.dev-workflow/<session_id>/<stage>-report.md`
+- The list of valid `result:` values (must match the keys in `transitions` for that stage)
+- The frontmatter format the file must produce:
+  ```
+  ---
+  epoch: <epoch from the prompt>
+  result: <one of the valid values>
+  ---
+  ```
+
+**For inline stages** (execution.type = `inline`): address the main agent ("You drive this stage directly. Read state.md to get the epoch, do <the work>, write the output artifact with the frontmatter above, then call `update-status.sh --status <next>`.")
+
+**For subagent stages** (execution.type = `subagent`): address the generic `workflow-subagent` ("You are <role>. Read the inputs listed in your prompt. Do X, Y, Z. Write the output artifact at the absolute path given in your prompt with the frontmatter above."). The subagent will be given the stage file's absolute path via `agent-guard.sh`'s prompt template — it reads the file first as its canonical protocol.
+
+Tune the body to the stage's domain (a reviewer stage talks about severity classes, a tester stage talks about test commands, etc.). Look at `reviewing.md` and `qa-ing.md` in the default workflow for examples of domain-specific bodies.
+
+### Step 5 — Validate
+
+Run `setup-workflow.sh --validate-only --workflow=<absolute-path>`:
+
+```bash
+P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
+"$P/scripts/setup-workflow.sh" --validate-only --workflow="$HOME/.dev-workflow/workflows/<name>"
+```
+
+Expected on success:
+
+```
+✓ Workflow validated: N stages, M terminal
+   dir:      <absolute path>
+   initial:  <initial_stage>
+   stages:   <space-separated stage names>
+   terminal: <space-separated terminal stages>
+```
+
+If validation fails, the output has `❌` lines for each problem (missing stage file, invalid transition target, unsupported `subagent_type` field, subagent stage with `interruptible: true`, etc.). **Read them, fix the generated files, re-run.** Do NOT proceed to Step 6 until validation passes.
+
+### Step 6 — Report success
+
+Tell the user:
+
+- **Where**: `~/.dev-workflow/workflows/<name>/` (absolute path)
+- **What's in it**: `workflow.json` + one `.md` per stage
+- **How to launch**:
+  ```
+  /dev-workflow:dev --workflow=<name> <your task>
+  ```
+  The `--workflow=<bare-name>` resolution checks the plugin's bundled workflows first, then falls back to `~/.dev-workflow/workflows/<name>/`, so both work. If the user prefers an absolute path, `--workflow=~/.dev-workflow/workflows/<name>` is also fine.
+- **Validator summary** from Step 5 (one line, N stages / M terminal).
+
+Do NOT run `/dev-workflow:dev` yourself — that's the user's next action. Your job is done when the files are on disk and validation passed.
+
+## Key Rules
+
+- Always read the default workflow files as reference before proposing a design.
+- Always iterate on the design with the user before writing files.
+- Always run `--validate-only` before reporting success.
+- Never write to `~/.dev-workflow/workflows/<name>/` without user approval.
+- Never overwrite an existing workflow dir without confirmation.
+- Never set `interruptible: true` on a subagent stage.
+- Never write a `subagent_type` field — all subagent stages use the generic `dev-workflow:workflow-subagent`.
+- Never invoke any other skill or run the full `setup-workflow.sh` (only `--validate-only`).

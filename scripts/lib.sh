@@ -282,6 +282,24 @@ resolve_state() {
     done
   fi
 
+  # Unambiguous single-workflow fallback. When neither DESIRED_SESSION
+  # nor DESIRED_TOPIC was provided and the project has exactly one
+  # session subdir under .dev-workflow/, just use it. This removes the
+  # friction of having to pass --topic when calling plugin scripts from
+  # an agent Bash invocation that didn't inherit the session-start hook
+  # context (so read_cached_session_id returned empty). With two or
+  # more candidates we still error out — the error message below will
+  # list them so the caller knows what to pass.
+  local _candidates=()
+  local _c
+  for _c in "$dw"/*/state.md; do
+    [[ -f "$_c" ]] && _candidates+=("$_c")
+  done
+  if [[ ${#_candidates[@]} -eq 1 ]]; then
+    _populate_state_vars "${_candidates[0]}" "$project_root"
+    return 0
+  fi
+
   # Legacy: flat .dev-workflow/state.md (pre-v1.11) — single-workflow fallback
   if [[ -f "$dw/state.md" ]]; then
     _populate_state_vars "$dw/state.md" "$project_root"

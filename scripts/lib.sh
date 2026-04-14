@@ -853,7 +853,7 @@ cloud_post_setup() {
 }
 
 cloud_post_state() {
-  local sid="$1" status="$2" epoch="$3" resume="${4:-}" active="${5:-true}"
+  local sid="$1" status="$2" epoch="$3" resume="${4:-}" active="${5:-true}" project_root="${6:-}"
   cloud_require_env || return 1
   local payload
   payload="$(jq -n \
@@ -861,13 +861,53 @@ cloud_post_state() {
       --argjson epoch "${epoch:-1}" \
       --arg resume "$resume" \
       --argjson active "$active" \
+      --arg pr "$project_root" \
       '{
         status: $status,
         epoch: $epoch,
         resume_status: (if $resume == "" then null else $resume end),
         active: $active
-      }')"
+      } + (if $pr == "" then {} else {project_root: $pr} end)')"
   _cloud_post_json "${DEV_WORKFLOW_SERVER}/api/sessions/${sid}/state" "$payload" > /dev/null
+}
+
+# ──────────────────────────────────────────────────────────────
+# Project identity (git root-commit fingerprint)
+# ──────────────────────────────────────────────────────────────
+#
+# We use the set of root commits (`git rev-list --max-parents=0 HEAD`)
+# as a stable, language-agnostic identifier for "this is the same
+# project". Two clones of the same repo share a root commit; two
+# unrelated repos cannot. The check is meant to catch the case where
+# a user resumes a workflow from the wrong directory — not to verify
+# that HEAD matches, so different revisions are allowed.
+
+git_project_fingerprint() {
+  local dir="${1:-.}"
+  git -C "$dir" rev-parse --git-dir >/dev/null 2>&1 || { echo ""; return; }
+  git -C "$dir" rev-list --max-parents=0 HEAD 2>/dev/null \
+    | sort | tr '\n' ',' | sed 's/,$//'
+}
+
+# Compare the current CWD's fingerprint with the one recorded in the
+# given state.md. Return codes:
+#   0 → match, or either side has no fingerprint (skip — nothing to verify)
+#   1 → mismatch: both sides have git but root commits differ
+#   2 → mismatch: state.md has a fingerprint but the current dir is not git
+verify_project_match() {
+  local state_file="$1"
+  local cwd="${2:-$(pwd)}"
+  local expected; expected="$(_read_fm_field "$state_file" project_fingerprint)"
+  [[ -z "$expected" ]] && return 0
+  [[ "$expected" == "EMPTY" ]] && return 0
+  local actual; actual="$(git_project_fingerprint "$cwd")"
+  if [[ -z "$actual" ]]; then
+    return 2
+  fi
+  if [[ "$actual" != "$expected" ]]; then
+    return 1
+  fi
+  return 0
 }
 
 cloud_post_artifact() {
@@ -987,12 +1027,13 @@ cloud_pull_shadow() {
 
   # state.md — rebuilt from the snapshot's session row. Keeps the
   # server-side session_id so cloud_post_* helpers target the same row.
-  local topic status epoch resume project_root worktree workflow_url
+  local topic status epoch resume project_root fingerprint worktree workflow_url
   topic="$(printf '%s' "$snapshot" | jq -r '.session.topic // ""')"
   status="$(printf '%s' "$snapshot" | jq -r '.session.status // ""')"
   epoch="$(printf '%s' "$snapshot" | jq -r '.session.epoch // 1')"
   resume="$(printf '%s' "$snapshot" | jq -r '.session.resume_status // ""')"
   project_root="$(printf '%s' "$snapshot" | jq -r '.session.project_root // ""')"
+  fingerprint="$(printf '%s' "$snapshot" | jq -r '.session.project_fingerprint // ""')"
   worktree="$(printf '%s' "$snapshot" | jq -r '.session.worktree // ""')"
   workflow_url="$(printf '%s' "$snapshot" | jq -r '.session.workflow_url // ""')"
 
@@ -1007,6 +1048,7 @@ session_id: $sid
 worktree: "$worktree"
 workflow_dir: "${shadow}/.workflow-cache"
 project_root: "$project_root"
+project_fingerprint: $fingerprint
 mode: cloud
 pulled_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ---

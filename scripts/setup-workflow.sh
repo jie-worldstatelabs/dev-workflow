@@ -256,6 +256,10 @@ if [[ "$MODE" == "cloud" ]]; then
 
   INITIAL_STAGE="$(config_initial_stage)"
 
+  # Compute the project fingerprint (set of git root commit SHAs) so
+  # cross-machine continue can verify the resume target is the same repo.
+  PROJECT_FINGERPRINT="$(git_project_fingerprint "$PROJECT_ROOT")"
+
   # ── Build setup payload + POST to server ──
   files_json="{}"
   for f in "$WORKFLOW_CACHE"/*.md; do
@@ -274,6 +278,7 @@ if [[ "$MODE" == "cloud" ]]; then
       --argjson files "$files_json" \
       --arg url "$WORKFLOW_URL" \
       --arg proot "$PROJECT_ROOT" \
+      --arg fpr "$PROJECT_FINGERPRINT" \
       --arg wtree "$WORKTREE_ROOT" \
       --argjson force "$force_bool" \
       '{
@@ -282,6 +287,7 @@ if [[ "$MODE" == "cloud" ]]; then
         workflow_files: $files,
         workflow_url: (if $url == "" then null else $url end),
         project_root: $proot,
+        project_fingerprint: (if $fpr == "" then null else $fpr end),
         worktree: $wtree,
         force: $force
       }')"
@@ -322,6 +328,7 @@ session_id: $SESSION_ID
 worktree: "$WORKTREE_ROOT"
 workflow_dir: "$WORKFLOW_CACHE"
 project_root: "$PROJECT_ROOT"
+project_fingerprint: ${PROJECT_FINGERPRINT:-}
 mode: cloud
 started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ---
@@ -461,6 +468,7 @@ TOPIC_DIR="$SESSION_RUN_DIR"
 mkdir -p "$TOPIC_DIR"
 
 INITIAL_STAGE="$(config_initial_stage)"
+LOCAL_FINGERPRINT="$(git_project_fingerprint "$PROJECT_ROOT")"
 
 cat > "${TOPIC_DIR}/state.md" <<EOF
 ---
@@ -473,6 +481,7 @@ session_id: $SESSION_ID
 worktree: "$WORKTREE_ROOT"
 workflow_dir: "$WORKFLOW_DIR"
 project_root: "$PROJECT_ROOT"
+project_fingerprint: ${LOCAL_FINGERPRINT:-}
 started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ---
 EOF

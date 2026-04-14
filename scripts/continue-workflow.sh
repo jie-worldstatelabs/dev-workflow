@@ -18,6 +18,7 @@ source "${SCRIPT_DIR}/lib.sh"
 
 TOPIC_ARG=""
 SESSION_ARG=""
+FORCE_MISMATCH=""
 while [[ $# -gt 0 ]]; do
   case $1 in
     --topic)
@@ -27,6 +28,10 @@ while [[ $# -gt 0 ]]; do
     --session)
       SESSION_ARG="$2"
       shift 2
+      ;;
+    --force-project-mismatch)
+      FORCE_MISMATCH="yes"
+      shift
       ;;
     *)
       shift
@@ -96,6 +101,52 @@ IS_CLOUD="false"
 if is_cloud_session "$RUN_DIR_NAME"; then
   IS_CLOUD="true"
 fi
+
+# ──────────────────────────────────────────────────────────────
+# Project identity check
+# ──────────────────────────────────────────────────────────────
+# Before touching state, verify the current CWD is in the same git
+# project the workflow was started in (root commit fingerprint).
+# Allows different HEADs but catches "wrong repo entirely".
+verify_rc=0
+verify_project_match "$STATE_FILE" "$(pwd)" || verify_rc=$?
+case $verify_rc in
+  0)
+    CURRENT_DIR="$(pwd)"
+    STORED_PR="$(_read_fm_field "$STATE_FILE" project_root)"
+    if [[ -n "$CURRENT_DIR" ]] && [[ "$CURRENT_DIR" != "$STORED_PR" ]]; then
+      # Same project, different local path (cross-machine clone or the
+      # user cd'd from a subdir). Update project_root so cloud_post_diff
+      # and any other downstream git ops use the right working copy.
+      set_fm_field "$STATE_FILE" project_root "$CURRENT_DIR"
+      PROJECT_ROOT="$CURRENT_DIR"
+      if [[ "$IS_CLOUD" == "true" ]]; then
+        CUR_EPOCH=$(_read_fm_field "$STATE_FILE" epoch)
+        CUR_STATUS=$(_read_fm_field "$STATE_FILE" status)
+        cloud_post_state "$RUN_DIR_NAME" "$CUR_STATUS" "${CUR_EPOCH:-1}" "" "true" "$CURRENT_DIR" || true
+      fi
+      echo "   project_root updated: ${STORED_PR:-<unset>} → $CURRENT_DIR" >&2
+    fi
+    ;;
+  1)
+    EXPECTED=$(_read_fm_field "$STATE_FILE" project_fingerprint)
+    ACTUAL=$(git_project_fingerprint "$(pwd)")
+    echo "❌ Project mismatch: current git repo doesn't match the workflow's project." >&2
+    echo "   Current root commits:  $ACTUAL" >&2
+    echo "   Workflow root commits: $EXPECTED" >&2
+    echo "   cd to the right project and retry, or pass --force-project-mismatch to override." >&2
+    [[ "$FORCE_MISMATCH" != "yes" ]] && exit 1
+    echo "⚠️  --force-project-mismatch set; continuing anyway." >&2
+    ;;
+  2)
+    EXPECTED=$(_read_fm_field "$STATE_FILE" project_fingerprint)
+    echo "❌ Current directory has no git repo, but the workflow was started in one." >&2
+    echo "   Workflow root commits: $EXPECTED" >&2
+    echo "   cd into the workflow's project dir and retry, or pass --force-project-mismatch." >&2
+    [[ "$FORCE_MISMATCH" != "yes" ]] && exit 1
+    echo "⚠️  --force-project-mismatch set; continuing anyway." >&2
+    ;;
+esac
 
 # Terminal workflows can't be resumed.
 if config_is_terminal "$STATUS" 2>/dev/null; then

@@ -775,6 +775,18 @@ _cloud_server() {
 #
 # To log in:  /dev-workflow:login
 # To log out: /dev-workflow:logout
+# Returns 0 if the user has a non-empty bearer token at
+# ~/.dev-workflow/auth.json (written by login-workflow.sh), else 1.
+# Used by setup-workflow.sh to surface a "consider logging in" tip on
+# anonymous cloud runs. Never errors; non-zero just means "not logged in".
+cloud_is_logged_in() {
+  local auth_file="${HOME}/.dev-workflow/auth.json"
+  [[ -f "$auth_file" ]] || return 1
+  local token
+  token="$(jq -r '.token // empty' "$auth_file" 2>/dev/null || true)"
+  [[ -n "$token" ]]
+}
+
 _cloud_auth_header() {
   local auth_file="${HOME}/.dev-workflow/auth.json"
   if [[ -f "$auth_file" ]]; then

@@ -435,6 +435,26 @@ EOF
   echo "   UI:         ${DEV_WORKFLOW_SERVER}/s/${SESSION_ID}"
   echo "   To pause:  /dev-workflow:interrupt"
   echo "   To cancel: /dev-workflow:cancel"
+
+  # Anonymous-cloud nudge: if the user has no bearer token stored at
+  # ~/.dev-workflow/auth.json, they're running as an anonymous capability
+  # URL (whoever knows the session_id can read/write it). Surface the
+  # benefits of logging in once, right after activation, so they don't
+  # miss the browser dashboard / cross-device resume / private sessions
+  # features. Non-blocking, informational only.
+  if ! cloud_is_logged_in; then
+    echo ""
+    echo "💡 Tip — this session is running anonymously (no account attached)."
+    echo "   Sign in to unlock:"
+    echo "     • Your home dashboard — browse, search, and resume all your past sessions"
+    echo "     • Cross-machine continue without copy-pasting session IDs"
+    echo "     • Private sessions (strangers who guess the URL can't read your run)"
+    echo "     • Your own rate-limit quota instead of shared anonymous"
+    echo ""
+    echo "   One command:"
+    echo "     /dev-workflow:login"
+  fi
+
   exit 0
 fi
 

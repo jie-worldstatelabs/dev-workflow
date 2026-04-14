@@ -47,13 +47,6 @@ result: PASS | FAIL | SKIPPED
 <last 100 lines if long>
 ```
 
-### 4. Transition
+### 4. Done
 
-Look up `workflow.json` → `stages.verifying.transitions[<result>]` to get the next status. Run:
-
-```bash
-P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
-"$P/scripts/update-status.sh" --status <next>
-```
-(replacing `<result>` with the actual value you wrote and `<next>` with the looked-up status)
+Writing the artifact with the correct `result:` value is the only output required. The SKILL.md main loop's step (e) reads the artifact's `result:` and calls `update-status.sh` to advance the state machine — do NOT call it yourself from this stage file.

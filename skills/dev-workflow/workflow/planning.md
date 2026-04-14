@@ -81,17 +81,8 @@ result: pending
 
 If the user requests changes, iterate on the plan body — keep `result: pending`.
 
-## Finalize (ATOMIC — do both in ONE response)
+## Finalize
 
-Once the user explicitly approves:
+Once the user explicitly approves, edit the output artifact: change `result: pending` → `result: approved`.
 
-1. Edit the output artifact: change `result: pending` → `result: approved`.
-2. Look up `workflow.json` → `stages.planning.transitions["approved"]` to get the next status. Run:
-   ```bash
-   P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
-   [[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
-   "$P/scripts/update-status.sh" --status <next>
-   ```
-   (replacing `<next>` with the looked-up value)
-
-Both actions **must be in the same response**. If you stop between them, the stop hook emits a `⚠️` hint but (being interruptible) will NOT force you. Atomic execution prevents dangling approved-but-not-transitioned state.
+That is the only action needed here. The SKILL.md main loop's step (e) reads the artifact's `result:` and calls `update-status.sh` to advance the state machine — do NOT call it yourself from this stage file.

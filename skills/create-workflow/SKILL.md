@@ -150,7 +150,7 @@ Write one `<stage>.md` per declared stage. Guidelines:
   ---
   ```
 
-**For inline stages** (execution.type = `inline`): address the main agent ("You drive this stage directly. Read state.md to get the epoch, do <the work>, write the output artifact with the frontmatter above, then call `update-status.sh --status <next>`.")
+**For inline stages** (execution.type = `inline`): address the main agent ("You drive this stage directly. Read state.md to get the epoch, do <the work>, then write the output artifact with the frontmatter above."). Do NOT instruct the stage to call `update-status.sh` — that is the SKILL.md main loop's responsibility (step e), not the stage file's. The stage file's only job is to produce the artifact with a valid `result:` value.
 
 **For subagent stages** (execution.type = `subagent`): address the generic `workflow-subagent` ("You are <role>. Read the inputs listed in your prompt. Do X, Y, Z. Write the output artifact at the absolute path given in your prompt with the frontmatter above."). The subagent will be given the stage file's absolute path via `agent-guard.sh`'s prompt template — it reads the file first as its canonical protocol.
 

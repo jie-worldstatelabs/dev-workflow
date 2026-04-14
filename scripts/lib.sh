@@ -732,10 +732,30 @@ _cloud_server() {
   echo "${DEV_WORKFLOW_SERVER:-}"
 }
 
-# No-op header placeholder so every curl call site can keep passing
-# `-H "$(_cloud_auth_header)"` unchanged. When auth comes back this is
-# where the Authorization / API-key construction lands again.
+# Auth header for cloud requests. Two modes:
+#
+#   - Authenticated: ~/.dev-workflow/auth.json exists with a `token`
+#     field. We emit "Authorization: Bearer <token>" so the server can
+#     attribute the request to the logged-in user and stamp user_id on
+#     any rows it creates.
+#
+#   - Anonymous: no auth file. We emit a benign X-Dev-Workflow marker
+#     so the curl -H argument is always well-formed (curl rejects empty
+#     -H values). Server routes that don't require auth continue to
+#     accept the request; routes that check user_id see NULL.
+#
+# To log in:  /dev-workflow:login
+# To log out: /dev-workflow:logout
 _cloud_auth_header() {
+  local auth_file="${HOME}/.dev-workflow/auth.json"
+  if [[ -f "$auth_file" ]]; then
+    local token
+    token="$(jq -r '.token // empty' "$auth_file" 2>/dev/null || true)"
+    if [[ -n "$token" ]]; then
+      echo "Authorization: Bearer ${token}"
+      return 0
+    fi
+  fi
   echo "X-Dev-Workflow: plugin"
 }
 

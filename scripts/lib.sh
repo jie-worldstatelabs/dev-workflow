@@ -725,11 +725,92 @@ _cloud_auth_header() {
   echo "X-Dev-Workflow: plugin"
 }
 
-# POST JSON to an endpoint; echoes the response body. Non-zero on HTTP error.
+# ──────────────────────────────────────────────────────────────
+# Reliability primitives
+# ──────────────────────────────────────────────────────────────
+#
+# Every mutating cloud call goes through one of these helpers so we get
+# bounded retries + visible failure logging for free. Silent failures
+# used to cause state drift (observed in prod: a cloud_post_state call
+# at transition time failed once, got swallowed by `|| echo warning`,
+# and the server sat on the old status for minutes until a separate
+# call happened to converge it). These helpers fix that class of bug:
+#
+#   _cloud_curl_retry  — 2 attempts, 1s gap, 5s timeout each → ~11s worst
+#                        case. Use for transitions where correctness is
+#                        paramount (update-status.sh).
+#   _cloud_curl_once   — 1 attempt, 3s timeout → ~3s worst case. Use for
+#                        convergence loops that run frequently and can
+#                        afford to miss a cycle (stop-hook reconcile).
+#   _cloud_warn        — append timestamped message to the shadow's
+#                        .sync-warnings.log + stderr. stop-hook tails
+#                        the file and surfaces it via systemMessage so
+#                        the user actually sees sync issues.
+
+# Returns 0 on any 2xx, 1 otherwise. Discards response body.
+# Usage: _cloud_curl_retry <method> <url> [additional curl args...]
+_cloud_curl_retry() {
+  local method="$1" url="$2"
+  shift 2
+  local attempt=1 max=2 delay=1
+  local http_code
+  while [[ $attempt -le $max ]]; do
+    http_code=$(curl -sS -o /dev/null -w "%{http_code}" \
+                --max-time 5 \
+                -X "$method" "$url" \
+                -H "$(_cloud_auth_header)" \
+                "$@" 2>/dev/null || echo "000")
+    case "$http_code" in
+      2*) return 0 ;;
+    esac
+    if [[ $attempt -lt $max ]]; then
+      sleep "$delay"
+    fi
+    attempt=$((attempt + 1))
+  done
+  return 1
+}
+
+# Single attempt, short timeout. Same interface as _cloud_curl_retry.
+_cloud_curl_once() {
+  local method="$1" url="$2"
+  shift 2
+  local http_code
+  http_code=$(curl -sS -o /dev/null -w "%{http_code}" \
+              --max-time 3 \
+              -X "$method" "$url" \
+              -H "$(_cloud_auth_header)" \
+              "$@" 2>/dev/null || echo "000")
+  case "$http_code" in
+    2*) return 0 ;;
+    *)  return 1 ;;
+  esac
+}
+
+# Append a timestamped warning to the shadow's .sync-warnings.log and
+# echo to stderr. Bounded to 100 lines so it can't grow unbounded.
+# Callers: every cloud_post_* helper on final failure, and
+# ensure_baseline_and_fingerprint / cloud_reconcile_state on notable events.
+_cloud_warn() {
+  local sid="$1" msg="$2"
+  [[ -n "$msg" ]] || return 0
+  echo "⚠️  [dev-workflow cloud] $msg" >&2
+  [[ -n "$sid" ]] || return 0
+  local shadow; shadow="$(cloud_registry_get "$sid" scratch_dir)"
+  [[ -z "$shadow" ]] && shadow="${CLOUD_SCRATCH_BASE}/${sid}"
+  [[ -d "$shadow" ]] || return 0
+  local log="${shadow}/.sync-warnings.log"
+  printf '%s  %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$msg" >> "$log"
+  if [[ $(wc -l < "$log" 2>/dev/null || echo 0) -gt 100 ]]; then
+    tail -100 "$log" > "${log}.tmp.$$" && mv "${log}.tmp.$$" "$log"
+  fi
+}
+
+# POST JSON to an endpoint via the retry wrapper. Returns 0 on 2xx, 1 otherwise.
+# No response body — routes are fire-and-forget by convention.
 _cloud_post_json() {
   local url="$1" body="$2"
-  curl -sS -fL -X POST "$url" \
-    -H "$(_cloud_auth_header)" \
+  _cloud_curl_retry POST "$url" \
     -H "Content-Type: application/json" \
     --data "$body"
 }
@@ -853,7 +934,7 @@ cloud_post_setup() {
 }
 
 cloud_post_state() {
-  local sid="$1" status="$2" epoch="$3" resume="${4:-}" active="${5:-true}" project_root="${6:-}"
+  local sid="$1" status="$2" epoch="$3" resume="${4:-}" active="${5:-true}" project_root="${6:-}" fingerprint="${7:-}"
   cloud_require_env || return 1
   local payload
   payload="$(jq -n \
@@ -862,13 +943,20 @@ cloud_post_state() {
       --arg resume "$resume" \
       --argjson active "$active" \
       --arg pr "$project_root" \
+      --arg fpr "$fingerprint" \
       '{
         status: $status,
         epoch: $epoch,
         resume_status: (if $resume == "" then null else $resume end),
         active: $active
-      } + (if $pr == "" then {} else {project_root: $pr} end)')"
-  _cloud_post_json "${DEV_WORKFLOW_SERVER}/api/sessions/${sid}/state" "$payload" > /dev/null
+      }
+      + (if $pr  == "" then {} else {project_root: $pr} end)
+      + (if $fpr == "" then {} else {project_fingerprint: $fpr} end)')"
+  if ! _cloud_post_json "${DEV_WORKFLOW_SERVER}/api/sessions/${sid}/state" "$payload"; then
+    _cloud_warn "$sid" "cloud_post_state failed after retries: status=${status} epoch=${epoch}"
+    return 1
+  fi
+  return 0
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -913,44 +1001,60 @@ verify_project_match() {
 cloud_post_artifact() {
   local sid="$1" stage="$2" file="$3"
   cloud_require_env || return 1
-  [[ -f "$file" ]] || return 1
-  curl -sS -fL -X POST \
-    -H "$(_cloud_auth_header)" \
-    -H "Content-Type: text/plain" \
-    --data-binary "@${file}" \
-    "${DEV_WORKFLOW_SERVER}/api/sessions/${sid}/artifacts/${stage}" > /dev/null
+  if [[ ! -f "$file" ]]; then
+    _cloud_warn "$sid" "cloud_post_artifact: file not found: $file"
+    return 1
+  fi
+  if ! _cloud_curl_retry POST \
+        "${DEV_WORKFLOW_SERVER}/api/sessions/${sid}/artifacts/${stage}" \
+        -H "Content-Type: text/plain" \
+        --data-binary "@${file}"; then
+    local bytes; bytes=$(wc -c < "$file" 2>/dev/null | tr -d ' ')
+    _cloud_warn "$sid" "cloud_post_artifact failed after retries: stage=${stage} bytes=${bytes}"
+    return 1
+  fi
+  return 0
 }
 
 cloud_delete_artifact() {
   local sid="$1" stage="$2"
   cloud_require_env || return 1
-  curl -sS -fL -X DELETE \
-    -H "$(_cloud_auth_header)" \
-    "${DEV_WORKFLOW_SERVER}/api/sessions/${sid}/artifacts/${stage}" > /dev/null
+  if ! _cloud_curl_retry DELETE \
+        "${DEV_WORKFLOW_SERVER}/api/sessions/${sid}/artifacts/${stage}"; then
+    _cloud_warn "$sid" "cloud_delete_artifact failed after retries: stage=${stage}"
+    return 1
+  fi
+  return 0
 }
 
 cloud_post_archive() {
   local sid="$1"
   cloud_require_env || return 1
-  curl -sS -fL -X POST \
-    -H "$(_cloud_auth_header)" \
-    "${DEV_WORKFLOW_SERVER}/api/sessions/${sid}/archive" > /dev/null
+  if ! _cloud_curl_retry POST "${DEV_WORKFLOW_SERVER}/api/sessions/${sid}/archive"; then
+    _cloud_warn "$sid" "cloud_post_archive failed after retries"
+    return 1
+  fi
+  return 0
 }
 
 cloud_post_cancel() {
   local sid="$1"
   cloud_require_env || return 1
-  curl -sS -fL -X POST \
-    -H "$(_cloud_auth_header)" \
-    "${DEV_WORKFLOW_SERVER}/api/sessions/${sid}/cancel" > /dev/null
+  if ! _cloud_curl_retry POST "${DEV_WORKFLOW_SERVER}/api/sessions/${sid}/cancel"; then
+    _cloud_warn "$sid" "cloud_post_cancel failed after retries"
+    return 1
+  fi
+  return 0
 }
 
 cloud_delete_session() {
   local sid="$1"
   cloud_require_env || return 1
-  curl -sS -fL -X DELETE \
-    -H "$(_cloud_auth_header)" \
-    "${DEV_WORKFLOW_SERVER}/api/sessions/${sid}" > /dev/null
+  if ! _cloud_curl_retry DELETE "${DEV_WORKFLOW_SERVER}/api/sessions/${sid}"; then
+    _cloud_warn "$sid" "cloud_delete_session failed after retries"
+    return 1
+  fi
+  return 0
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -1072,10 +1176,16 @@ EOF
 }
 
 # Capture the working-tree diff against the session's baseline SHA and
-# upload it to the server. Called from setup (initial empty diff) and
-# update-status (after every transition). All branches are best-effort:
-# if there's no git repo, no baseline, or curl fails, the function
-# exits 0 and the workflow keeps running.
+# upload it to the server. Called from setup (initial empty diff),
+# update-status (every transition), and stop-hook reconcile.
+#
+# If the project was pre-git at setup time (baseline=EMPTY, fingerprint
+# empty) but now has git, backfill them first via
+# ensure_baseline_and_fingerprint — that's how a workflow that starts in
+# a fresh dir and later gets `git init`'d picks up diffs automatically.
+#
+# All branches are best-effort: missing git, missing baseline, or a
+# failed POST just logs a warning and returns — never blocks the workflow.
 cloud_post_diff() {
   local sid="$1"
   cloud_require_env || return 1
@@ -1083,14 +1193,17 @@ cloud_post_diff() {
   local shadow="${CLOUD_SCRATCH_BASE}/${sid}"
   [[ -d "$shadow" ]] || return 0
 
+  # Try to backfill baseline/fingerprint if the project became git since setup.
+  if [[ -f "${shadow}/state.md" ]]; then
+    ensure_baseline_and_fingerprint "${shadow}/state.md" || true
+  fi
+
   local baseline_file="${shadow}/baseline"
   [[ -f "$baseline_file" ]] || return 0
   local baseline; baseline="$(cat "$baseline_file" 2>/dev/null)"
   [[ -z "$baseline" ]] && return 0
   [[ "$baseline" == "EMPTY" ]] && return 0
 
-  # project_root comes from the shadow state.md — that's the one place
-  # it's recorded in cloud mode.
   local proot=""
   if [[ -f "${shadow}/state.md" ]]; then
     proot="$(_read_fm_field "${shadow}/state.md" project_root)"
@@ -1101,9 +1214,6 @@ cloud_post_diff() {
 
   local head diff
   head="$(git -C "$proot" rev-parse HEAD 2>/dev/null || echo "")"
-  # Diff baseline → working tree (captures committed + staged + unstaged
-  # edits). Excludes .dev-workflow/ defensively in case the user later
-  # switches to local mode in the same repo.
   diff="$(git -C "$proot" diff --no-color "$baseline" -- \
           ':(exclude).dev-workflow' 2>/dev/null || echo "")"
 
@@ -1114,9 +1224,157 @@ cloud_post_diff() {
       --arg content "$diff" \
       '{baseline: $baseline, head: $head, content: $content}')"
 
-  curl -sS -fL -X POST \
-    -H "$(_cloud_auth_header)" \
-    -H "Content-Type: application/json" \
-    --data "$payload" \
-    "${DEV_WORKFLOW_SERVER}/api/sessions/${sid}/diff" > /dev/null 2>&1 || true
+  if ! _cloud_post_json "${DEV_WORKFLOW_SERVER}/api/sessions/${sid}/diff" "$payload"; then
+    _cloud_warn "$sid" "cloud_post_diff failed after retries: baseline=${baseline:0:10} head=${head:0:10}"
+    return 1
+  fi
+  return 0
+}
+
+# ──────────────────────────────────────────────────────────────
+# Deferred baseline / fingerprint backfill
+# ──────────────────────────────────────────────────────────────
+#
+# setup-workflow.sh records baseline + project_fingerprint from the git
+# state at setup time. If the project is pre-git then (e.g. a greenfield
+# scaffold that will `git init` a few minutes later), both get recorded
+# as EMPTY / empty. Without backfill, cloud_post_diff would short-circuit
+# forever — the UI would show an empty diff panel for the entire run and
+# cross-machine continue would skip the verify check.
+#
+# This helper re-reads the project each time it's called; once git shows
+# up, it writes the real values into state.md + the baseline file and
+# (in cloud mode) pushes the updated fingerprint to the server so
+# verify_project_match works on future resume.
+#
+# Idempotent: a no-op if baseline/fingerprint are already populated, or
+# if the project still has no git. Safe to call from any convergence
+# point (update-status, stop-hook, cloud_post_diff).
+ensure_baseline_and_fingerprint() {
+  local state_file="$1"
+  [[ -f "$state_file" ]] || return 0
+
+  local shadow; shadow="$(dirname "$state_file")"
+  local sid; sid="$(basename "$shadow")"
+  local proot; proot="$(_read_fm_field "$state_file" project_root)"
+  [[ -z "$proot" ]] && return 0
+  git -C "$proot" rev-parse --git-dir >/dev/null 2>&1 || return 0
+
+  local changed_baseline="false"
+  local changed_fpr="false"
+
+  # Baseline backfill. We treat "EMPTY", empty string, or a non-SHA-looking
+  # value as unset. Git root HEAD becomes the new baseline — it's the best
+  # approximation of "when this workflow started" given the data we have.
+  local baseline_file="${shadow}/baseline"
+  local cur_baseline=""
+  [[ -f "$baseline_file" ]] && cur_baseline="$(cat "$baseline_file" 2>/dev/null)"
+  if [[ -z "$cur_baseline" ]] || [[ "$cur_baseline" == "EMPTY" ]]; then
+    local head_sha
+    head_sha="$(git -C "$proot" rev-parse HEAD 2>/dev/null || echo "")"
+    if [[ -n "$head_sha" ]]; then
+      echo "$head_sha" > "$baseline_file"
+      _cloud_warn "$sid" "baseline backfilled from local git: ${head_sha:0:10}"
+      changed_baseline="true"
+    fi
+  fi
+
+  # Fingerprint backfill. Written into state.md via the atomic
+  # set_fm_field helper; no impact on the skill that may be reading
+  # state.md concurrently because the rename is atomic.
+  local cur_fpr
+  cur_fpr="$(_read_fm_field "$state_file" project_fingerprint)"
+  if [[ -z "$cur_fpr" ]] || [[ "$cur_fpr" == "EMPTY" ]]; then
+    local new_fpr
+    new_fpr="$(git_project_fingerprint "$proot")"
+    if [[ -n "$new_fpr" ]]; then
+      set_fm_field "$state_file" project_fingerprint "$new_fpr"
+      _cloud_warn "$sid" "project_fingerprint backfilled: ${new_fpr:0:10}"
+      changed_fpr="true"
+
+      # Sync the new fingerprint to the server via the state endpoint
+      # (which now accepts project_fingerprint as an optional field).
+      if is_cloud_session "$sid"; then
+        local cs ce
+        cs="$(_read_fm_field "$state_file" status)"
+        ce="$(_read_fm_field "$state_file" epoch)"
+        cloud_post_state "$sid" "$cs" "${ce:-1}" "" "true" "" "$new_fpr" || true
+      fi
+    fi
+  fi
+
+  # Return value isn't currently used by callers, but document intent:
+  # 0 = nothing backfilled OR backfill succeeded; non-zero reserved for
+  # future use if callers want to know that state.md was mutated.
+  [[ "$changed_baseline" == "true" ]] || [[ "$changed_fpr" == "true" ]]
+}
+
+# ──────────────────────────────────────────────────────────────
+# Cloud state reconciliation
+# ──────────────────────────────────────────────────────────────
+#
+# Safety net for drift between local shadow and the server. Pulls the
+# current server snapshot, compares against the local state.md and the
+# latest local artifact for the current stage; re-pushes anything that
+# diverged. Called from stop-hook.sh on every fire (cloud mode, non-
+# terminal only) so every turn-end is an implicit convergence point.
+#
+# Design notes:
+# - Uses _cloud_curl_once for the snapshot GET (short timeout, no retry)
+#   so a flaky network doesn't block the stop hook for 10+ seconds.
+#   Missing a reconcile cycle is fine; the next turn-end tries again.
+# - The re-push goes through cloud_post_state / cloud_post_artifact,
+#   which themselves retry — so a recovered server gets the update on
+#   the first reconcile cycle it's reachable.
+# - Never blocks, never errors: returns 0 unconditionally.
+cloud_reconcile_state() {
+  local sid="$1"
+  [[ -z "$sid" ]] && return 0
+  cloud_require_env 2>/dev/null || return 0
+
+  local shadow; shadow="$(cloud_registry_get "$sid" scratch_dir)"
+  [[ -z "$shadow" ]] && shadow="${CLOUD_SCRATCH_BASE}/${sid}"
+  [[ -f "$shadow/state.md" ]] || return 0
+
+  local local_status local_epoch
+  local_status="$(_read_fm_field "$shadow/state.md" status)"
+  local_epoch="$(_read_fm_field "$shadow/state.md" epoch)"
+  [[ -z "$local_status" ]] && return 0
+
+  # Pull server snapshot (short timeout, single shot).
+  local snapshot
+  snapshot="$(curl -sS -fL --max-time 3 \
+              -H "$(_cloud_auth_header)" \
+              "${DEV_WORKFLOW_SERVER}/api/sessions/${sid}" 2>/dev/null)" || return 0
+  printf '%s' "$snapshot" | jq empty 2>/dev/null || return 0
+
+  local server_status server_epoch
+  server_status="$(printf '%s' "$snapshot" | jq -r '.session.status // ""')"
+  server_epoch="$(printf '%s' "$snapshot" | jq -r '.session.epoch // ""')"
+
+  # State reconcile — local is always authoritative over server
+  # (the skill drives state.md, server is a mirror).
+  if [[ "$server_status" != "$local_status" ]] || [[ "$server_epoch" != "$local_epoch" ]]; then
+    if cloud_post_state "$sid" "$local_status" "$local_epoch" "" "true"; then
+      _cloud_warn "$sid" "reconcile: state caught up (local=${local_status}/${local_epoch} was server=${server_status}/${server_epoch})"
+    fi
+  fi
+
+  # Artifact reconcile — if the current stage has a local artifact
+  # whose byte length differs from the server's, re-upload.
+  local local_artifact="${shadow}/${local_status}-report.md"
+  if [[ -f "$local_artifact" ]]; then
+    local local_bytes server_bytes
+    local_bytes="$(wc -c < "$local_artifact" 2>/dev/null | tr -d ' ')"
+    server_bytes="$(printf '%s' "$snapshot" \
+                    | jq -r --arg s "$local_status" \
+                         '((.artifacts[] | select(.stage == $s) | .content) // "") | length')"
+    if [[ -n "$local_bytes" ]] && [[ "$local_bytes" != "$server_bytes" ]]; then
+      if cloud_post_artifact "$sid" "$local_status" "$local_artifact"; then
+        _cloud_warn "$sid" "reconcile: ${local_status}-report.md caught up (local=${local_bytes} server=${server_bytes})"
+      fi
+    fi
+  fi
+
+  return 0
 }

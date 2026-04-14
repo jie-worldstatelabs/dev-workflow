@@ -63,6 +63,12 @@ if ! config_check; then
   exit 1
 fi
 
+# If the project was pre-git at setup time but has a git repo now (very
+# common: greenfield scaffold that the executor initialises a few minutes
+# later), backfill baseline + project_fingerprint before proceeding.
+# ensure_baseline_and_fingerprint is idempotent and cheap.
+ensure_baseline_and_fingerprint "$STATE_FILE" || true
+
 # Validate: the new status must be either an active stage or a terminal stage.
 if ! config_is_stage "$NEW_STATUS" && ! config_is_terminal "$NEW_STATUS"; then
   echo "❌ Unknown status: '$NEW_STATUS'" >&2

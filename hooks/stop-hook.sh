@@ -36,6 +36,30 @@ fi
 STATUS=$(_read_fm_field "$STATE_FILE" status)
 EPOCH=$(_read_fm_field "$STATE_FILE" epoch)
 
+# Cloud convergence: before we decide what to tell the agent, make sure
+# the server is caught up with the local shadow. Runs on every stop-hook
+# fire, which makes every turn-end an implicit sync checkpoint. Any
+# prior silent failure (failed cloud_post_state, failed postwrite-hook)
+# gets healed here without the user having to do anything.
+#
+# Safety:
+#  - Uses short-timeout GET/POST so a network hiccup can't stall exits
+#  - Idempotent; re-running is cheap
+#  - Never blocks — returns 0 even on failure (failures logged to
+#    .sync-warnings.log which we surface below)
+if is_cloud_session "$RUN_DIR_NAME" && ! config_is_terminal "$STATUS" && [[ "$STATUS" != "interrupted" ]]; then
+  cloud_reconcile_state "$RUN_DIR_NAME" || true
+  ensure_baseline_and_fingerprint "$STATE_FILE" || true
+fi
+
+# Tail the shadow's sync-warnings log; we'll append these to whatever
+# systemMessage we emit below so the user actually sees sync issues
+# instead of them being silently eaten by stderr redirection.
+SYNC_WARNINGS=""
+if [[ -f "${TOPIC_DIR}/.sync-warnings.log" ]]; then
+  SYNC_WARNINGS="$(tail -3 "${TOPIC_DIR}/.sync-warnings.log" 2>/dev/null)"
+fi
+
 # Terminal states
 if config_is_terminal "$STATUS"; then
   case "$STATUS" in
@@ -103,6 +127,7 @@ if config_is_interruptible "$STATUS"; then
   fi
   if [[ -n "$NEXT_STATUS" ]]; then
     SYSTEM_MSG="📋 Dev workflow: $STATUS stage (epoch $EPOCH) — interruptible. ⚠️  $ARTIFACT has result: $ARTIFACT_RESULT; run \"\${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status $NEXT_STATUS to proceed. Stage instructions: $INSTR"
+[[ -n "$SYNC_WARNINGS" ]] && SYSTEM_MSG="${SYSTEM_MSG}  |  sync warnings: ${SYNC_WARNINGS}"
   else
     SYSTEM_MSG="📋 Dev workflow: $STATUS stage (epoch $EPOCH) — interruptible. Stage instructions: $INSTR. Continue the conversation to proceed, or use /dev-workflow:cancel to abort."
   fi
@@ -237,6 +262,7 @@ DO NOT STOP. The loop is infinite — only /dev-workflow:interrupt or /dev-workf
 fi
 
 SYSTEM_MSG="🔄 Dev workflow | Phase: $STATUS (epoch $EPOCH) | EXIT BLOCKED — /dev-workflow:interrupt to pause, /dev-workflow:cancel to stop"
+[[ -n "$SYNC_WARNINGS" ]] && SYSTEM_MSG="${SYSTEM_MSG}  |  sync warnings: ${SYNC_WARNINGS}"
 
 jq -n \
   --arg prompt "$CONTINUE_PROMPT" \

@@ -58,10 +58,18 @@ DRY_RUN=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --name=*)
+      NAME="${1#--name=}"
+      shift
+      ;;
     --name)
       [[ $# -ge 2 ]] || { echo "❌ --name needs a value" >&2; exit 1; }
       NAME="$2"
       shift 2
+      ;;
+    --description=*)
+      DESCRIPTION="${1#--description=}"
+      shift
       ;;
     --description)
       [[ $# -ge 2 ]] || { echo "❌ --description needs a value" >&2; exit 1; }

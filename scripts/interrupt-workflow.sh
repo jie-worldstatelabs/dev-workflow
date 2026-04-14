@@ -18,13 +18,9 @@ source "${SCRIPT_DIR}/lib.sh"
 TOPIC_ARG=""
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --topic)
-      TOPIC_ARG="$2"
-      shift 2
-      ;;
-    *)
-      shift
-      ;;
+    --topic=*) TOPIC_ARG="${1#--topic=}"; shift ;;
+    --topic)   TOPIC_ARG="$2";            shift 2 ;;
+    *)         shift ;;
   esac
 done
 

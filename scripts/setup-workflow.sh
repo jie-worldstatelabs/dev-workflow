@@ -41,29 +41,15 @@ MODE="local"
 
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --topic)
-      TOPIC="$2"
-      shift 2
-      ;;
-    --workflow)
-      WORKFLOW_NAME="$2"
-      shift 2
-      ;;
-    --force)
-      FORCE="yes"
-      shift
-      ;;
-    --validate-only)
-      VALIDATE_ONLY="yes"
-      shift
-      ;;
-    --mode)
-      MODE="$2"
-      shift 2
-      ;;
-    *)
-      shift
-      ;;
+    --topic=*)      TOPIC="${1#--topic=}";                 shift ;;
+    --topic)        TOPIC="$2";                            shift 2 ;;
+    --workflow=*)   WORKFLOW_NAME="${1#--workflow=}";      shift ;;
+    --workflow)     WORKFLOW_NAME="$2";                    shift 2 ;;
+    --mode=*)       MODE="${1#--mode=}";                   shift ;;
+    --mode)         MODE="$2";                             shift 2 ;;
+    --force)        FORCE="yes";                           shift ;;
+    --validate-only) VALIDATE_ONLY="yes";                  shift ;;
+    *)              shift ;;
   esac
 done
 

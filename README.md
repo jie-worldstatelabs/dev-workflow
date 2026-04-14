@@ -52,7 +52,7 @@ Paste that URL in any browser (no login) to watch the stage timeline, rendered m
 Cloud mode is auto-detected when `--workflow` starts with `server://` or `http(s)://`, so:
 
 ```
-/dev-workflow:dev --workflow server://default Ship the payments page
+/dev-workflow:dev --workflow=server://default Ship the payments page
 ```
 
 …is equivalent to passing `--mode cloud` explicitly.
@@ -97,7 +97,7 @@ skills/
       reviewing.md       ← …reviewing stage
       qa-ing.md          ← …qa-ing stage
     (alt-workflow/)      ← Optional: sibling dirs for alternate workflows
-                           (select via --workflow <name>)
+                           (select via --workflow=<name>)
 hooks/
   hooks.json             ← Hook wiring (SessionStart, Stop, PreToolUse:Agent, PostToolUse:Write|Edit|MultiEdit)
   session-start.sh       ← Caches the Claude session_id so scripts can find their own run dir
@@ -368,8 +368,8 @@ The stop hook fires at every Claude turn-end. It reads `state.md` and the curren
 A workflow is a directory that bundles `workflow.json` + one `<stage>.md` per stage. The plugin ships a 5-stage default at `skills/dev-workflow/workflow/`. Customize that workflow in-place, or copy the directory to `skills/dev-workflow/<my-workflow>/`, edit to taste, and select it at setup time:
 
 ```
-/dev-workflow:dev --workflow my-workflow Build X
-# → setup-workflow.sh --topic X --workflow my-workflow
+/dev-workflow:dev --workflow=my-workflow Build X
+# → setup-workflow.sh --topic=X --workflow=my-workflow
 # → state.md workflow_dir = ${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/my-workflow
 ```
 

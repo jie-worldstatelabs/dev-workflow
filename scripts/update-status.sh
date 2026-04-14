@@ -20,14 +20,10 @@ TOPIC_ARG=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --status)
-      NEW_STATUS="$2"
-      shift 2
-      ;;
-    --topic)
-      TOPIC_ARG="$2"
-      shift 2
-      ;;
+    --status=*) NEW_STATUS="${1#--status=}"; shift ;;
+    --status)   NEW_STATUS="$2";             shift 2 ;;
+    --topic=*)  TOPIC_ARG="${1#--topic=}";   shift ;;
+    --topic)    TOPIC_ARG="$2";              shift 2 ;;
     *)
       echo "Warning: unknown argument: $1" >&2
       shift

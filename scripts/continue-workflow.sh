@@ -21,21 +21,12 @@ SESSION_ARG=""
 FORCE_MISMATCH=""
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --topic)
-      TOPIC_ARG="$2"
-      shift 2
-      ;;
-    --session)
-      SESSION_ARG="$2"
-      shift 2
-      ;;
-    --force-project-mismatch)
-      FORCE_MISMATCH="yes"
-      shift
-      ;;
-    *)
-      shift
-      ;;
+    --topic=*)               TOPIC_ARG="${1#--topic=}";     shift ;;
+    --topic)                 TOPIC_ARG="$2";                shift 2 ;;
+    --session=*)             SESSION_ARG="${1#--session=}"; shift ;;
+    --session)               SESSION_ARG="$2";              shift 2 ;;
+    --force-project-mismatch) FORCE_MISMATCH="yes";         shift ;;
+    *)                       shift ;;
   esac
 done
 

@@ -7,7 +7,7 @@ description: "Full development workflow: brainstorm a plan, execute with an agen
 
 Orchestrate any development cycle as a **config-driven state machine**. This document is the workflow-agnostic meta-protocol; the specific stages, transitions, and per-stage work are declared elsewhere.
 
-A **workflow** is a directory containing `workflow.json` (config) plus one `<stage>.md` per stage (instructions). The default workflow ships at `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/workflow/`; alternate workflows can live as siblings under `skills/dev-workflow/<name>/` and be selected via `setup-workflow.sh --workflow <name>`. Remote workflows can also be fetched from an HTTP(S) URL or from a named template hosted by the workflowUI webapp — see the **Cloud mode** section below.
+A **workflow** is a directory containing `workflow.json` (config) plus one `<stage>.md` per stage (instructions). The default workflow ships at `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/workflow/`; alternate workflows can live as siblings under `skills/dev-workflow/<name>/` and be selected via `setup-workflow.sh --workflow=<name>`. Remote workflows can also be fetched from an HTTP(S) URL or from a named template hosted by the workflowUI webapp — see the **Cloud mode** section below.
 
 The plugin's runtime behavior is defined in three places:
 
@@ -43,7 +43,7 @@ When the user wants state + artifacts to live on a remote server (the **workflow
 
 **Opt in** in one of two ways:
 - Pass `--mode cloud` to `setup-workflow.sh`, OR
-- Pass `--workflow server://<name>` or `--workflow https://...` (auto-detected — the scheme flips the mode).
+- Pass `--workflow=server://<name>` or `--workflow=https://...` (auto-detected — the scheme flips the mode). The plugin parser accepts both `--workflow=<value>` (canonical) and `--workflow <value>` (legacy space-separated) forms.
 
 **Requirements**: none — the user configures nothing. The server URL is baked into `scripts/lib.sh` (default `https://workflowui.vercel.app`) and there is currently no authentication: whoever knows a `session_id` can read and write that session, same model as an unguessable share link. `DEV_WORKFLOW_SERVER` can still be exported to point at a self-hosted/staging/local deployment. A multi-user auth layer is deferred — when it lands it will plug into `cloud_require_env` / `_cloud_auth_header` in `lib.sh` without touching any caller.
 
@@ -134,10 +134,10 @@ A single workflow can mix both — each stage is classified independently.
 
 1. Derive a short kebab-case **topic name** from the user's task description (e.g. "add user auth" → `user-auth`; "fix login bug" → `login-bug`). If the task is unclear or empty, ask ONE clarifying question first — just enough to pick a topic.
 2. Briefly tell the user: `I'll use topic \`<topic>\` for this workflow.`
-3. If the user's task mentions a specific workflow name (e.g. `--workflow <name>` flag or similar hint), parse it out; otherwise the default workflow applies.
+3. If the user's task mentions a specific workflow name (e.g. `--workflow=<name>` flag — both `--workflow=<value>` and `--workflow <value>` are accepted), parse it out; otherwise the default workflow applies.
 4. Activate the workflow:
    ```bash
-   "${CLAUDE_PLUGIN_ROOT}/scripts/setup-workflow.sh" --topic "<topic>" [--workflow "<name>"]
+   "${CLAUDE_PLUGIN_ROOT}/scripts/setup-workflow.sh" --topic="<topic>" [--workflow="<name>"]
    ```
    The `--workflow` argument accepts:
    - bare name (e.g. `custom-workflow`) → resolves to `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/<name>/`
@@ -149,7 +149,7 @@ A single workflow can mix both — each stage is classified independently.
    - Ask: `There's already a workflow in this worktree. Proceeding will delete it and its artifacts. Continue? (yes/no)`
    - If the user confirms: re-run with `--force`:
      ```bash
-     "${CLAUDE_PLUGIN_ROOT}/scripts/setup-workflow.sh" --topic "<topic>" [--workflow "<name>"] --force
+     "${CLAUDE_PLUGIN_ROOT}/scripts/setup-workflow.sh" --topic="<topic>" [--workflow="<name>"] --force
      ```
    - If the user declines: stop. Suggest `/dev-workflow:interrupt` (pause), `/dev-workflow:continue` (resume), or `/dev-workflow:cancel` (remove) to handle the existing workflow first.
 

@@ -17,17 +17,10 @@ TOPIC_ARG=""
 HARD=""
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --topic)
-      TOPIC_ARG="$2"
-      shift 2
-      ;;
-    --hard)
-      HARD="yes"
-      shift
-      ;;
-    *)
-      shift
-      ;;
+    --topic=*) TOPIC_ARG="${1#--topic=}"; shift ;;
+    --topic)   TOPIC_ARG="$2";            shift 2 ;;
+    --hard)    HARD="yes";                shift ;;
+    *)         shift ;;
   esac
 done
 

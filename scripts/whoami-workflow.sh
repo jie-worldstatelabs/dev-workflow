@@ -18,6 +18,7 @@ if [[ ! -f "$AUTH_FILE" ]]; then
 fi
 
 user_id="$(jq -r '.user_id // empty' "$AUTH_FILE" 2>/dev/null || true)"
+author="$(jq -r '.author // empty' "$AUTH_FILE" 2>/dev/null || true)"
 label="$(jq -r '.label // empty' "$AUTH_FILE" 2>/dev/null || true)"
 server="$(jq -r '.server // empty' "$AUTH_FILE" 2>/dev/null || true)"
 created_at="$(jq -r '.created_at // empty' "$AUTH_FILE" 2>/dev/null || true)"
@@ -25,10 +26,11 @@ created_at="$(jq -r '.created_at // empty' "$AUTH_FILE" 2>/dev/null || true)"
 : "${server:=${DEV_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}}"
 
 echo "Signed in:"
+echo "  user:       ${author:-(anonymous)}"
 echo "  user_id:    ${user_id:-(unknown)}"
-echo "  label:      ${label:-(none)}"
+echo "  device:     ${label:-(unknown)}"
 echo "  server:     ${server}"
-echo "  created_at: ${created_at:-(unknown)}"
+echo "  signed in:  ${created_at:-(unknown)}"
 echo
 
 # Round-trip test — /api/me/sessions requires auth and returns 401 if

@@ -93,13 +93,13 @@ ERRS=0
 if [[ -n "$WORKFLOW_FLAG" ]]; then
   RESOLVED="${WORKFLOW_FLAG/#\~/$HOME}"
 
-  # Detect type: local dir, cloud author/name, or invalid
+  # Detect type: local dir, cloud://author/name, or invalid
   if [[ -f "${RESOLVED}/workflow.json" ]]; then
     WF_TYPE="local"
-  elif [[ "$WORKFLOW_FLAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+  elif [[ "$WORKFLOW_FLAG" =~ ^cloud://[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
     WF_TYPE="cloud"
   else
-    echo "❌ '${WORKFLOW_FLAG}' is not a local workflow directory and does not look like an author/name cloud reference." >&2
+    echo "❌ '${WORKFLOW_FLAG}' is not a local workflow directory and does not look like a cloud://author/name reference." >&2
     ERRS=1
   fi
 
@@ -124,7 +124,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 if [[ -n "$WORKFLOW_FLAG" ]]; then
   echo "  Action:   edit existing workflow"
   if [[ "$WF_TYPE" == "cloud" ]]; then
-    echo "  Workflow: ${WORKFLOW_FLAG}  ←  ${_server}/hub/${WORKFLOW_FLAG}"
+    echo "  Workflow: ${WORKFLOW_FLAG}  ←  ${_server}/hub/${WORKFLOW_FLAG#cloud://}"
     echo "  Auth:     ${_author}  ($([ "$_logged_in" = yes ] && echo logged in || echo anonymous))"
     echo "  After edit: changes pushed back to hub"
   else
@@ -135,7 +135,7 @@ else
   echo "  Action:   create new workflow"
   echo "  Mode:     ${MODE}"
   if [[ "$MODE" == "cloud" ]]; then
-    echo "  Will publish as: ${_author}/<suffix>  →  ${_server}/hub/${_author}/<suffix>"
+    echo "  Will publish as: cloud://${_author}/<suffix>  →  ${_server}/hub/${_author}/<suffix>"
     echo "  Auth:     ${_author}  ($([ "$_logged_in" = yes ] && echo logged in || echo anonymous — will publish anonymously))"
   else
     echo "  Will save to: ~/.dev-workflow/workflows/<suffix>/"
@@ -197,7 +197,7 @@ _author="$(echo "$_author_raw" | tr '[:upper:]' '[:lower:]' | sed 's/[[:space:]]
 _author="${_author:-anonymous}"
 echo "AUTHOR=${_author}"
 ```
-The full workflow name is `${_author}/${suffix}` (e.g. `jie/paper-draft`). Show the full name to the user and ask for confirmation of the suffix part only.
+The full workflow name is `${_author}/${suffix}` (e.g. `jie/paper-draft`). In all user-facing output and launch commands, show it with the `cloud://` prefix: `cloud://${_author}/${suffix}`. The local directory and publish path use `${_author}/${suffix}` without the prefix. Ask the user to confirm the suffix part only.
 
 In local mode (MODE=local), the name is just the kebab-case suffix with no prefix.
 
@@ -280,7 +280,7 @@ Tell the user:
 - **Validator summary** from Step 5 (one line, N stages / M terminal)
 - **Hub** (cloud mode only): relay the output from `publish-workflow.sh` verbatim — it already prints the hub URL, visibility, and pull command. If it failed, show the error and note the local path still works.
 - **How to launch**:
-  - Cloud: `/dev-workflow:start --workflow=<author>/<suffix> <your task>`
+  - Cloud: `/dev-workflow:start --workflow=cloud://<author>/<suffix> <your task>`
   - Local: `/dev-workflow:start --workflow=~/.dev-workflow/workflows/<suffix> <your task>`
 
 Do NOT run `/dev-workflow:start` yourself — that's the user's next action. Your job is done when the files are on disk, validation passed, and (in cloud mode) the workflow is published.
@@ -301,10 +301,10 @@ WORKFLOW_FLAG="<value from Step 0>"
 RESOLVED="${WORKFLOW_FLAG/#\~/$HOME}"
 if [[ -f "${RESOLVED}/workflow.json" ]]; then
   echo "TYPE=local DIR=${RESOLVED}"
-elif [[ "$WORKFLOW_FLAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+elif [[ "$WORKFLOW_FLAG" =~ ^cloud://[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
   echo "TYPE=cloud"
 else
-  echo "ERROR: '${WORKFLOW_FLAG}' is not a local workflow directory and does not look like an author/name cloud reference"
+  echo "ERROR: '${WORKFLOW_FLAG}' is not a local workflow directory and does not look like a cloud://author/name reference"
 fi
 ```
 
@@ -342,7 +342,8 @@ P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
 [[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
 source "$P/scripts/lib.sh"
 
-CLOUD_URL="${DEV_WORKFLOW_SERVER}/api/workflows/${WORKFLOW_FLAG}"
+_WF_NAME="${WORKFLOW_FLAG#cloud://}"
+CLOUD_URL="${DEV_WORKFLOW_SERVER}/api/workflows/${_WF_NAME}"
 MY_USER_ID="$(jq -r '.user_id // empty' ~/.dev-workflow/auth.json 2>/dev/null)"
 AUTH_HEADER="$(_cloud_auth_header)"
 BUNDLE="$(curl -sf -H "$AUTH_HEADER" "$CLOUD_URL" 2>/dev/null || echo "")"
@@ -368,9 +369,10 @@ P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
 [[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
 source "$P/scripts/lib.sh"
 
-LOCAL_DIR="${HOME}/.dev-workflow/workflows/${WORKFLOW_FLAG}"
+_WF_NAME="${WORKFLOW_FLAG#cloud://}"
+LOCAL_DIR="${HOME}/.dev-workflow/workflows/${_WF_NAME}"
 mkdir -p "$LOCAL_DIR"
-cloud_fetch_workflow_from_name "$WORKFLOW_FLAG" "$LOCAL_DIR"
+cloud_fetch_workflow_from_name "$_WF_NAME" "$LOCAL_DIR"
 echo "Downloaded to $LOCAL_DIR"
 ```
 
@@ -429,7 +431,7 @@ Tell the user:
   - If publish succeeded: "Changes pushed to hub — `<hub-url>`"
   - If publish failed: "Changes saved locally at `$LOCAL_DIR` — push manually with `/dev-workflow:publish <LOCAL_DIR>`"
 - **How to launch**:
-  - Cloud: `/dev-workflow:start --workflow=<author>/<name> <your task>`
+  - Cloud: `/dev-workflow:start --workflow=cloud://<author>/<name> <your task>`
   - Local: `/dev-workflow:start --workflow=<path> <your task>`
 
 ---

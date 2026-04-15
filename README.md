@@ -81,7 +81,7 @@ In local mode, state and stage reports go under `<project>/.dev-workflow/<sessio
 | `<task description>` | *(required)* | What to build or fix — becomes the topic and initial context for the workflow |
 | `--mode=cloud` | **`cloud`** | State and artifacts live on the remote server; project worktree stays clean; live browser UI at `/s/<session_id>` |
 | `--mode=local` | — | Fully offline; state and artifacts go under `<project>/.dev-workflow/<session_id>/` |
-| `--workflow=author/name` | — | Fetch a workflow bundle from `$DEV_WORKFLOW_SERVER/api/workflows/author/name` (cloud mode) |
+| `--workflow=cloud://author/name` | — | Fetch a workflow bundle from `$DEV_WORKFLOW_SERVER/api/workflows/author/name` (cloud mode) |
 | `--workflow=./path` or `/abs/path` | — | Use a local workflow directory (local mode) |
 | *(omit `--workflow`)* | — | Bundled default workflow at `skills/dev-workflow/workflow/` |
 
@@ -143,12 +143,12 @@ In cloud mode the server keeps the audit trail regardless of `--hard`; only the 
 |------|---------|---------|
 | `<description>` | *(required)* | What to create (create mode) or what changes to make (edit mode) |
 | *(omit `--workflow`)* | — | **Create mode**: interview, design from scratch, write to `~/.dev-workflow/workflows/<name>/`, and publish to the hub |
-| `--workflow=author/name` | — | **Edit mode**: edit a cloud-hosted workflow (must be logged in and own it) |
+| `--workflow=cloud://author/name` | — | **Edit mode**: edit a cloud-hosted workflow (must be logged in and own it) |
 | `--workflow=./path` or `/abs/path` | — | **Edit mode**: edit an existing local workflow directory |
 | `--mode=cloud` | **`cloud`** | Create mode: publish to hub after writing files |
 | `--mode=local` | — | Create mode: write files locally only, skip hub publishing |
 
-> `--mode=local` with an `author/name` reference is an error — cloud references require cloud mode.
+> `--mode=local` with a `cloud://author/name` reference is an error — cloud references require cloud mode.
 
 ---
 
@@ -271,7 +271,7 @@ For parallel independent workflows in one project, just open a second Claude Cod
     verifying-report.md                  transient scratch dir out of the worktree
     reviewing-report.md
     qa-ing-report.md
-    .workflow-cache/                   ← fetched from hub (author/name) or copied from local path
+    .workflow-cache/                   ← fetched from hub (cloud://author/name) or copied from local path
       workflow.json
       planning.md
       executing.md
@@ -546,7 +546,7 @@ Same flag as local mode, with two cloud-specific forms:
 | Form | Meaning | Forces cloud? |
 |---|---|---|
 | *(omitted)* | Bundled default at `skills/dev-workflow/workflow/` | — |
-| `author/name` | Fetched from `GET /api/workflows/author/name` on the workflowUI server | **yes** |
+| `cloud://author/name` | Fetched from `GET /api/workflows/author/name` on the workflowUI server | **yes** |
 | `/abs/path` or `./rel/path` | Local workflow directory (use with `--mode=local`) | — |
 
 ### Pointing at a self-hosted server

@@ -85,15 +85,11 @@ if [[ "$MODE" == "local" ]]; then
     WORKFLOW_DIR="$DEFAULT_WORKFLOW_DIR"
   elif [[ "$WORKFLOW_NAME" == /* ]]; then
     WORKFLOW_DIR="$WORKFLOW_NAME"
+  elif [[ "$WORKFLOW_NAME" == cloud://* ]]; then
+    echo "❌ '${WORKFLOW_NAME}' is a cloud reference — cannot be used in local mode." >&2
+    echo "   Use the default (--mode=cloud) or pass a local directory path." >&2
+    exit 1
   elif [[ "$WORKFLOW_NAME" == */* ]]; then
-    # Reject cloud author/name references in local mode.
-    _first_seg="${WORKFLOW_NAME%%/*}"
-    if [[ "$_first_seg" != "." && "$_first_seg" != ".." && "$_first_seg" != "~" ]]; then
-      echo "❌ '${WORKFLOW_NAME}' looks like a cloud author/name reference." >&2
-      echo "   Cloud workflows cannot be used in local mode." >&2
-      echo "   Use the default (--mode=cloud) or pass a local directory path." >&2
-      exit 1
-    fi
     WORKFLOW_DIR="$(cd "$WORKFLOW_NAME" 2>/dev/null && pwd || echo "$WORKFLOW_NAME")"
   else
     echo "❌ Invalid --workflow value: '${WORKFLOW_NAME}'" >&2
@@ -224,30 +220,30 @@ if [[ "$MODE" == "cloud" ]]; then
         exit 1
       }
       ;;
+    cloud://*)
+      # cloud://author/name — cloud named template
+      _cloud_name="${WORKFLOW_NAME#cloud://}"
+      WORKFLOW_URL="${DEV_WORKFLOW_SERVER}/api/workflows/${_cloud_name}"
+      cloud_fetch_workflow_from_name "$_cloud_name" "$WORKFLOW_CACHE" || {
+        rm -rf "$SCRATCH_DIR"
+        exit 1
+      }
+      ;;
     */*)
-      # author/name or a relative/home local path (./foo, ../foo, ~/foo).
-      _first_seg="${WORKFLOW_NAME%%/*}"
-      if [[ "$_first_seg" == "." ]] || [[ "$_first_seg" == ".." ]] || [[ "$_first_seg" == "~" ]]; then
-        _abs="${WORKFLOW_NAME/#\~/$HOME}"
-        _abs="$(cd "$_abs" 2>/dev/null && pwd || echo "")"
-        if [[ -z "$_abs" ]]; then
-          echo "❌ workflow path not found: $WORKFLOW_NAME" >&2
-          rm -rf "$SCRATCH_DIR"
-          exit 1
-        fi
-        cp -R "${_abs}/." "${WORKFLOW_CACHE}/"
-      else
-        # author/name — cloud named template
-        WORKFLOW_URL="${DEV_WORKFLOW_SERVER}/api/workflows/${WORKFLOW_NAME}"
-        cloud_fetch_workflow_from_name "$WORKFLOW_NAME" "$WORKFLOW_CACHE" || {
-          rm -rf "$SCRATCH_DIR"
-          exit 1
-        }
+      # relative/home local path (./foo, ../foo, ~/foo)
+      _abs="${WORKFLOW_NAME/#\~/$HOME}"
+      _abs="$(cd "$_abs" 2>/dev/null && pwd || echo "")"
+      if [[ -z "$_abs" ]]; then
+        echo "❌ workflow path not found: ${WORKFLOW_NAME}" >&2
+        echo "   For cloud templates use cloud://author/name." >&2
+        rm -rf "$SCRATCH_DIR"
+        exit 1
       fi
+      cp -R "${_abs}/." "${WORKFLOW_CACHE}/"
       ;;
     *)
       echo "❌ Invalid --workflow value: '${WORKFLOW_NAME}'" >&2
-      echo "   Use author/name for a cloud template, or an absolute/relative path for a local workflow." >&2
+      echo "   Use cloud://author/name for a cloud template, or an absolute/relative path for a local workflow." >&2
       rm -rf "$SCRATCH_DIR"
       exit 1
       ;;

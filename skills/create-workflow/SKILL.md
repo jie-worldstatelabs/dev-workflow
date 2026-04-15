@@ -255,37 +255,9 @@ Expected on success:
 
 If validation fails, the output has `❌` lines for each problem (missing stage file, invalid transition target, unsupported `subagent_type` field, subagent stage with `interruptible: true`, etc.). **Read them, fix the generated files, re-run.** Do NOT proceed to Step 6 until validation passes.
 
-### Step 6 — Report success
-
-Tell the user:
-
-- **Where**: `~/.dev-workflow/workflows/<name>/` (absolute path)
-- **What's in it**: `workflow.json` + one `.md` per stage
-- **Validator summary** from Step 5 (one line, N stages / M terminal)
-- **Hub** (cloud mode only):
-  - If logged in: "Published as **private** workflow under your account — `<hub-url>`"
-  - If anonymous: "Published **anonymously** (public link) — `<hub-url>`"
-  - If publish failed: show the error and note the local path still works
-- **How to launch**:
-  - Cloud: `/dev-workflow:start --workflow=<author>/<suffix> <your task>`
-  - Local: `/dev-workflow:start --workflow=~/.dev-workflow/workflows/<suffix> <your task>`
-
-Do NOT run `/dev-workflow:start` yourself — that's the user's next action. Your job is done when the files are on disk, validation passed, and (in cloud mode) the workflow is published.
-
 ### Step 5.5 — Publish to hub (cloud mode only)
 
 Skip this step if `MODE=local`.
-
-#### Check login status (for the report message only)
-
-```bash
-P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
-source "$P/scripts/lib.sh"
-cloud_is_logged_in && echo "AUTH=logged_in" || echo "AUTH=anonymous"
-```
-
-#### Publish
 
 ```bash
 P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
@@ -293,11 +265,25 @@ P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
 "$P/scripts/publish-workflow.sh" "$HOME/.dev-workflow/workflows/<name>"
 ```
 
-`publish-workflow.sh` sends the auth header automatically:
-- **Logged in** → Bearer token → server stamps `user_id` on the workflow → **private** (only accessible to you)
+`publish-workflow.sh` handles auth automatically:
+- **Logged in** → Bearer token → server stamps `user_id` → workflow is **private** (only you can access it)
 - **Anonymous** → no token → workflow created without owner → **public** (anyone with the link can use it)
 
 If publishing fails, tell the user and continue — the workflow is still usable locally via `--workflow=~/.dev-workflow/workflows/<name>`.
+
+### Step 6 — Report success
+
+Tell the user:
+
+- **Where**: `~/.dev-workflow/workflows/<name>/` (absolute path)
+- **What's in it**: `workflow.json` + one `.md` per stage
+- **Validator summary** from Step 5 (one line, N stages / M terminal)
+- **Hub** (cloud mode only): relay the output from `publish-workflow.sh` verbatim — it already prints the hub URL, visibility, and pull command. If it failed, show the error and note the local path still works.
+- **How to launch**:
+  - Cloud: `/dev-workflow:start --workflow=<author>/<suffix> <your task>`
+  - Local: `/dev-workflow:start --workflow=~/.dev-workflow/workflows/<suffix> <your task>`
+
+Do NOT run `/dev-workflow:start` yourself — that's the user's next action. Your job is done when the files are on disk, validation passed, and (in cloud mode) the workflow is published.
 
 ---
 

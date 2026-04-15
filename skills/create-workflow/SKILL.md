@@ -72,48 +72,8 @@ P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
 source "$P/scripts/lib.sh"
 
 ARGS='$ARGUMENTS'
-WORKFLOW_FLAG=""
-MODE="cloud"   # default
-DESCRIPTION="$ARGS"
+eval "$("$P/scripts/parse-workflow-flags.sh" "$ARGS")" || exit 1
 
-if [[ "$ARGS" =~ (^|[[:space:]])--workflow=([^[:space:]]+) ]]; then
-  WORKFLOW_FLAG="${BASH_REMATCH[2]}"
-  DESCRIPTION="${DESCRIPTION/--workflow=${WORKFLOW_FLAG}/}"
-fi
-if [[ "$ARGS" =~ (^|[[:space:]])--mode=(cloud|local) ]]; then
-  MODE="${BASH_REMATCH[2]}"
-  DESCRIPTION="${DESCRIPTION/--mode=${MODE}/}"
-fi
-DESCRIPTION="${DESCRIPTION#"${DESCRIPTION%%[![:space:]]*}"}"  # ltrim
-DESCRIPTION="${DESCRIPTION%"${DESCRIPTION##*[![:space:]]}"}"  # rtrim
-
-ERRS=0
-
-# --- Edit mode validations (WORKFLOW_FLAG present) ---
-if [[ -n "$WORKFLOW_FLAG" ]]; then
-  RESOLVED="${WORKFLOW_FLAG/#\~/$HOME}"
-
-  # Detect type: local dir, cloud://author/name, or invalid
-  if [[ -f "${RESOLVED}/workflow.json" ]]; then
-    WF_TYPE="local"
-  elif [[ "$WORKFLOW_FLAG" =~ ^cloud://[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
-    WF_TYPE="cloud"
-  else
-    echo "❌ '${WORKFLOW_FLAG}' is not a local workflow directory and does not look like a cloud://author/name reference." >&2
-    ERRS=1
-  fi
-
-  # Reject cloud reference in local mode
-  if [[ $ERRS -eq 0 && "$WF_TYPE" == "cloud" && "$MODE" == "local" ]]; then
-    echo "❌ --workflow '${WORKFLOW_FLAG}' is a cloud reference — cannot be used with --mode=local." >&2
-    echo "   Remove --mode=local or pass a local directory path." >&2
-    ERRS=1
-  fi
-fi
-
-[[ $ERRS -eq 0 ]] || exit 1
-
-# --- Announce ---
 _server="${DEV_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}"
 _author_raw="$(jq -r '.author // "anonymous"' "${HOME}/.dev-workflow/auth.json" 2>/dev/null || echo "anonymous")"
 _author="$(echo "$_author_raw" | tr '[:upper:]' '[:lower:]' | sed 's/[[:space:]][[:space:]]*/\-/g; s/[^a-z0-9._-]//g; s/^[^a-z0-9]*//')"

@@ -156,53 +156,13 @@ P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
 source "$P/scripts/lib.sh"
 
 ARGS='$ARGUMENTS'
-WORKFLOW_FLAG=""
-MODE="${DEV_WORKFLOW_DEFAULT_MODE:-cloud}"
+eval "$("$P/scripts/parse-workflow-flags.sh" "$ARGS")" || exit 1
 
-# Parse --workflow (= and space-separated forms)
-if [[ "$ARGS" =~ (^|[[:space:]])--workflow=([^[:space:]]+) ]]; then
-  WORKFLOW_FLAG="${BASH_REMATCH[2]}"
-elif [[ "$ARGS" =~ (^|[[:space:]])--workflow[[:space:]]+([^-][^[:space:]]*) ]]; then
-  WORKFLOW_FLAG="${BASH_REMATCH[2]}"
-fi
-# Parse --mode
-if [[ "$ARGS" =~ (^|[[:space:]])--mode=(cloud|local) ]]; then
-  MODE="${BASH_REMATCH[2]}"
-fi
-
-ERRS=0
-
-# Validate: cloud://author/name reference in local mode is forbidden
-if [[ "$MODE" == "local" && "$WORKFLOW_FLAG" =~ ^cloud:// ]]; then
-  echo "❌ --workflow '${WORKFLOW_FLAG}' is a cloud reference — cannot be used with --mode=local." >&2
-  echo "   Remove --mode=local (cloud is the default) or pass a local directory path." >&2
-  ERRS=1
-fi
-
-# Validate: local paths must exist and contain workflow.json
-if [[ $ERRS -eq 0 && -n "$WORKFLOW_FLAG" ]]; then
-  _resolved="${WORKFLOW_FLAG/#\~/$HOME}"
-  case "$WORKFLOW_FLAG" in
-    /*|./*|../*|~*)
-      if [[ ! -d "$_resolved" ]]; then
-        echo "❌ Workflow path not found: ${WORKFLOW_FLAG}" >&2
-        ERRS=1
-      elif [[ ! -f "${_resolved}/workflow.json" ]]; then
-        echo "❌ No workflow.json in: ${WORKFLOW_FLAG}" >&2
-        ERRS=1
-      fi
-      ;;
-  esac
-fi
-
-[[ $ERRS -eq 0 ]] || exit 1
-
-# Announce run configuration
 _server="${DEV_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}"
 if [[ -z "$WORKFLOW_FLAG" ]]; then
   _wf="default (bundled with plugin)"
-elif [[ "$WORKFLOW_FLAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9] ]]; then
-  _wf="${WORKFLOW_FLAG}  ←  ${_server}/hub/${WORKFLOW_FLAG}"
+elif [[ "$WF_TYPE" == "cloud" ]]; then
+  _wf="${WORKFLOW_FLAG}  ←  ${_server}/hub/${WORKFLOW_FLAG#cloud://}"
 else
   _wf="${WORKFLOW_FLAG}  (local path)"
 fi

@@ -1,6 +1,6 @@
 ---
 name: create-workflow
-description: "Create a new workflow suite from a natural-language description, or edit an existing one when --workflow=<path> is passed. Interviews the user, proposes a stage design, writes files to a local directory, and validates the result."
+description: "Create a new workflow suite from a natural-language description, or edit an existing one when --workflow=<path> is passed. Interviews the user, proposes a stage design, writes files to a local directory, validates the result, and publishes to the hub in cloud mode."
 ---
 
 # Create / Edit Workflow
@@ -253,7 +253,7 @@ Expected on success:
    terminal: <space-separated terminal stages>
 ```
 
-If validation fails, the output has `❌` lines for each problem (missing stage file, invalid transition target, unsupported `subagent_type` field, subagent stage with `interruptible: true`, etc.). **Read them, fix the generated files, re-run.** Do NOT proceed to Step 6 until validation passes.
+If validation fails, the output has `❌` lines for each problem (missing stage file, invalid transition target, unsupported `subagent_type` field, subagent stage with `interruptible: true`, etc.). **Read them, fix the generated files, re-run.** Do NOT proceed to Step 5.5 (cloud mode) or Step 6 (local mode) until validation passes.
 
 ### Step 5.5 — Publish to hub (cloud mode only)
 

@@ -17,31 +17,29 @@ if [[ ! -f "$AUTH_FILE" ]]; then
   exit 0
 fi
 
-user_id="$(jq -r '.user_id // empty' "$AUTH_FILE" 2>/dev/null || true)"
-author="$(jq -r '.author // empty' "$AUTH_FILE" 2>/dev/null || true)"
 label="$(jq -r '.label // empty' "$AUTH_FILE" 2>/dev/null || true)"
 server="$(jq -r '.server // empty' "$AUTH_FILE" 2>/dev/null || true)"
 created_at="$(jq -r '.created_at // empty' "$AUTH_FILE" 2>/dev/null || true)"
 
 : "${server:=${DEV_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}}"
 
-echo "Signed in:"
-echo "  user:       ${author:-(anonymous)}"
-echo "  user_id:    ${user_id:-(unknown)}"
-echo "  device:     ${label:-(unknown)}"
-echo "  server:     ${server}"
-echo "  signed in:  ${created_at:-(unknown)}"
-echo
-
-# Round-trip test — /api/me/sessions requires auth and returns 401 if
-# the token has been revoked or is otherwise invalid.
-code="$(curl -sS -o /dev/null -w '%{http_code}' \
+# Fetch live identity from the server — source of truth for user/author.
+me_resp="$(curl -sS -w '\n%{http_code}' \
   -H "$(_cloud_auth_header)" \
-  "${server}/api/me/sessions")" || code=000
+  "${server}/api/me")" || me_resp=$'\n000'
+me_code="$(echo "$me_resp" | tail -1)"
+me_body="$(echo "$me_resp" | head -n -1)"
 
-case "$code" in
+case "$me_code" in
   200)
-    echo "✓ Token is valid (GET /api/me/sessions → 200)"
+    author="$(echo "$me_body" | jq -r '.author // empty')"
+    user_id="$(echo "$me_body" | jq -r '.user_id // empty')"
+    echo "Signed in:"
+    echo "  user:       ${author:-(anonymous)}"
+    echo "  user_id:    ${user_id:-(unknown)}"
+    echo "  device:     ${label:-(unknown)}"
+    echo "  server:     ${server}"
+    echo "  signed in:  ${created_at:-(unknown)}"
     ;;
   401)
     echo "❌ Token rejected by server (HTTP 401)."
@@ -50,8 +48,17 @@ case "$code" in
     ;;
   000)
     echo "⚠ Could not reach ${server}."
+    # Fall back to local auth.json for display.
+    author="$(jq -r '.author // empty' "$AUTH_FILE" 2>/dev/null || true)"
+    user_id="$(jq -r '.user_id // empty' "$AUTH_FILE" 2>/dev/null || true)"
+    echo "Signed in (offline):"
+    echo "  user:       ${author:-(anonymous)}"
+    echo "  user_id:    ${user_id:-(unknown)}"
+    echo "  device:     ${label:-(unknown)}"
+    echo "  server:     ${server}"
+    echo "  signed in:  ${created_at:-(unknown)}"
     ;;
   *)
-    echo "⚠ Unexpected response: HTTP ${code}"
+    echo "⚠ Unexpected response from server: HTTP ${me_code}"
     ;;
 esac

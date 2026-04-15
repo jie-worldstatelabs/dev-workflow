@@ -108,7 +108,7 @@ while :; do
     mv "${AUTH_FILE}.tmp" "$AUTH_FILE"
     chmod 600 "$AUTH_FILE"
     echo
-    echo "✓ Signed in as ${user_id}"
+    echo "✓ Signed in as ${author} (${user_id})"
     echo "  Token stored in ${AUTH_FILE}"
     exit 0
   fi

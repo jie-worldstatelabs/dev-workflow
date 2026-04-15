@@ -115,7 +115,9 @@ fi
 
 # --- Announce ---
 _server="${DEV_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}"
-_author="$(jq -r '.author // "anonymous"' "${HOME}/.dev-workflow/auth.json" 2>/dev/null || echo "anonymous")"
+_author_raw="$(jq -r '.author // "anonymous"' "${HOME}/.dev-workflow/auth.json" 2>/dev/null || echo "anonymous")"
+_author="$(echo "$_author_raw" | tr '[:upper:]' '[:lower:]' | sed 's/[[:space:]][[:space:]]*/\-/g; s/[^a-z0-9._-]//g; s/^[^a-z0-9]*//')"
+_author="${_author:-anonymous}"
 _logged_in="$(cloud_is_logged_in && echo yes || echo no)"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -190,7 +192,9 @@ Derive a short, kebab-case suffix from the user's description (e.g. "Python libr
 
 In cloud mode (MODE=cloud), prefix the name with the user's author handle from auth.json:
 ```bash
-_author="$(jq -r '.author // "anonymous"' "${HOME}/.dev-workflow/auth.json" 2>/dev/null || echo "anonymous")"
+_author_raw="$(jq -r '.author // "anonymous"' "${HOME}/.dev-workflow/auth.json" 2>/dev/null || echo "anonymous")"
+_author="$(echo "$_author_raw" | tr '[:upper:]' '[:lower:]' | sed 's/[[:space:]][[:space:]]*/\-/g; s/[^a-z0-9._-]//g; s/^[^a-z0-9]*//')"
+_author="${_author:-anonymous}"
 echo "AUTHOR=${_author}"
 ```
 The full workflow name is `${_author}/${suffix}` (e.g. `jie/paper-draft`). Show the full name to the user and ask for confirmation of the suffix part only.

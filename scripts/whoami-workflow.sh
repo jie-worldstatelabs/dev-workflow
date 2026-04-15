@@ -28,7 +28,7 @@ me_resp="$(curl -sS -w '\n%{http_code}' \
   -H "$(_cloud_auth_header)" \
   "${server}/api/me")" || me_resp=$'\n000'
 me_code="$(echo "$me_resp" | tail -1)"
-me_body="$(echo "$me_resp" | head -n -1)"
+me_body="$(echo "$me_resp" | sed '$d')"
 
 case "$me_code" in
   200)

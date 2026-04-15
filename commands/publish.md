@@ -24,7 +24,7 @@ The script prints the resulting Hub URL on success, plus the one-line
 pull command a teammate can use from their own plugin:
 
 ```
-/dev-workflow:dev --workflow=server://<name> <task>
+/dev-workflow:dev --workflow=<name> <task>
 ```
 
 ## Step 2 (optional): confirm in the browser

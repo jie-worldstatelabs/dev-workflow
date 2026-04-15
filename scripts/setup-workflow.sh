@@ -23,10 +23,9 @@
 #   (omitted)          default:  ${PLUGIN_ROOT}/skills/dev-workflow/workflow/
 #   <bare-name>        local:    ${PLUGIN_ROOT}/skills/dev-workflow/<name>/
 #                      cloud:    named template on the server (fallback to bundled)
+#   author/name        cloud:    named template on $DEV_WORKFLOW_SERVER
 #   /abs/path          absolute local path (both modes)
 #   ./rel/path         relative local path (both modes)
-#   server://<name>    named template on $DEV_WORKFLOW_SERVER (forces cloud)
-#   http(s)://...      remote directory (workflow.json + <stage>.md) — forces cloud
 
 set -euo pipefail
 
@@ -67,15 +66,6 @@ if [[ -z "$VALIDATE_ONLY" ]] && [[ -z "$TOPIC" ]]; then
   exit 1
 fi
 
-# Auto-detect cloud mode from the workflow URL scheme when --mode is omitted.
-if [[ "$MODE" == "local" ]] && [[ -n "$WORKFLOW_NAME" ]]; then
-  case "$WORKFLOW_NAME" in
-    server://*|http://*|https://*)
-      MODE="cloud"
-      ;;
-  esac
-fi
-
 if [[ "$MODE" != "local" ]] && [[ "$MODE" != "cloud" ]]; then
   echo "❌ Error: --mode must be 'local' or 'cloud'" >&2
   exit 1
@@ -101,6 +91,14 @@ if [[ "$MODE" == "local" ]]; then
   elif [[ "$WORKFLOW_NAME" == /* ]]; then
     WORKFLOW_DIR="$WORKFLOW_NAME"
   elif [[ "$WORKFLOW_NAME" == */* ]]; then
+    # Reject cloud author/name references in local mode.
+    _first_seg="${WORKFLOW_NAME%%/*}"
+    if [[ "$_first_seg" != "." && "$_first_seg" != ".." && "$_first_seg" != "~" ]]; then
+      echo "❌ '${WORKFLOW_NAME}' looks like a cloud author/name reference." >&2
+      echo "   Cloud workflows cannot be used in local mode." >&2
+      echo "   Use the default (--mode=cloud) or pass a local directory path." >&2
+      exit 1
+    fi
     WORKFLOW_DIR="$(cd "$WORKFLOW_NAME" 2>/dev/null && pwd || echo "$WORKFLOW_NAME")"
   else
     # Bare name resolution:
@@ -241,41 +239,6 @@ if [[ "$MODE" == "cloud" ]]; then
     "")
       cp -R "${DEFAULT_WORKFLOW_DIR}/." "${WORKFLOW_CACHE}/"
       ;;
-    server://*)
-      _name="${WORKFLOW_NAME#server://}"
-      WORKFLOW_URL="${DEV_WORKFLOW_SERVER}/api/workflows/${_name}"
-      cloud_fetch_workflow_from_name "$_name" "$WORKFLOW_CACHE" || {
-        rm -rf "$SCRATCH_DIR"
-        exit 1
-      }
-      ;;
-    http://*|https://*)
-      # Detect the hub's /api/workflows/<name> shape. That endpoint
-      # returns a JSON bundle (not a directory listing of raw files),
-      # so we must route it through cloud_fetch_workflow_from_name
-      # rather than the generic http fetcher. Temporarily override
-      # DEV_WORKFLOW_SERVER with the URL's host so the named-template
-      # helper targets the right server.
-      if [[ "$WORKFLOW_NAME" =~ ^(https?://[^/]+)/api/workflows/([A-Za-z0-9._-]+)/?$ ]]; then
-        WORKFLOW_URL="$WORKFLOW_NAME"
-        _host="${BASH_REMATCH[1]}"
-        _name="${BASH_REMATCH[2]}"
-        _saved_server="${DEV_WORKFLOW_SERVER:-}"
-        DEV_WORKFLOW_SERVER="$_host"
-        if ! cloud_fetch_workflow_from_name "$_name" "$WORKFLOW_CACHE"; then
-          DEV_WORKFLOW_SERVER="$_saved_server"
-          rm -rf "$SCRATCH_DIR"
-          exit 1
-        fi
-        DEV_WORKFLOW_SERVER="$_saved_server"
-      else
-        WORKFLOW_URL="$WORKFLOW_NAME"
-        cloud_fetch_workflow_from_url "$WORKFLOW_NAME" "$WORKFLOW_CACHE" || {
-          rm -rf "$SCRATCH_DIR"
-          exit 1
-        }
-      fi
-      ;;
     /*)
       cp -R "${WORKFLOW_NAME%/}/." "${WORKFLOW_CACHE}/" || {
         echo "❌ failed to copy workflow from ${WORKFLOW_NAME}" >&2
@@ -284,13 +247,25 @@ if [[ "$MODE" == "cloud" ]]; then
       }
       ;;
     */*)
-      _abs="$(cd "$WORKFLOW_NAME" 2>/dev/null && pwd || echo "")"
-      if [[ -z "$_abs" ]]; then
-        echo "❌ workflow path not found: $WORKFLOW_NAME" >&2
-        rm -rf "$SCRATCH_DIR"
-        exit 1
+      # author/name or a relative/home local path (./foo, ../foo, ~/foo).
+      _first_seg="${WORKFLOW_NAME%%/*}"
+      if [[ "$_first_seg" == "." ]] || [[ "$_first_seg" == ".." ]] || [[ "$_first_seg" == "~" ]]; then
+        _abs="${WORKFLOW_NAME/#\~/$HOME}"
+        _abs="$(cd "$_abs" 2>/dev/null && pwd || echo "")"
+        if [[ -z "$_abs" ]]; then
+          echo "❌ workflow path not found: $WORKFLOW_NAME" >&2
+          rm -rf "$SCRATCH_DIR"
+          exit 1
+        fi
+        cp -R "${_abs}/." "${WORKFLOW_CACHE}/"
+      else
+        # author/name — cloud named template
+        WORKFLOW_URL="${DEV_WORKFLOW_SERVER}/api/workflows/${WORKFLOW_NAME}"
+        cloud_fetch_workflow_from_name "$WORKFLOW_NAME" "$WORKFLOW_CACHE" || {
+          rm -rf "$SCRATCH_DIR"
+          exit 1
+        }
       fi
-      cp -R "${_abs}/." "${WORKFLOW_CACHE}/"
       ;;
     *)
       # Bare name — try bundled first, then user-local (~/.dev-workflow/

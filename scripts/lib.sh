@@ -903,9 +903,7 @@ _cloud_post_json() {
 # ──────────────────────────────────────────────────────────────
 #
 # Supported forms (matches setup-workflow.sh --workflow argument):
-#   server://<name>   named template on $DEV_WORKFLOW_SERVER
-#   http(s)://...     direct URL to a workflow directory (must serve
-#                     workflow.json and one <stage>.md per stage key)
+#   author/name       named template on $DEV_WORKFLOW_SERVER
 #   /abs/path         local absolute path (copied verbatim)
 #   bare name         resolved against PLUGIN_ROOT/skills/dev-workflow/
 #

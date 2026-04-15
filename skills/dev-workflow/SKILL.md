@@ -7,7 +7,7 @@ description: "Full development workflow: brainstorm a plan, execute with an agen
 
 Orchestrate any development cycle as a **config-driven state machine**. This document is the workflow-agnostic meta-protocol; the specific stages, transitions, and per-stage work are declared elsewhere.
 
-A **workflow** is a directory containing `workflow.json` (config) plus one `<stage>.md` per stage (instructions). The default workflow ships at `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/workflow/`; alternate workflows can be selected via `setup-workflow.sh --workflow=<path>` where `<path>` is a local directory path, an HTTP(S) URL, or a `server://<name>` shorthand for a named template on the hub — see the **Cloud mode** section below.
+A **workflow** is a directory containing `workflow.json` (config) plus one `<stage>.md` per stage (instructions). The default workflow ships at `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/workflow/`; alternate workflows can be selected via `setup-workflow.sh --workflow=<path>` where `<path>` is a local directory path or an `author/name` hub reference — see the **Cloud mode** section below.
 
 The plugin's runtime behavior is defined in three places:
 
@@ -45,16 +45,15 @@ Everything this document says is true **regardless of what's in workflow.json or
 - Pass `--mode=local` to `setup-workflow.sh`, OR
 - Export `DEV_WORKFLOW_DEFAULT_MODE=local` in the shell env before launching Claude Code, which flips the default for every run in that shell.
 
-**Auto-detect**: if the user passes `--workflow=server://<name>` or `--workflow=https://...` alongside `--mode=local`, the URL scheme wins and the mode flips to cloud (you can't load a remote workflow in local mode). The plugin parser accepts both `--workflow=<value>` (canonical) and `--workflow <value>` (legacy space-separated) forms.
+The plugin parser accepts both `--workflow=<value>` (canonical) and `--workflow <value>` (legacy space-separated) forms.
 
 **Requirements**: none for basic use. Authenticated users get workflow ownership (required for editing cloud workflows via `/dev-workflow:create-workflow --workflow=<path>`). Log in with `/dev-workflow:login` — a bearer token is stored at `~/.dev-workflow/auth.json` and sent on every cloud API call via `_cloud_auth_header` in `lib.sh`. Anonymous (unauthenticated) sessions are still accepted by endpoints that don't check ownership. `DEV_WORKFLOW_SERVER` can be exported to point at a self-hosted/staging/local deployment.
 
 **Workflow source resolution** in cloud mode:
-- `server://<name>` — fetches a named template bundle from `$DEV_WORKFLOW_SERVER/api/workflows/<name>`.
-- `https://.../dir` — fetches `workflow.json` + `<stage>.md` files from the remote directory.
+- `author/name` — fetches a named template bundle from `$DEV_WORKFLOW_SERVER/api/workflows/author/name`.
 - `/abs/path` or `./rel/path` — copies a local workflow dir into the shadow (useful for iterating on a config before publishing it).
-- bare name — first tries a bundled workflow under `skills/dev-workflow/<name>/`; falls back to `server://<name>`.
-- omitted — uploads the plugin's default workflow.
+- bare name — first tries a bundled workflow under `skills/dev-workflow/<name>/`; falls back to a named template on the server.
+- omitted — uses the plugin's default workflow.
 
 **Runtime layout** in cloud mode:
 - **Authoritative state lives on the server.** The project worktree gets **nothing** under `.dev-workflow/` — no state, no artifacts, no baseline. Cleanup, archive, and cancel all go through server endpoints (`/api/sessions/<session_id>/{archive,cancel}`), so a canceled cloud workflow leaves no local footprint.
@@ -147,6 +146,83 @@ Line 1: read the SessionStart-populated cache (the happy path). Line 2: fallback
 
 Note that **`P` does NOT persist across Bash-tool calls** — every Bash-tool call is a fresh shell, so you must repeat the two discovery lines (or an equivalent) at the top of each call that runs a plugin script.
 
+### Step 0 — Pre-flight validation & announcement
+
+Before deriving a topic or running any script, parse the flags, validate them, then announce the run configuration to the user. **Do not proceed to Step 1 if any error is emitted.**
+
+```bash
+P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
+source "$P/scripts/lib.sh"
+
+ARGS='$ARGUMENTS'
+WORKFLOW_FLAG=""
+MODE="${DEV_WORKFLOW_DEFAULT_MODE:-cloud}"
+
+# Parse --workflow (= and space-separated forms)
+if [[ "$ARGS" =~ (^|[[:space:]])--workflow=([^[:space:]]+) ]]; then
+  WORKFLOW_FLAG="${BASH_REMATCH[2]}"
+elif [[ "$ARGS" =~ (^|[[:space:]])--workflow[[:space:]]+([^-][^[:space:]]*) ]]; then
+  WORKFLOW_FLAG="${BASH_REMATCH[2]}"
+fi
+# Parse --mode
+if [[ "$ARGS" =~ (^|[[:space:]])--mode=(cloud|local) ]]; then
+  MODE="${BASH_REMATCH[2]}"
+fi
+
+ERRS=0
+
+# Validate: cloud author/name reference in local mode is forbidden
+if [[ "$MODE" == "local" && "$WORKFLOW_FLAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9] ]]; then
+  echo "❌ --workflow '${WORKFLOW_FLAG}' is a cloud author/name reference — cannot be used with --mode=local." >&2
+  echo "   Remove --mode=local (cloud is the default) or pass a local directory path." >&2
+  ERRS=1
+fi
+
+# Validate: local paths must exist and contain workflow.json
+if [[ $ERRS -eq 0 && -n "$WORKFLOW_FLAG" ]]; then
+  _resolved="${WORKFLOW_FLAG/#\~/$HOME}"
+  case "$WORKFLOW_FLAG" in
+    /*|./*|../*|~*)
+      if [[ ! -d "$_resolved" ]]; then
+        echo "❌ Workflow path not found: ${WORKFLOW_FLAG}" >&2
+        ERRS=1
+      elif [[ ! -f "${_resolved}/workflow.json" ]]; then
+        echo "❌ No workflow.json in: ${WORKFLOW_FLAG}" >&2
+        ERRS=1
+      fi
+      ;;
+  esac
+fi
+
+[[ $ERRS -eq 0 ]] || exit 1
+
+# Announce run configuration
+_server="${DEV_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}"
+if [[ -z "$WORKFLOW_FLAG" ]]; then
+  _wf="default (bundled with plugin)"
+elif [[ "$WORKFLOW_FLAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9] ]]; then
+  _wf="${WORKFLOW_FLAG}  ←  ${_server}/hub/${WORKFLOW_FLAG}"
+else
+  _wf="${WORKFLOW_FLAG}  (local path)"
+fi
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  Mode:     ${MODE}"
+if [[ "$MODE" == "cloud" ]]; then
+  echo "  State:    ${_server}/s/<session_id>  (live after setup)"
+  cloud_is_logged_in \
+    && echo "  Auth:     $(jq -r '.author // "unknown"' ~/.dev-workflow/auth.json 2>/dev/null)  (logged in)" \
+    || echo "  Auth:     anonymous  — run /dev-workflow:login to attach an account"
+else
+  echo "  State:    <project>/.dev-workflow/<session_id>/"
+fi
+echo "  Workflow: ${_wf}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+```
+
+Relay the banner to the user before continuing. If errors were printed, stop and wait for the user to correct the arguments.
+
 ### Step 1 — Bootstrap (once per workflow, before the state machine exists)
 
 1. Derive a short kebab-case **topic name** from the user's task description (e.g. "add user auth" → `user-auth`; "fix login bug" → `login-bug`). If the task is unclear or empty, ask ONE clarifying question first — just enough to pick a topic.
@@ -160,8 +236,7 @@ Note that **`P` does NOT persist across Bash-tool calls** — every Bash-tool ca
    ```
    The `--workflow` argument accepts:
    - local directory path (absolute or `~/…`) → used as-is
-   - `server://<name>` → resolved to a named template on the hub
-   - HTTP(S) URL → fetched directly
+   - `author/name` → fetched as a named template from the hub
    - omitted → defaults to `<plugin-root>/skills/dev-workflow/workflow/`
 
 5. **If setup-workflow.sh exits with code 2** (existing workflow detected), it will have printed the existing workflow's topic + status to stderr. Do NOT proceed blindly:

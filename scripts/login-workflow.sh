@@ -95,13 +95,15 @@ while :; do
   if echo "$poll" | jq -e '.access_token' >/dev/null 2>&1; then
     token="$(echo "$poll" | jq -r '.access_token')"
     user_id="$(echo "$poll" | jq -r '.user_id // empty')"
+    author="$(echo "$poll" | jq -r '.author // "anonymous"')"
     jq -n \
       --arg server "$SERVER" \
       --arg token "$token" \
       --arg user_id "$user_id" \
+      --arg author "$author" \
       --arg label "$LABEL" \
       --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-      '{server: $server, token: $token, user_id: $user_id, label: $label, created_at: $created_at}' \
+      '{server: $server, token: $token, user_id: $user_id, author: $author, label: $label, created_at: $created_at}' \
       > "${AUTH_FILE}.tmp"
     mv "${AUTH_FILE}.tmp" "$AUTH_FILE"
     chmod 600 "$AUTH_FILE"

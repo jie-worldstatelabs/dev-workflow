@@ -20,7 +20,7 @@
 # `--dry-run` prints what would be uploaded without touching the server.
 #
 # After a successful publish, the workflow can be pulled by the plugin via:
-#   /dev-workflow:dev --workflow server://<name> <task>
+#   /dev-workflow:dev --workflow <name> <task>
 
 set -euo pipefail
 
@@ -147,12 +147,16 @@ if [[ ${#STAGE_KEYS[@]} -eq 0 ]]; then
   exit 1
 fi
 
-# ── Resolve name (default: basename) + validate slug ──
+# ── Resolve name (default: author/basename) + validate slug ──
 if [[ -z "$NAME" ]]; then
-  NAME="$(basename "$DIR")"
+  _author="$(jq -r '.author // "anonymous"' "${HOME}/.dev-workflow/auth.json" 2>/dev/null || echo "anonymous")"
+  _basename="$(basename "$DIR")"
+  NAME="${_author}/${_basename}"
 fi
-if ! [[ "$NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
-  echo "❌ name '${NAME}' must match [A-Za-z0-9][A-Za-z0-9._-]*" >&2
+# Allow either flat slug or username/workflow-name
+if ! [[ "$NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ ]] && \
+   ! [[ "$NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+  echo "❌ name '${NAME}' must be a slug or username/slug" >&2
   exit 1
 fi
 
@@ -234,4 +238,4 @@ echo "   Description: ${FINAL_DESC:-<empty>}"
 echo "   Hub URL:     ${DEV_WORKFLOW_SERVER}/hub/${NAME}"
 echo ""
 echo "   Pull with:"
-echo "     /dev-workflow:dev --workflow server://${NAME} <task>"
+echo "     /dev-workflow:dev --workflow ${NAME} <task>"

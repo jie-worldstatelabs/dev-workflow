@@ -62,11 +62,15 @@ The generator MUST respect these. `setup-workflow.sh --validate-only` will rejec
 
 ## Protocol
 
-### Step 0 — Parse arguments and dispatch
+### Step 0 — Parse, validate & announce
 
-Extract `--workflow=<path>` and `--mode=` flags from `$ARGUMENTS`, stripping them from the remaining description text:
+Parse flags, validate them, announce what will happen, then dispatch. **Do not proceed if any error is emitted.**
 
 ```bash
+P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
+source "$P/scripts/lib.sh"
+
 ARGS='$ARGUMENTS'
 WORKFLOW_FLAG=""
 MODE="cloud"   # default
@@ -83,10 +87,63 @@ fi
 DESCRIPTION="${DESCRIPTION#"${DESCRIPTION%%[![:space:]]*}"}"  # ltrim
 DESCRIPTION="${DESCRIPTION%"${DESCRIPTION##*[![:space:]]}"}"  # rtrim
 
-echo "WORKFLOW_FLAG=${WORKFLOW_FLAG}"
-echo "MODE=${MODE}"
-echo "DESC=${DESCRIPTION}"
+ERRS=0
+
+# --- Edit mode validations (WORKFLOW_FLAG present) ---
+if [[ -n "$WORKFLOW_FLAG" ]]; then
+  RESOLVED="${WORKFLOW_FLAG/#\~/$HOME}"
+
+  # Detect type: local dir, cloud author/name, or invalid
+  if [[ -f "${RESOLVED}/workflow.json" ]]; then
+    WF_TYPE="local"
+  elif [[ "$WORKFLOW_FLAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+    WF_TYPE="cloud"
+  else
+    echo "❌ '${WORKFLOW_FLAG}' is not a local workflow directory and does not look like an author/name cloud reference." >&2
+    ERRS=1
+  fi
+
+  # Reject cloud reference in local mode
+  if [[ $ERRS -eq 0 && "$WF_TYPE" == "cloud" && "$MODE" == "local" ]]; then
+    echo "❌ --workflow '${WORKFLOW_FLAG}' is a cloud reference — cannot be used with --mode=local." >&2
+    echo "   Remove --mode=local or pass a local directory path." >&2
+    ERRS=1
+  fi
+fi
+
+[[ $ERRS -eq 0 ]] || exit 1
+
+# --- Announce ---
+_server="${DEV_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}"
+_author="$(jq -r '.author // "anonymous"' "${HOME}/.dev-workflow/auth.json" 2>/dev/null || echo "anonymous")"
+_logged_in="$(cloud_is_logged_in && echo yes || echo no)"
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if [[ -n "$WORKFLOW_FLAG" ]]; then
+  echo "  Action:   edit existing workflow"
+  if [[ "$WF_TYPE" == "cloud" ]]; then
+    echo "  Workflow: ${WORKFLOW_FLAG}  ←  ${_server}/hub/${WORKFLOW_FLAG}"
+    echo "  Auth:     ${_author}  ($([ "$_logged_in" = yes ] && echo logged in || echo anonymous))"
+    echo "  After edit: changes pushed back to hub"
+  else
+    echo "  Workflow: ${WORKFLOW_FLAG}  (local)"
+    echo "  After edit: local files updated (publish manually if needed)"
+  fi
+else
+  echo "  Action:   create new workflow"
+  echo "  Mode:     ${MODE}"
+  if [[ "$MODE" == "cloud" ]]; then
+    echo "  Will publish as: ${_author}/<suffix>  →  ${_server}/hub/${_author}/<suffix>"
+    echo "  Auth:     ${_author}  ($([ "$_logged_in" = yes ] && echo logged in || echo anonymous — will publish anonymously))"
+  else
+    echo "  Will save to: ~/.dev-workflow/workflows/<suffix>/"
+    echo "  No hub publish (local mode)"
+  fi
+fi
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 ```
+
+Relay the banner to the user before continuing.
 
 - If `WORKFLOW_FLAG` is non-empty → **Edit mode**: skip to the [Edit Mode](#edit-mode) section below.
 - If `WORKFLOW_FLAG` is empty → **Create mode** (continue to Step 1). `MODE` controls whether the finished workflow is published to the hub (`cloud`, default) or kept local only (`local`).
@@ -129,17 +186,25 @@ Ask the user: **"Does this design look right? Any changes to stages, order, or i
 
 ### Step 3 — Pick a workflow name
 
-Derive a short, kebab-case name from the user's description (e.g. "Python library dev with docs and publish" → `python-lib`, "research paper drafting" → `paper-draft`). Show the name and ask for confirmation.
+Derive a short, kebab-case suffix from the user's description (e.g. "Python library dev with docs and publish" → `python-lib`, "research paper drafting" → `paper-draft`).
 
-Check for collision: if `~/.dev-workflow/workflows/<name>/` already exists, tell the user and ask whether to pick a different name or overwrite. Do NOT overwrite silently.
+In cloud mode (MODE=cloud), prefix the name with the user's author handle from auth.json:
+```bash
+_author="$(jq -r '.author // "anonymous"' "${HOME}/.dev-workflow/auth.json" 2>/dev/null || echo "anonymous")"
+echo "AUTHOR=${_author}"
+```
+The full workflow name is `${_author}/${suffix}` (e.g. `jie/paper-draft`). Show the full name to the user and ask for confirmation of the suffix part only.
+
+In local mode (MODE=local), the name is just the kebab-case suffix with no prefix.
+
+Check for collision: if `~/.dev-workflow/workflows/<author>/<suffix>/` already exists (cloud) or `~/.dev-workflow/workflows/<suffix>/` (local), tell the user and ask whether to pick a different name or overwrite. Do NOT overwrite silently.
 
 ### Step 4 — Write the files
 
 Create the target directory:
 
-```bash
-mkdir -p ~/.dev-workflow/workflows/<name>
-```
+- Cloud: `mkdir -p ~/.dev-workflow/workflows/<author>/<suffix>`
+- Local: `mkdir -p ~/.dev-workflow/workflows/<suffix>`
 
 Write `workflow.json` strictly matching the schema (see the Schema constraints section + read the default `workflow.json` as reference). Validate locally by eye against the constraints list — don't leak a per-stage `subagent_type` field or set `interruptible: true` on a subagent stage.
 
@@ -198,8 +263,8 @@ Tell the user:
   - If anonymous: "Published **anonymously** (public link) — `<hub-url>`"
   - If publish failed: show the error and note the local path still works
 - **How to launch**:
-  - Cloud: `/dev-workflow:dev --workflow=server://<name> <your task>` (or the full hub URL)
-  - Local: `/dev-workflow:dev --workflow=~/.dev-workflow/workflows/<name> <your task>`
+  - Cloud: `/dev-workflow:dev --workflow=<author>/<suffix> <your task>`
+  - Local: `/dev-workflow:dev --workflow=~/.dev-workflow/workflows/<suffix> <your task>`
 
 Do NOT run `/dev-workflow:dev` yourself — that's the user's next action. Your job is done when the files are on disk, validation passed, and (in cloud mode) the workflow is published.
 
@@ -238,32 +303,36 @@ If publishing fails, tell the user and continue — the workflow is still usable
 
 ### Edit Step 1 — Classify the path
 
-Determine whether `$WORKFLOW_FLAG` points to a local directory or a cloud endpoint:
+Determine whether `$WORKFLOW_FLAG` points to a local directory or a cloud `author/name` reference:
 
 ```bash
 WORKFLOW_FLAG="<value from Step 0>"
 
-if [[ "$WORKFLOW_FLAG" =~ ^(https?://|server://) ]]; then
-  echo "TYPE=cloud"
-elif [[ -f "${WORKFLOW_FLAG}/workflow.json" ]] || [[ -f "${WORKFLOW_FLAG/#\~/$HOME}/workflow.json" ]]; then
-  RESOLVED="${WORKFLOW_FLAG/#\~/$HOME}"
+RESOLVED="${WORKFLOW_FLAG/#\~/$HOME}"
+if [[ -f "${RESOLVED}/workflow.json" ]]; then
   echo "TYPE=local DIR=${RESOLVED}"
+elif [[ "$WORKFLOW_FLAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+  echo "TYPE=cloud"
 else
-  echo "ERROR: ${WORKFLOW_FLAG} is not a cloud URL and does not contain workflow.json"
+  echo "ERROR: '${WORKFLOW_FLAG}' is not a local workflow directory and does not look like an author/name cloud reference"
 fi
 ```
 
 - **`local`**: a filesystem directory containing `workflow.json` → edit directly. Skip to Edit Step 3.
-- **`cloud`**: `http://`, `https://`, or `server://` prefix → must validate ownership. Continue to Edit Step 2.
+- **`cloud`**: `author/name` format → must validate ownership. Continue to Edit Step 2.
 - **error**: path is neither → hard stop, tell the user the path is invalid.
+
+**Mode/type consistency check** (run immediately after classification):
+- If `TYPE=cloud` and `MODE=local` → **hard stop**: tell the user that `author/name` is a cloud reference and cannot be used with `--mode=local`. They should either remove `--mode=local` (cloud is the default) or pass a local directory path.
+- If `TYPE=local` and `MODE=cloud` → proceed normally (editing a local workflow before publishing is valid).
+
+This check prevents the `--mode` flag from being silently ignored when it conflicts with the workflow source type.
 
 ### Edit Step 2 — Cloud ownership validation
 
-**This step only runs for cloud paths.**
+**This step only runs for cloud `author/name` paths.**
 
-Normalize the URL:
-- `server://<name>` → `${DEV_WORKFLOW_SERVER}/api/workflows/<name>`
-- `http(s)://host/api/workflows/<name>` → use as-is
+The API URL is: `${DEV_WORKFLOW_SERVER}/api/workflows/${WORKFLOW_FLAG}`
 
 #### 2a — Check login
 
@@ -283,9 +352,7 @@ P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
 [[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
 source "$P/scripts/lib.sh"
 
-# Normalize server:// shorthand
-CLOUD_URL="<normalized URL>"
-
+CLOUD_URL="${DEV_WORKFLOW_SERVER}/api/workflows/${WORKFLOW_FLAG}"
 MY_USER_ID="$(jq -r '.user_id // empty' ~/.dev-workflow/auth.json 2>/dev/null)"
 AUTH_HEADER="$(_cloud_auth_header)"
 BUNDLE="$(curl -sf -H "$AUTH_HEADER" "$CLOUD_URL" 2>/dev/null || echo "")"
@@ -300,23 +367,20 @@ else
 fi
 ```
 
-- `NOT_FOUND` → hard stop: the cloud path returned nothing.
+- `NOT_FOUND` → hard stop: the cloud name returned nothing.
 - `NOT_OWNER` → hard stop: tell the user the workflow belongs to another account and refuse to edit.
 - `AUTHORIZED` → download the workflow files to a local working directory, then continue.
 
-To download, derive a local dir name from the URL (last path segment) and fetch:
+To download:
 
 ```bash
 P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
 [[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
 source "$P/scripts/lib.sh"
 
-WF_NAME="$(basename "$CLOUD_URL")"
-LOCAL_DIR="${HOME}/.dev-workflow/workflows/${WF_NAME}"
+LOCAL_DIR="${HOME}/.dev-workflow/workflows/${WORKFLOW_FLAG}"
 mkdir -p "$LOCAL_DIR"
-# Use cloud_fetch_workflow_from_url for full URLs,
-# or cloud_fetch_workflow_from_name for server://<name> (pass just the name)
-cloud_fetch_workflow_from_url "$CLOUD_URL" "$LOCAL_DIR"
+cloud_fetch_workflow_from_name "$WORKFLOW_FLAG" "$LOCAL_DIR"
 echo "Downloaded to $LOCAL_DIR"
 ```
 
@@ -338,8 +402,6 @@ If no changes are needed (user just wanted to view), say so and stop without wri
 
 Write only the files that changed (workflow.json and/or the affected stage `.md` files) back to the working directory. Follow the same file guidelines as Create Mode Step 4.
 
-If this was a cloud workflow: tell the user the edits are saved locally at `$LOCAL_DIR`. To use the updated workflow, pass `--workflow=<LOCAL_DIR>` to `/dev-workflow:dev`. Pushing changes back to the server is not yet supported.
-
 ### Edit Step 6 — Validate
 
 ```bash
@@ -350,13 +412,35 @@ P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
 
 Fix any errors and re-run until validation passes.
 
+### Edit Step 6.5 — Push back to cloud (cloud source only)
+
+Skip this step if the workflow came from a local path.
+
+If the workflow came from a cloud `author/name` reference, publish the updated local directory back to the hub now that validation has passed:
+
+```bash
+P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
+"$P/scripts/publish-workflow.sh" "$LOCAL_DIR"
+```
+
+`publish-workflow.sh` uses the stored auth token automatically — the workflow will be updated under the same name and ownership on the hub.
+
+- On success: note the hub URL printed by the script for the Step 7 report.
+- On failure: tell the user the changes are saved locally at `$LOCAL_DIR` and they can retry with `/dev-workflow:publish <LOCAL_DIR>`. Do NOT abort — the local edits are still valid.
+
 ### Edit Step 7 — Report success
 
 Tell the user:
 - **Where**: absolute path to the working directory
 - **What changed**: list of files written
-- **How to launch**: `/dev-workflow:dev --workflow=<path> <your task>`
 - **Validator summary** from Edit Step 6
+- **Hub** (cloud source only):
+  - If publish succeeded: "Changes pushed to hub — `<hub-url>`"
+  - If publish failed: "Changes saved locally at `$LOCAL_DIR` — push manually with `/dev-workflow:publish <LOCAL_DIR>`"
+- **How to launch**:
+  - Cloud: `/dev-workflow:dev --workflow=<author>/<name> <your task>`
+  - Local: `/dev-workflow:dev --workflow=<path> <your task>`
 
 ---
 
@@ -365,10 +449,11 @@ Tell the user:
 - Always read the default workflow files as reference before proposing a design (create mode).
 - Always iterate on the design with the user before writing files.
 - Always run `--validate-only` before reporting success.
+- Always push back to the hub after a successful edit of a cloud workflow (Edit Step 6.5).
 - Never write to `~/.dev-workflow/workflows/<name>/` without user approval.
 - Never overwrite an existing workflow dir without confirmation (create mode).
 - Never set `interruptible: true` on a subagent stage.
 - Never write a `subagent_type` field — all subagent stages use the generic `dev-workflow:workflow-subagent`.
 - Never invoke any other skill or run the full `setup-workflow.sh` (only `--validate-only`).
 - Never edit a cloud workflow unless the user is logged in AND owns it — hard stop otherwise.
-- `--workflow=` in edit mode must be an explicit local directory path or cloud URL — never guess or resolve bare names.
+- `--workflow=` in edit mode must be an explicit local directory path or `author/name` cloud reference — never guess or resolve bare names.

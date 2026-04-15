@@ -8,6 +8,6 @@ Start the `dev-workflow` skill with the user's task.
 
 Task from user: `$ARGUMENTS`
 
-The user's task may include a `--workflow <path>` hint selecting an alternate workflow (local directory path, `server://<name>`, or HTTP URL). The skill parses this and passes it through to `setup-workflow.sh`.
+The user's task may include a `--workflow <path>` hint selecting an alternate workflow (local directory path or `author/name` for a cloud hub workflow). The skill parses this and passes it through to `setup-workflow.sh`.
 
 Invoke `Skill("dev-workflow:dev")` and follow its instructions exactly. The skill is self-contained — do NOT invoke any other skill before, during, or after.

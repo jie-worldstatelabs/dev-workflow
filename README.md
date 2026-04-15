@@ -142,7 +142,7 @@ For parallel independent workflows in one project, just open a second Claude Cod
     verifying-report.md                  transient scratch dir out of the worktree
     reviewing-report.md
     qa-ing-report.md
-    .workflow-cache/                   ← fetched from server://<name> or http(s)://…
+    .workflow-cache/                   ← fetched from hub (author/name) or copied from local path
       workflow.json
       planning.md
       executing.md
@@ -419,8 +419,7 @@ Same flag as local mode, with two cloud-specific forms:
 | *(omitted)* | Bundled default at `skills/dev-workflow/workflow/` | — |
 | `<bare-name>` | Bundled at `skills/dev-workflow/<name>/`; cloud fallback to a named server template | — |
 | `/abs/path` or `./rel/path` | Local workflow directory (copied into shadow in cloud mode) | — |
-| `server://<name>` | Fetched from `GET /api/workflows/<name>` on the workflowUI server | **yes** |
-| `http(s)://…` | Remote dir that serves `workflow.json` + one `<stage>.md` per stage key | **yes** |
+| `author/name` | Fetched from `GET /api/workflows/author/name` on the workflowUI server | **yes** |
 
 ### Pointing at a self-hosted server
 

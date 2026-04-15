@@ -9,20 +9,17 @@
 # the interrupted run's dir is renamed to this session's id so the stop hook
 # and other session-scoped machinery resolve correctly.
 #
-# Usage: continue-workflow.sh [--topic <name>] [--session <id>]
+# Usage: continue-workflow.sh [--session <id>]
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
-TOPIC_ARG=""
 SESSION_ARG=""
 FORCE_MISMATCH=""
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --topic=*)               TOPIC_ARG="${1#--topic=}";     shift ;;
-    --topic)                 TOPIC_ARG="$2";                shift 2 ;;
     --session=*)             SESSION_ARG="${1#--session=}"; shift ;;
     --session)               SESSION_ARG="$2";              shift 2 ;;
     --force-project-mismatch) FORCE_MISMATCH="yes";         shift ;;
@@ -30,7 +27,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -n "$TOPIC_ARG" ]] && DESIRED_TOPIC="$TOPIC_ARG"
 [[ -n "$SESSION_ARG" ]] && DESIRED_SESSION="$SESSION_ARG"
 
 # Cross-machine takeover: if --session <id> refers to a cloud session
@@ -62,9 +58,9 @@ fi
 #   2. Otherwise, scan all .dev-workflow/*/ for a single interrupted run
 #      (cross-session takeover — the common case when the user reopened
 #      Claude Code in a fresh session).
-if [[ -n "${DESIRED_TOPIC:-}" ]] || [[ -n "${DESIRED_SESSION:-}" ]]; then
+if [[ -n "${DESIRED_SESSION:-}" ]]; then
   if ! resolve_state; then
-    echo "No dev workflow matching the given --topic/--session." >&2
+    echo "No dev workflow matching the given --session." >&2
     exit 1
   fi
 else

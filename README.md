@@ -97,14 +97,13 @@ In local mode, state and stage reports go under `<project>/.dev-workflow/<sessio
 ### `/dev-workflow:continue` — resume an interrupted run
 
 ```
-/dev-workflow:continue [--session <id>] [--topic <name>] [--force-project-mismatch]
+/dev-workflow:continue [--session <id>] [--force-project-mismatch]
 ```
 
 | Flag | Default | Meaning |
 |------|---------|---------|
 | *(no args)* | — | Resume the single interrupted run on this machine |
 | `--session <id>` | — | Cross-machine cloud takeover: pull the full snapshot from the server and resume locally |
-| `--topic <name>` | — | Disambiguate when multiple interrupted runs exist in the same project |
 | `--force-project-mismatch` | — | Override the project-fingerprint safety check (cross-machine takeover only) |
 
 ---

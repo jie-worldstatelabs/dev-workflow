@@ -7,8 +7,7 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion
 Resume the dev workflow. Two usage modes:
 
 1. **Normal resume** — no arguments. The script picks the single
-   interrupted run on this machine (or the one matching `--topic <name>`
-   if given).
+   interrupted run on this machine.
 2. **Cross-machine takeover** — pass `--session <server_session_id>` to
    continue a cloud session that was started on a different machine.
    The script pulls the full shadow (state + artifacts + workflow

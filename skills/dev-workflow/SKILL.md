@@ -237,9 +237,15 @@ Loop:
      this stage:
 
      - If "inline":
+         Run stage-context.sh to get binding I/O context (re-discover $P):
+             P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+             [[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
+             "$P/scripts/stage-context.sh"
+         Treat the printed required inputs, output artifact path, and valid
+         result keys as hard constraints for this stage.
          Read <workflow_dir>/<status>.md for stage-specific work instructions.
-         Do the stage's work directly — produce the output artifact at the path
-         printed by update-status.sh, with `epoch:` and a valid `result:` in
+         Do the stage's work — read all required inputs, produce the output
+         artifact at the printed path with `epoch:` and a valid `result:` in
          frontmatter.
 
      - If "subagent":

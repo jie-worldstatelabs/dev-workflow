@@ -68,6 +68,137 @@ In local mode, state and stage reports go under `<project>/.dev-workflow/<sessio
 
 `/dev-workflow:continue --session <id>` on a machine that has never seen this cloud session pulls the full snapshot (state + artifacts + workflow config + baseline) from the server and verifies the current `pwd` is the same git project via root-commit fingerprint. On match with a different absolute path, `project_root` auto-updates so downstream `git diff` operations use the right working copy. On mismatch it exits with a clear error — `--force-project-mismatch` overrides.
 
+## Command Reference
+
+### `/dev-workflow:dev` — start a workflow run
+
+```
+/dev-workflow:dev [--mode=cloud|local] [--workflow=<ref>] <task description>
+```
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `<task description>` | *(required)* | What to build or fix — becomes the topic and initial context for the workflow |
+| `--mode=cloud` | **`cloud`** | State and artifacts live on the remote server; project worktree stays clean; live browser UI at `/s/<session_id>` |
+| `--mode=local` | — | Fully offline; state and artifacts go under `<project>/.dev-workflow/<session_id>/` |
+| `--workflow=author/name` | — | Fetch a workflow bundle from `$DEV_WORKFLOW_SERVER/api/workflows/author/name` (cloud only) |
+| `--workflow=./path` or `/abs/path` | — | Use a local workflow directory (copied into the shadow dir in cloud mode) |
+| `--workflow=<bare-name>` | — | Look up `skills/dev-workflow/<name>/` in the plugin; fall back to a server-hosted template |
+| *(omit `--workflow`)* | — | Bundled default workflow at `skills/dev-workflow/workflow/` |
+
+**Shell-level env vars:**
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `DEV_WORKFLOW_DEFAULT_MODE` | `cloud` | Set to `local` to flip the default for every run in that shell |
+| `DEV_WORKFLOW_SERVER` | `https://workflows.worldstatelabs.com` | Override to point at a self-hosted or staging server |
+
+---
+
+### `/dev-workflow:continue` — resume an interrupted run
+
+```
+/dev-workflow:continue [--session <id>] [--topic <name>] [--force-project-mismatch]
+```
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| *(no args)* | — | Resume the single interrupted run on this machine |
+| `--session <id>` | — | Cross-machine cloud takeover: pull the full snapshot from the server and resume locally |
+| `--topic <name>` | — | Disambiguate when multiple interrupted runs exist in the same project |
+| `--force-project-mismatch` | — | Override the project-fingerprint safety check (cross-machine takeover only) |
+
+---
+
+### `/dev-workflow:interrupt` — pause a running workflow
+
+```
+/dev-workflow:interrupt
+```
+
+No flags. Pauses the active run at the end of the current stage, preserving all state. Resume with `/dev-workflow:continue`.
+
+---
+
+### `/dev-workflow:cancel` — cancel a workflow run
+
+```
+/dev-workflow:cancel [--hard]
+```
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| *(no flag)* | **archive** | Move the run dir to `.dev-workflow/.archive/<YYYYMMDD-HHMMSS>-<topic>-cancelled/` before clearing state |
+| `--hard` | — | Skip the archive and `rm -rf` the run dir; leaves no local artifacts |
+
+In cloud mode the server keeps the audit trail regardless of `--hard`; only the local shadow is affected.
+
+---
+
+### `/dev-workflow:create-workflow` — create or edit a workflow definition
+
+```
+/dev-workflow:create-workflow [--mode=cloud|local] [--workflow=<ref>] <description>
+```
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `<description>` | *(required)* | What to create (create mode) or what changes to make (edit mode) |
+| *(omit `--workflow`)* | — | **Create mode**: interview, design from scratch, write to `~/.dev-workflow/workflows/<name>/`, and publish to the hub |
+| `--workflow=author/name` | — | **Edit mode**: edit a cloud-hosted workflow (must be logged in and own it) |
+| `--workflow=./path` or `/abs/path` | — | **Edit mode**: edit an existing local workflow directory |
+| `--mode=cloud` | **`cloud`** | Create mode: publish to hub after writing files |
+| `--mode=local` | — | Create mode: write files locally only, skip hub publishing |
+
+> `--mode=local` with an `author/name` reference is an error — cloud references require cloud mode.
+
+---
+
+### `/dev-workflow:publish` — publish a local workflow to the hub
+
+```
+/dev-workflow:publish <workflow-dir> [--name <name>] [--description <desc>] [--dry-run]
+```
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `<workflow-dir>` | *(required)* | Path to the directory containing `workflow.json` |
+| `--name <name>` | Directory basename | Hub slug; published as `<your-username>/<name>` |
+| `--description <desc>` | First non-heading line of `readme.md` | One-liner shown in the hub list |
+| `--dry-run` | — | Validate and preview the bundle without uploading |
+
+---
+
+### `/dev-workflow:login` — sign in to the cloud server
+
+```
+/dev-workflow:login
+```
+
+No flags. Runs a browser-based device-code flow and stores a bearer token at `~/.dev-workflow/auth.json`. Required for creating/editing cloud workflows and for session ownership.
+
+---
+
+### `/dev-workflow:logout` — sign out
+
+```
+/dev-workflow:logout
+```
+
+No flags. Removes `~/.dev-workflow/auth.json`. The plugin reverts to anonymous mode. The server-side token remains valid until revoked via the web UI.
+
+---
+
+### `/dev-workflow:whoami` — show current identity
+
+```
+/dev-workflow:whoami
+```
+
+No flags. Prints the identity stored in `~/.dev-workflow/auth.json` and verifies the token is still accepted by the server.
+
+---
+
 ## Prerequisites
 
 - [Claude Code](https://claude.ai/claude-code) CLI

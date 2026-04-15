@@ -38,7 +38,6 @@ case "$me_code" in
     echo "  user:       ${author:-(anonymous)}"
     echo "  user_id:    ${user_id:-(unknown)}"
     echo "  device:     ${label:-(unknown)}"
-    echo "  server:     ${server}"
     echo "  signed in:  ${created_at:-(unknown)}"
     ;;
   401)
@@ -55,7 +54,6 @@ case "$me_code" in
     echo "  user:       ${author:-(anonymous)}"
     echo "  user_id:    ${user_id:-(unknown)}"
     echo "  device:     ${label:-(unknown)}"
-    echo "  server:     ${server}"
     echo "  signed in:  ${created_at:-(unknown)}"
     ;;
   *)

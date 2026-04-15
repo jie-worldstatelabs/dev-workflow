@@ -81,9 +81,8 @@ In local mode, state and stage reports go under `<project>/.dev-workflow/<sessio
 | `<task description>` | *(required)* | What to build or fix — becomes the topic and initial context for the workflow |
 | `--mode=cloud` | **`cloud`** | State and artifacts live on the remote server; project worktree stays clean; live browser UI at `/s/<session_id>` |
 | `--mode=local` | — | Fully offline; state and artifacts go under `<project>/.dev-workflow/<session_id>/` |
-| `--workflow=author/name` | — | Fetch a workflow bundle from `$DEV_WORKFLOW_SERVER/api/workflows/author/name` (cloud only) |
-| `--workflow=./path` or `/abs/path` | — | Use a local workflow directory (copied into the shadow dir in cloud mode) |
-| `--workflow=<bare-name>` | — | Look up `skills/dev-workflow/<name>/` in the plugin; fall back to a server-hosted template |
+| `--workflow=author/name` | — | Fetch a workflow bundle from `$DEV_WORKFLOW_SERVER/api/workflows/author/name` (cloud mode) |
+| `--workflow=./path` or `/abs/path` | — | Use a local workflow directory (local mode) |
 | *(omit `--workflow`)* | — | Bundled default workflow at `skills/dev-workflow/workflow/` |
 
 **Shell-level env vars:**
@@ -548,9 +547,8 @@ Same flag as local mode, with two cloud-specific forms:
 | Form | Meaning | Forces cloud? |
 |---|---|---|
 | *(omitted)* | Bundled default at `skills/dev-workflow/workflow/` | — |
-| `<bare-name>` | Bundled at `skills/dev-workflow/<name>/`; cloud fallback to a named server template | — |
-| `/abs/path` or `./rel/path` | Local workflow directory (copied into shadow in cloud mode) | — |
 | `author/name` | Fetched from `GET /api/workflows/author/name` on the workflowUI server | **yes** |
+| `/abs/path` or `./rel/path` | Local workflow directory (use with `--mode=local`) | — |
 
 ### Pointing at a self-hosted server
 

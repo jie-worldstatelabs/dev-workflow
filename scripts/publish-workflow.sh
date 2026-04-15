@@ -149,7 +149,10 @@ fi
 
 # ── Resolve name (default: author/basename) + validate slug ──
 if [[ -z "$NAME" ]]; then
-  _author="$(jq -r '.author // "anonymous"' "${HOME}/.dev-workflow/auth.json" 2>/dev/null || echo "anonymous")"
+  _author_raw="$(jq -r '.author // "anonymous"' "${HOME}/.dev-workflow/auth.json" 2>/dev/null || echo "anonymous")"
+  # Slugify: lowercase, spaces→hyphens, strip non-slug chars
+  _author="$(echo "$_author_raw" | tr '[:upper:]' '[:lower:]' | sed 's/[[:space:]][[:space:]]*/\-/g; s/[^a-z0-9._-]//g; s/^[^a-z0-9]*//')"
+  _author="${_author:-anonymous}"
   _basename="$(basename "$DIR")"
   NAME="${_author}/${_basename}"
 fi

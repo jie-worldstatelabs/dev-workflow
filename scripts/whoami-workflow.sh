@@ -18,10 +18,9 @@ if [[ ! -f "$AUTH_FILE" ]]; then
 fi
 
 label="$(jq -r '.label // empty' "$AUTH_FILE" 2>/dev/null || true)"
-server="$(jq -r '.server // empty' "$AUTH_FILE" 2>/dev/null || true)"
 created_at="$(jq -r '.created_at // empty' "$AUTH_FILE" 2>/dev/null || true)"
 
-: "${server:=${DEV_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}}"
+server="${DEV_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}"
 
 # Fetch live identity from the server — source of truth for user/author.
 me_resp="$(curl -sS -w '\n%{http_code}' \

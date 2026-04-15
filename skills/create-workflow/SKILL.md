@@ -263,10 +263,10 @@ Tell the user:
   - If anonymous: "Published **anonymously** (public link) — `<hub-url>`"
   - If publish failed: show the error and note the local path still works
 - **How to launch**:
-  - Cloud: `/dev-workflow:dev --workflow=<author>/<suffix> <your task>`
-  - Local: `/dev-workflow:dev --workflow=~/.dev-workflow/workflows/<suffix> <your task>`
+  - Cloud: `/dev-workflow:start --workflow=<author>/<suffix> <your task>`
+  - Local: `/dev-workflow:start --workflow=~/.dev-workflow/workflows/<suffix> <your task>`
 
-Do NOT run `/dev-workflow:dev` yourself — that's the user's next action. Your job is done when the files are on disk, validation passed, and (in cloud mode) the workflow is published.
+Do NOT run `/dev-workflow:start` yourself — that's the user's next action. Your job is done when the files are on disk, validation passed, and (in cloud mode) the workflow is published.
 
 ### Step 5.5 — Publish to hub (cloud mode only)
 
@@ -439,8 +439,8 @@ Tell the user:
   - If publish succeeded: "Changes pushed to hub — `<hub-url>`"
   - If publish failed: "Changes saved locally at `$LOCAL_DIR` — push manually with `/dev-workflow:publish <LOCAL_DIR>`"
 - **How to launch**:
-  - Cloud: `/dev-workflow:dev --workflow=<author>/<name> <your task>`
-  - Local: `/dev-workflow:dev --workflow=<path> <your task>`
+  - Cloud: `/dev-workflow:start --workflow=<author>/<name> <your task>`
+  - Local: `/dev-workflow:start --workflow=<path> <your task>`
 
 ---
 

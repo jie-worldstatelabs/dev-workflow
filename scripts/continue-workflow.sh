@@ -2,7 +2,7 @@
 
 # Dev Workflow Continue Script
 # Resumes an interrupted workflow by restoring the saved resume_status.
-# Only works when status is "interrupted" — use /dev-workflow:dev for a fresh start.
+# Only works when status is "interrupted" — use /dev-workflow:start for a fresh start.
 #
 # Session-keyed model: each run lives under .dev-workflow/<session_id>/.
 # If the user resumes from a NEW Claude session (e.g. reopened terminal),
@@ -76,7 +76,7 @@ else
       echo "   Available workflows:" >&2
       echo "$workflows" >&2
     else
-      echo "   Start a new workflow with: /dev-workflow:dev <task>" >&2
+      echo "   Start a new workflow with: /dev-workflow:start <task>" >&2
     fi
     exit 1
   fi
@@ -140,7 +140,7 @@ if is_terminal_status "$STATUS" 2>/dev/null; then
   case "$STATUS" in
     cancelled)
       echo "⚠️  Workflow '$TOPIC' was cancelled — resume unavailable." >&2
-      echo "    Start a new workflow with /dev-workflow:dev if you want to retry." >&2
+      echo "    Start a new workflow with /dev-workflow:start if you want to retry." >&2
       ;;
     *)
       echo "⚠️  Workflow '$TOPIC' is already $STATUS — nothing to resume." >&2
@@ -163,7 +163,7 @@ if [[ "$STATUS" == "interrupted" ]]; then
   fi
   if [[ -z "$RESUME_STATUS" ]]; then
     echo "⚠️  Workflow '$TOPIC' has no resume_status and no initial_stage — cannot resume safely." >&2
-    echo "   Inspect $STATE_FILE and set resume_status manually, or start over with /dev-workflow:dev." >&2
+    echo "   Inspect $STATE_FILE and set resume_status manually, or start over with /dev-workflow:start." >&2
     exit 1
   fi
   DISPLAY_PHASE="$RESUME_STATUS"

@@ -39,7 +39,7 @@ Everything this document says is true **regardless of what's in workflow.json or
 
 ## Cloud mode
 
-**Cloud mode is the default.** When the user runs `/dev-workflow:dev <task>` without any flag, state + artifacts live on the remote **workflowUI** server. The project's `.dev-workflow/` gets nothing; a transient shadow at `~/.cache/dev-workflow/sessions/<session_id>/` backs Claude's filesystem tools locally.
+**Cloud mode is the default.** When the user runs `/dev-workflow:start <task>` without any flag, state + artifacts live on the remote **workflowUI** server. The project's `.dev-workflow/` gets nothing; a transient shadow at `~/.cache/dev-workflow/sessions/<session_id>/` backs Claude's filesystem tools locally.
 
 **To opt OUT** (fully-offline local mode) in one of two ways:
 - Pass `--mode=local` to `setup-workflow.sh`, OR
@@ -255,7 +255,7 @@ Relay the banner to the user before continuing. If errors were printed, stop and
    - **Do NOT try to auto-fix a custom workflow config.** If the user passed `--workflow=<path-or-name>` pointing at their own workflow, that file belongs to them. Tell them which file has errors and what the errors say, then wait for them to fix it and retry. Do not write to their workflow.json or stage instruction files yourself.
    - **If the failure is in the plugin's default workflow** (the user did NOT pass `--workflow`), that's a plugin bug — surface it as such, point the user at the config path shown in the warning, and stop. Do not try to patch the default workflow from inside the skill.
    - **If the error says `session_id is unknown`** (the SessionStart hook cache wasn't populated), tell the user to restart their Claude Code session and retry. That's the only fix.
-   - **If the error is a cloud fetch failure** (`cloud fetch failed`, `could not pull session ... from server`, `DEV_WORKFLOW_SERVER` issues), relay the error and suggest retrying, checking the network, or opting into local mode for this run (`/dev-workflow:dev --mode=local <task>` — cloud is the default, `--mode=local` is the escape hatch).
+   - **If the error is a cloud fetch failure** (`cloud fetch failed`, `could not pull session ... from server`, `DEV_WORKFLOW_SERVER` issues), relay the error and suggest retrying, checking the network, or opting into local mode for this run (`/dev-workflow:start --mode=local <task>` — cloud is the default, `--mode=local` is the escape hatch).
    - **Do NOT proceed to Step 2** until the user explicitly confirms a retry. A failed setup means there is no state.md to drive anything.
 
 On success, setup-workflow.sh creates `<project>/.dev-workflow/<session_id>/state.md` with:

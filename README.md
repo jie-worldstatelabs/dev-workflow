@@ -6,7 +6,7 @@ Runs in two modes — **local** (files live under `<project>/.dev-workflow/`, no
 
 ## What It Does
 
-`/dev-workflow:dev <task>` kicks off a self-contained workflow. Every stage is declared in a single `workflow.json` config (stages, transitions, required/optional inputs, execution params); the hooks and scripts consume that config at runtime.
+`/dev-workflow:start <task>` kicks off a self-contained workflow. Every stage is declared in a single `workflow.json` config (stages, transitions, required/optional inputs, execution params); the hooks and scripts consume that config at runtime.
 
 1. **Planning** (*interruptible*) — Claude picks a topic name, activates the workflow, then does inline Q&A with you: clarifying questions, proposed approaches, design iteration, plan file. You confirm before anything gets built. The stop hook allows natural session pauses for user exchanges.
 2. **Execute** — A dedicated executor agent (Opus) implements the plan: tests-first when specified, minimal focused changes, incremental commits.
@@ -28,9 +28,9 @@ claude plugin install dev-workflow
 ### Cloud mode (default)
 
 ```
-/dev-workflow:dev Build a REST API with user authentication
-/dev-workflow:dev Fix the race condition in the payment processing module
-/dev-workflow:dev Add dark mode support to the dashboard
+/dev-workflow:start Build a REST API with user authentication
+/dev-workflow:start Fix the race condition in the payment processing module
+/dev-workflow:start Add dark mode support to the dashboard
 ```
 
 The setup script prints a line like:
@@ -46,7 +46,7 @@ Paste that URL in any browser to watch the stage timeline, rendered markdown art
 For fully offline / no-infra runs, opt out of cloud mode in one of two ways:
 
 ```
-/dev-workflow:dev --mode=local Build a REST API with user authentication
+/dev-workflow:start --mode=local Build a REST API with user authentication
 ```
 
 ```bash
@@ -70,10 +70,10 @@ In local mode, state and stage reports go under `<project>/.dev-workflow/<sessio
 
 ## Command Reference
 
-### `/dev-workflow:dev` — start a workflow run
+### `/dev-workflow:start` — start a workflow run
 
 ```
-/dev-workflow:dev [--mode=cloud|local] [--workflow=<ref>] <task description>
+/dev-workflow:start [--mode=cloud|local] [--workflow=<ref>] <task description>
 ```
 
 | Flag | Default | Meaning |
@@ -206,7 +206,7 @@ No flags. Prints the identity stored in `~/.dev-workflow/auth.json` and verifies
 
 ```
 commands/
-  dev.md                 ← /dev-workflow:dev entry point (passes $ARGUMENTS to the skill)
+  dev.md                 ← /dev-workflow:start entry point (passes $ARGUMENTS to the skill)
   interrupt.md           ← /dev-workflow:interrupt to pause (state preserved)
   continue.md            ← /dev-workflow:continue to resume
   cancel.md              ← /dev-workflow:cancel to abort and clear state
@@ -314,7 +314,7 @@ A concrete end-to-end trace showing which scripts and hooks fire at each step. E
 ### Bootstrap
 
 ```
-USER  ► /dev-workflow:dev Build a note-taking app
+USER  ► /dev-workflow:start Build a note-taking app
 MAIN  ► reads SKILL.md (meta-protocol)
 MAIN  ► derives topic `note-app` from the task
 MAIN  ▶ runs: scripts/setup-workflow.sh --topic note-app
@@ -494,7 +494,7 @@ The stop hook fires at every Claude turn-end. It reads `state.md` and the curren
 A workflow is a directory that bundles `workflow.json` + one `<stage>.md` per stage. The plugin ships a 5-stage default at `skills/dev-workflow/workflow/`. Customize that workflow in-place, or copy the directory to `skills/dev-workflow/<my-workflow>/`, edit to taste, and select it at setup time:
 
 ```
-/dev-workflow:dev --workflow=my-workflow Build X
+/dev-workflow:start --workflow=my-workflow Build X
 # → setup-workflow.sh --topic=X --workflow=my-workflow
 # → state.md workflow_dir = ${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/my-workflow
 ```

@@ -16,7 +16,6 @@
 #   setup-workflow.sh --topic <topic>
 #                     [--workflow <name-or-path-or-url>]
 #                     [--mode local|cloud]
-#                     [--force]
 #   setup-workflow.sh --validate-only [--workflow <name-or-path>]
 #
 # --workflow accepts:
@@ -32,7 +31,6 @@ source "${SCRIPT_DIR}/lib.sh"
 
 TOPIC=""
 WORKFLOW_NAME=""
-FORCE=""
 VALIDATE_ONLY=""
 # Default mode is cloud — authoritative state lives on the workflowUI
 # server, with a local shadow for Claude's Read/Write tools. Users who
@@ -49,7 +47,6 @@ while [[ $# -gt 0 ]]; do
     --workflow)     WORKFLOW_NAME="$2";                    shift 2 ;;
     --mode=*)       MODE="${1#--mode=}";                   shift ;;
     --mode)         MODE="$2";                             shift 2 ;;
-    --force)        FORCE="yes";                           shift ;;
     --validate-only) VALIDATE_ONLY="yes";                  shift ;;
     *)              shift ;;
   esac
@@ -59,7 +56,7 @@ done
 # gets written in that mode).
 if [[ -z "$VALIDATE_ONLY" ]] && [[ -z "$TOPIC" ]]; then
   echo "❌ Error: --topic is required" >&2
-  echo "Usage: setup-workflow.sh --topic <topic> [--workflow <name-or-path-or-url>] [--mode local|cloud] [--force]" >&2
+  echo "Usage: setup-workflow.sh --topic <topic> [--workflow <name-or-path-or-url>] [--mode local|cloud]" >&2
   echo "       setup-workflow.sh --validate-only [--workflow <name-or-path>]" >&2
   exit 1
 fi
@@ -195,7 +192,7 @@ if [[ "$MODE" == "cloud" ]]; then
 
   # Phase 0: detect existing cloud shadow (mirrors server 409 semantics
   # with a friendlier local error).
-  if [[ -z "$FORCE" ]] && [[ -f "${SCRATCH_DIR}/state.md" ]]; then
+  if [[ -f "${SCRATCH_DIR}/state.md" ]]; then
     existing_status=$(_read_fm_field "${SCRATCH_DIR}/state.md" status)
     existing_topic=$(_read_fm_field "${SCRATCH_DIR}/state.md" topic)
     case "$existing_status" in
@@ -206,17 +203,12 @@ if [[ "$MODE" == "cloud" ]]; then
         echo "   Session: ${SESSION_ID}" >&2
         echo "   Existing topic: ${existing_topic:-?}   status: ${existing_status}" >&2
         echo "" >&2
-        echo "   Options:" >&2
-        echo "     1. Confirm with the user and re-run with --force (wipes the existing run)." >&2
-        echo "     2. /dev-workflow:interrupt to pause, /dev-workflow:cancel to stop." >&2
+        echo "   /dev-workflow:interrupt to pause, /dev-workflow:cancel to stop." >&2
         exit 2
         ;;
     esac
   fi
 
-  if [[ -n "$FORCE" ]] && [[ -d "$SCRATCH_DIR" ]]; then
-    rm -rf "$SCRATCH_DIR"
-  fi
   mkdir -p "$WORKFLOW_CACHE"
 
   # ── Resolve workflow source into $WORKFLOW_CACHE ──
@@ -289,8 +281,6 @@ if [[ "$MODE" == "cloud" ]]; then
                   '$base + {($k): $v}')"
   done
   wfval="$(cat "${WORKFLOW_CACHE}/workflow.json")"
-  force_bool="false"
-  [[ -n "$FORCE" ]] && force_bool="true"
   payload="$(jq -n \
       --arg topic "$TOPIC" \
       --argjson workflow "$wfval" \
@@ -299,7 +289,6 @@ if [[ "$MODE" == "cloud" ]]; then
       --arg proot "$PROJECT_ROOT" \
       --arg fpr "$PROJECT_FINGERPRINT" \
       --arg wtree "$WORKTREE_ROOT" \
-      --argjson force "$force_bool" \
       '{
         topic: $topic,
         workflow: $workflow,
@@ -307,8 +296,7 @@ if [[ "$MODE" == "cloud" ]]; then
         workflow_url: (if $url == "" then null else $url end),
         project_root: $proot,
         project_fingerprint: (if $fpr == "" then null else $fpr end),
-        worktree: $wtree,
-        force: $force
+        worktree: $wtree
       }')"
 
   tmp_body="$(mktemp -t dw-setup-XXXXXX)"
@@ -323,7 +311,7 @@ if [[ "$MODE" == "cloud" ]]; then
     remote_status=$(jq -r '.status // "?"' "$tmp_body" 2>/dev/null || echo "?")
     echo "⚠️  Server refused setup — an active workflow already exists for this session." >&2
     echo "    Remote status: ${remote_status}" >&2
-    echo "    Re-run with --force to clobber it." >&2
+    echo "    Use /dev-workflow:cancel to stop the existing run first." >&2
     rm -rf "$SCRATCH_DIR"
     exit 2
   fi
@@ -435,12 +423,12 @@ SESSION_RUN_DIR="${PROJECT_ROOT}/.dev-workflow/${SESSION_ID}"
 # ──────────────────────────────────────────────────────────────
 # Phase 0: Detect existing workflow for THIS session.
 # ──────────────────────────────────────────────────────────────
-if [[ -z "$FORCE" ]] && [[ -f "${SESSION_RUN_DIR}/state.md" ]]; then
+if [[ -f "${SESSION_RUN_DIR}/state.md" ]]; then
   etopic=$(_read_fm_field "${SESSION_RUN_DIR}/state.md" topic)
   estatus=$(_read_fm_field "${SESSION_RUN_DIR}/state.md" status)
   case "$estatus" in
     complete|escalated|cancelled|"")
-      # Terminal or unreadable — safe to replace without --force.
+      # Terminal or unreadable — safe to replace.
       ;;
     *)
       echo "⚠️  This session already has an active dev-workflow." >&2
@@ -449,14 +437,8 @@ if [[ -z "$FORCE" ]] && [[ -f "${SESSION_RUN_DIR}/state.md" ]]; then
       echo "   Existing topic: ${etopic:-?}   status: ${estatus}" >&2
       echo "   Existing dir: ${SESSION_RUN_DIR}" >&2
       echo "" >&2
-      echo "   Starting a new workflow (topic=${TOPIC}) will DELETE this" >&2
-      echo "   session's existing workflow state and artifacts." >&2
-      echo "" >&2
-      echo "   Options:" >&2
-      echo "     1. Confirm with the user and re-run with --force:" >&2
-      echo "        setup-workflow.sh --topic \"${TOPIC}\" --force" >&2
-      echo "     2. Keep existing — /dev-workflow:interrupt to pause," >&2
-      echo "        /dev-workflow:cancel to clean up, /dev-workflow:continue to resume." >&2
+      echo "   /dev-workflow:interrupt to pause, /dev-workflow:cancel to stop," >&2
+      echo "   /dev-workflow:continue to resume." >&2
       exit 2
       ;;
   esac

@@ -48,7 +48,7 @@ if ! resolve_state; then
     echo "$workflows" >&2
     echo "   Pass --topic <name> to select one." >&2
   else
-    echo "   No workflows found. Run /dev-workflow:dev to start one." >&2
+    echo "   No workflows found. Run /dev-workflow:start to start one." >&2
   fi
   exit 1
 fi

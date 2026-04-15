@@ -20,7 +20,7 @@
 # `--dry-run` prints what would be uploaded without touching the server.
 #
 # After a successful publish, the workflow can be pulled by the plugin via:
-#   /dev-workflow:dev --workflow <name> <task>
+#   /dev-workflow:start --workflow <name> <task>
 
 set -euo pipefail
 
@@ -238,4 +238,4 @@ echo "   Description: ${FINAL_DESC:-<empty>}"
 echo "   Hub URL:     ${DEV_WORKFLOW_SERVER}/hub/${NAME}"
 echo ""
 echo "   Pull with:"
-echo "     /dev-workflow:dev --workflow ${NAME} <task>"
+echo "     /dev-workflow:start --workflow ${NAME} <task>"

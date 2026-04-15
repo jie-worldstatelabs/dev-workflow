@@ -147,6 +147,17 @@ if [[ ${#STAGE_KEYS[@]} -eq 0 ]]; then
   exit 1
 fi
 
+# ── Full workflow validation (transitions, inputs, stage files) ──
+_PLUGIN_ROOT="$(cat ~/.dev-workflow/plugin-root 2>/dev/null || true)"
+[[ -d "${_PLUGIN_ROOT}/scripts" ]] || _PLUGIN_ROOT=~/.claude/plugins/dev-workflow
+[[ -d "${_PLUGIN_ROOT}/scripts" ]] || _PLUGIN_ROOT="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"
+if [[ -z "$DRY_RUN" ]]; then
+  if ! "${_PLUGIN_ROOT}/scripts/setup-workflow.sh" --validate-only --workflow="$DIR"; then
+    echo "❌ Workflow validation failed — fix the errors above before publishing." >&2
+    exit 1
+  fi
+fi
+
 # ── Resolve name (default: author/basename) + validate slug ──
 if [[ -z "$NAME" ]]; then
   _author_raw="$(jq -r '.author // "anonymous"' "${HOME}/.dev-workflow/auth.json" 2>/dev/null || echo "anonymous")"

@@ -64,24 +64,32 @@ The generator MUST respect these. `setup-workflow.sh --validate-only` will rejec
 
 ### Step 0 — Parse arguments and dispatch
 
-Extract the `--workflow=<path>` flag from `$ARGUMENTS` (if present) and strip it from the remaining description text:
+Extract `--workflow=<path>` and `--mode=` flags from `$ARGUMENTS`, stripping them from the remaining description text:
 
 ```bash
 ARGS='$ARGUMENTS'
 WORKFLOW_FLAG=""
+MODE="cloud"   # default
 DESCRIPTION="$ARGS"
+
 if [[ "$ARGS" =~ (^|[[:space:]])--workflow=([^[:space:]]+) ]]; then
   WORKFLOW_FLAG="${BASH_REMATCH[2]}"
-  DESCRIPTION="${ARGS/--workflow=${WORKFLOW_FLAG}/}"
-  DESCRIPTION="${DESCRIPTION#"${DESCRIPTION%%[![:space:]]*}"}"  # ltrim
-  DESCRIPTION="${DESCRIPTION%"${DESCRIPTION##*[![:space:]]}"}"  # rtrim
+  DESCRIPTION="${DESCRIPTION/--workflow=${WORKFLOW_FLAG}/}"
 fi
+if [[ "$ARGS" =~ (^|[[:space:]])--mode=(cloud|local) ]]; then
+  MODE="${BASH_REMATCH[2]}"
+  DESCRIPTION="${DESCRIPTION/--mode=${MODE}/}"
+fi
+DESCRIPTION="${DESCRIPTION#"${DESCRIPTION%%[![:space:]]*}"}"  # ltrim
+DESCRIPTION="${DESCRIPTION%"${DESCRIPTION##*[![:space:]]}"}"  # rtrim
+
 echo "WORKFLOW_FLAG=${WORKFLOW_FLAG}"
+echo "MODE=${MODE}"
 echo "DESC=${DESCRIPTION}"
 ```
 
 - If `WORKFLOW_FLAG` is non-empty → **Edit mode**: skip to the [Edit Mode](#edit-mode) section below.
-- If `WORKFLOW_FLAG` is empty → **Create mode**: continue to Step 1.
+- If `WORKFLOW_FLAG` is empty → **Create mode** (continue to Step 1). `MODE` controls whether the finished workflow is published to the hub (`cloud`, default) or kept local only (`local`).
 
 ---
 
@@ -184,14 +192,43 @@ Tell the user:
 
 - **Where**: `~/.dev-workflow/workflows/<name>/` (absolute path)
 - **What's in it**: `workflow.json` + one `.md` per stage
+- **Validator summary** from Step 5 (one line, N stages / M terminal)
+- **Hub** (cloud mode only):
+  - If logged in: "Published as **private** workflow under your account — `<hub-url>`"
+  - If anonymous: "Published **anonymously** (public link) — `<hub-url>`"
+  - If publish failed: show the error and note the local path still works
 - **How to launch**:
-  ```
-  /dev-workflow:dev --workflow=<path> <your task>
-  ```
-  The `--workflow=<bare-name>` resolution checks the plugin's bundled workflows first, then falls back to `~/.dev-workflow/workflows/<name>/`, so both work. If the user prefers an absolute path, `--workflow=~/.dev-workflow/workflows/<name>` is also fine.
-- **Validator summary** from Step 5 (one line, N stages / M terminal).
+  - Cloud: `/dev-workflow:dev --workflow=server://<name> <your task>` (or the full hub URL)
+  - Local: `/dev-workflow:dev --workflow=~/.dev-workflow/workflows/<name> <your task>`
 
-Do NOT run `/dev-workflow:dev` yourself — that's the user's next action. Your job is done when the files are on disk and validation passed.
+Do NOT run `/dev-workflow:dev` yourself — that's the user's next action. Your job is done when the files are on disk, validation passed, and (in cloud mode) the workflow is published.
+
+### Step 5.5 — Publish to hub (cloud mode only)
+
+Skip this step if `MODE=local`.
+
+#### Check login status (for the report message only)
+
+```bash
+P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
+source "$P/scripts/lib.sh"
+cloud_is_logged_in && echo "AUTH=logged_in" || echo "AUTH=anonymous"
+```
+
+#### Publish
+
+```bash
+P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
+"$P/scripts/publish-workflow.sh" "$HOME/.dev-workflow/workflows/<name>"
+```
+
+`publish-workflow.sh` sends the auth header automatically:
+- **Logged in** → Bearer token → server stamps `user_id` on the workflow → **private** (only accessible to you)
+- **Anonymous** → no token → workflow created without owner → **public** (anyone with the link can use it)
+
+If publishing fails, tell the user and continue — the workflow is still usable locally via `--workflow=~/.dev-workflow/workflows/<name>`.
 
 ---
 

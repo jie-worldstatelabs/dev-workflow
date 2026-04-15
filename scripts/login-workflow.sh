@@ -8,25 +8,14 @@
 # token to ~/.dev-workflow/auth.json (mode 0600) so every subsequent
 # cloud_* request from lib.sh picks it up automatically.
 #
-# Usage: login-workflow.sh [--label <name>]
+# Usage: login-workflow.sh
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
-LABEL=""
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    --label=*) LABEL="${1#--label=}"; shift ;;
-    --label)   LABEL="$2";            shift 2 ;;
-    *)         shift ;;
-  esac
-done
-
-if [[ -z "$LABEL" ]]; then
-  LABEL="$(hostname 2>/dev/null || echo unknown)"
-fi
+LABEL="$(hostname 2>/dev/null || echo unknown)"
 
 SERVER="${DEV_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}"
 AUTH_DIR="${HOME}/.dev-workflow"

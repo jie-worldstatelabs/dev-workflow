@@ -5,35 +5,22 @@
 # Resume with: /dev-workflow:continue
 # Cancel entirely with: /dev-workflow:cancel
 #
-# Usage: interrupt-workflow.sh [--topic <name>]
-# Routing:
-#   --topic <name>           explicit
-#   else                     uses the single active workflow if there's exactly one
+# Usage: interrupt-workflow.sh
+# Targets the active workflow for the current session (or the single
+# active run if called outside a session context).
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
-TOPIC_ARG=""
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    --topic=*) TOPIC_ARG="${1#--topic=}"; shift ;;
-    --topic)   TOPIC_ARG="$2";            shift 2 ;;
-    *)         shift ;;
-  esac
-done
-
-if [[ -n "$TOPIC_ARG" ]]; then
-  DESIRED_TOPIC="$TOPIC_ARG"
-fi
+while [[ $# -gt 0 ]]; do shift; done
 
 if ! resolve_state; then
-  echo "No matching active dev workflow." >&2
+  echo "No active dev workflow found." >&2
   if workflows=$(list_all_workflows); [[ -n "$workflows" ]]; then
     echo "   Available workflows:" >&2
     echo "$workflows" >&2
-    echo "   Pass --topic <name> to select one." >&2
   fi
   exit 1
 fi
@@ -69,5 +56,5 @@ echo "   Topic: $TOPIC"
 echo "   Phase: $STATUS (saved as resume_status)"
 echo "   State preserved at: $STATE_FILE"
 echo ""
-echo "   Resume with: /dev-workflow:continue --topic $TOPIC"
-echo "   Cancel entirely with: /dev-workflow:cancel --topic $TOPIC"
+echo "   Resume with: /dev-workflow:continue"
+echo "   Cancel entirely with: /dev-workflow:cancel"

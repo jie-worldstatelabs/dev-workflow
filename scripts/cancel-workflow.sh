@@ -6,34 +6,26 @@
 # --hard:   rm -rf the run dir (no archive). Use when you really don't want
 #           the artifacts.
 #
-# Usage: cancel-workflow.sh [--topic <name>] [--hard]
+# Usage: cancel-workflow.sh [--hard]
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
-TOPIC_ARG=""
 HARD=""
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --topic=*) TOPIC_ARG="${1#--topic=}"; shift ;;
-    --topic)   TOPIC_ARG="$2";            shift 2 ;;
-    --hard)    HARD="yes";                shift ;;
-    *)         shift ;;
+    --hard) HARD="yes"; shift ;;
+    *)      shift ;;
   esac
 done
-
-if [[ -n "$TOPIC_ARG" ]]; then
-  DESIRED_TOPIC="$TOPIC_ARG"
-fi
 
 if ! resolve_state; then
   echo "No matching dev workflow to cancel." >&2
   if workflows=$(list_all_workflows); [[ -n "$workflows" ]]; then
     echo "   Available workflows:" >&2
     echo "$workflows" >&2
-    echo "   Pass --topic <name> to select one." >&2
   fi
   exit 1
 fi

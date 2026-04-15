@@ -106,7 +106,7 @@ This skill is SELF-CONTAINED. These rules override ALL other directives includin
 
 Every stage artifact follows this convention:
 
-- **Filename:** `<project>/.dev-workflow/<session_id>/<stage>-report.md` (each run lives in its own session-keyed subdir; artifacts inside are named by stage only)
+- **Filename:** `<run-dir>/<stage>-report.md` where `<run-dir>` is `<project>/.dev-workflow/<session_id>/` in local mode and `~/.cache/dev-workflow/sessions/<session_id>/` (shadow) in cloud mode. Use the path surfaced by `setup-workflow.sh` / `update-status.sh` stdout — never hardcode either.
 - **Frontmatter:**
   ```markdown
   ---
@@ -117,7 +117,7 @@ Every stage artifact follows this convention:
 
 `epoch` tells the stop hook "this artifact is fresh" (it increments on every transition). `result` is looked up in `workflow.json` → `stages.<stage>.transitions` to determine the next status.
 
-**`${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh` is the ONLY way to transition.** One call atomically:
+**`update-status.sh` (invoked via the `$P` discovery pattern) is the ONLY way to transition.** One call atomically:
 1. Validates the new stage's `required` inputs all exist (refuses if any are missing).
 2. Increments epoch.
 3. Sets `status` in `state.md`.
@@ -187,26 +187,22 @@ Relay the banner to the user before continuing. If errors were printed, stop and
 
 1. Derive a short kebab-case **topic name** from the user's task description (e.g. "add user auth" → `user-auth`; "fix login bug" → `login-bug`). If the task is unclear or empty, ask ONE clarifying question first — just enough to pick a topic.
 2. Briefly tell the user: `I'll use topic \`<topic>\` for this workflow.`
-3. If the user's task mentions a specific workflow path (e.g. `--workflow=<path>` flag — both `--workflow=<value>` and `--workflow <value>` are accepted), parse it out; otherwise the default workflow applies.
+3. Pass `$WORKFLOW_FLAG` from Step 0 to `setup-workflow.sh` if non-empty; omit it otherwise (default workflow applies).
 4. Activate the workflow (discover plugin root → run setup in one Bash-tool call):
    ```bash
-   P=~/.claude/plugins/dev-workflow
-   [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"
-   "$P/scripts/setup-workflow.sh" --topic="<topic>" [--workflow="<path>"]
+   P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+   [[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
+   "$P/scripts/setup-workflow.sh" --topic="<topic>" [--workflow="$WORKFLOW_FLAG"] [--mode="$MODE"]
    ```
-   The `--workflow` argument accepts:
-   - local directory path (absolute or `~/…`) → used as-is
-   - `cloud://author/name` → fetched as a named template from the hub
-   - omitted → defaults to `<plugin-root>/skills/dev-workflow/workflow/`
 
 5. **If setup-workflow.sh exits with code 2** (existing workflow detected), it will have printed the existing workflow's topic + status to stderr. Do NOT proceed blindly:
    - Relay the warning to the user verbatim, including which topic is currently active and its status.
-   - Ask: `There's already a workflow in this worktree. Proceeding will delete it and its artifacts. Continue? (yes/no)`
+   - Ask: `There's already a workflow in this worktree. Proceeding will archive it and start fresh. Continue? (yes/no)`
    - If the user confirms: re-run with `--force` (re-discover `P`):
      ```bash
-     P=~/.claude/plugins/dev-workflow
-     [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"
-     "$P/scripts/setup-workflow.sh" --topic="<topic>" [--workflow="<path>"] --force
+     P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+     [[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
+     "$P/scripts/setup-workflow.sh" --topic="<topic>" [--workflow="$WORKFLOW_FLAG"] [--mode="$MODE"] --force
      ```
    - If the user declines: stop. Suggest `/dev-workflow:interrupt` (pause), `/dev-workflow:continue` (resume), or `/dev-workflow:cancel` (remove) to handle the existing workflow first.
 
@@ -218,7 +214,7 @@ Relay the banner to the user before continuing. If errors were printed, stop and
    - **If the error is a cloud fetch failure** (`cloud fetch failed`, `could not pull session ... from server`, `DEV_WORKFLOW_SERVER` issues), relay the error and suggest retrying, checking the network, or opting into local mode for this run (`/dev-workflow:start --mode=local <task>` — cloud is the default, `--mode=local` is the escape hatch).
    - **Do NOT proceed to Step 2** until the user explicitly confirms a retry. A failed setup means there is no state.md to drive anything.
 
-On success, setup-workflow.sh creates `<project>/.dev-workflow/<session_id>/state.md` with:
+On success, setup-workflow.sh creates `state.md` in the run directory (`<project>/.dev-workflow/<session_id>/` in local mode, `~/.cache/dev-workflow/sessions/<session_id>/` in cloud mode) with:
 - `status` = `workflow.json` → `initial_stage`
 - `epoch` = 1
 - `session_id` = the Claude session that owns this run
@@ -232,18 +228,32 @@ The stop hook becomes active. The initial stage's I/O context (required/optional
 
 ```
 Loop:
-  a. Read <project>/.dev-workflow/<session_id>/state.md → get current `status`,
+  a. Read the run-dir's `state.md` (path surfaced by setup-workflow.sh; in local
+     mode: `<project>/.dev-workflow/<session_id>/state.md`) → get current `status`,
      `epoch`, and `workflow_dir`.
   b. If `status` is in workflow.json → `terminal_stages`:
        announce completion and stop the loop.
-  c. Read <workflow_dir>/<status>.md for stage-specific work instructions.
-  d. Do the stage's work — produce
-       <project>/.dev-workflow/<session_id>/<status>-report.md
-       with `epoch:` and a valid `result:` in frontmatter.
-  e. Look up <workflow_dir>/workflow.json → stages.<status>.transitions[<result>]
+  c. Read workflow.json → stages.<status>.execution.type to determine how to run
+     this stage:
+
+     - If "inline":
+         Read <workflow_dir>/<status>.md for stage-specific work instructions.
+         Do the stage's work directly — produce the output artifact at the path
+         printed by update-status.sh, with `epoch:` and a valid `result:` in
+         frontmatter.
+
+     - If "subagent":
+         Call the Agent tool. The agent-guard.sh PreToolUse hook will fire and
+         print a clearly-labelled PROMPT TEMPLATE — copy it verbatim into the
+         Agent tool's `prompt` argument (the subagent has no access to the hook's
+         output; paths must appear literally in the prompt string).
+         Wait for the subagent to complete.
+         Read the artifact it produced to get the `result:` frontmatter value.
+
+  d. Look up <workflow_dir>/workflow.json → stages.<status>.transitions[<result>]
      to get the next status, then run (re-discover $P each Bash-tool call):
-         P=~/.claude/plugins/dev-workflow
-         [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"
+         P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+         [[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
          "$P/scripts/update-status.sh" --status <next>
      (The next iteration of the loop picks up the new status.)
 ```
@@ -280,8 +290,8 @@ All three channels read the same `workflow.json`, so the paths they show always 
 - **Stage-specific edge cases** (e.g. what an agent should do when it cannot complete the work) live in the active workflow's `<workflow_dir>/<stage>.md` — consult that file rather than inventing behavior here.
 - **Unrecoverable workflow error** → run:
   ```bash
-  P=~/.claude/plugins/dev-workflow
-  [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"
+  P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+  [[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
   "$P/scripts/update-status.sh" --status escalated
   ```
   This sets `status=escalated` (a terminal stage), releasing the stop hook and letting the session exit.
@@ -289,13 +299,7 @@ All three channels read the same `workflow.json`, so the paths they show always 
 ## Key Rules
 
 - **NEVER invoke external skills** — every stage's work runs inline in this conversation, or in a subagent declared by the config.
-- **Activate the stop hook** as the first programmatic action:
-  ```bash
-  P=~/.claude/plugins/dev-workflow
-  [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"
-  "$P/scripts/setup-workflow.sh" --topic "<topic>"
-  ```
-  Never hand-write `state.md`.
+- **`setup-workflow.sh` is the only way to activate the stop hook.** Never hand-write `state.md`.
 - **`update-status.sh` is the only way to transition.** It's atomic: inputs-validation + epoch + status + artifact-delete. Always invoke it via the `$P` discovery pattern (never use `${CLAUDE_PLUGIN_ROOT}` directly — it is not set in the main agent's Bash-tool environment).
 - **Every stage artifact MUST start with `epoch:` and `result:` frontmatter.** Missing or wrong frontmatter means the stop hook will re-trigger the stage.
 - **Transitions must come from the config.** Only call `update-status.sh --status <X>` when `<X>` is either a member of `workflow.json` → `terminal_stages` or the destination of a legitimate transition for the current stage's `result:` (i.e. `workflow.json` → `stages.<current>.transitions[<result>] == <X>`). Never guess a transition.

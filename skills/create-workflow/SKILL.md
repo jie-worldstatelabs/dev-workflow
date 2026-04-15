@@ -293,7 +293,7 @@ Do NOT run `/dev-workflow:start` yourself — that's the user's next action. You
 
 ### Edit Step 1 — Classify the path
 
-Determine whether `$WORKFLOW_FLAG` points to a local directory or a cloud `author/name` reference:
+Determine whether `$WORKFLOW_FLAG` points to a local directory or a `cloud://author/name` reference:
 
 ```bash
 WORKFLOW_FLAG="<value from Step 0>"
@@ -309,18 +309,18 @@ fi
 ```
 
 - **`local`**: a filesystem directory containing `workflow.json` → edit directly. Skip to Edit Step 3.
-- **`cloud`**: `author/name` format → must validate ownership. Continue to Edit Step 2.
+- **`cloud`**: `cloud://author/name` format → must validate ownership. Continue to Edit Step 2.
 - **error**: path is neither → hard stop, tell the user the path is invalid.
 
 **Mode/type consistency check** (run immediately after classification):
-- If `TYPE=cloud` and `MODE=local` → **hard stop**: tell the user that `author/name` is a cloud reference and cannot be used with `--mode=local`. They should either remove `--mode=local` (cloud is the default) or pass a local directory path.
+- If `TYPE=cloud` and `MODE=local` → **hard stop**: tell the user that `cloud://author/name` is a cloud reference and cannot be used with `--mode=local`. They should either remove `--mode=local` (cloud is the default) or pass a local directory path.
 - If `TYPE=local` and `MODE=cloud` → proceed normally (editing a local workflow before publishing is valid).
 
 This check prevents the `--mode` flag from being silently ignored when it conflicts with the workflow source type.
 
 ### Edit Step 2 — Cloud ownership validation
 
-**This step only runs for cloud `author/name` paths.**
+**This step only runs for `cloud://author/name` paths.**
 
 The API URL is: `${DEV_WORKFLOW_SERVER}/api/workflows/${WORKFLOW_FLAG}`
 
@@ -408,7 +408,7 @@ Fix any errors and re-run until validation passes.
 
 Skip this step if the workflow came from a local path.
 
-If the workflow came from a cloud `author/name` reference, publish the updated local directory back to the hub now that validation has passed:
+If the workflow came from a `cloud://author/name` reference, publish the updated local directory back to the hub now that validation has passed:
 
 ```bash
 P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
@@ -448,4 +448,4 @@ Tell the user:
 - Never write a `subagent_type` field — all subagent stages use the generic `dev-workflow:workflow-subagent`.
 - Never invoke any other skill or run the full `setup-workflow.sh` (only `--validate-only`).
 - Never edit a cloud workflow unless the user is logged in AND owns it — hard stop otherwise.
-- `--workflow=` in edit mode must be an explicit local directory path or `author/name` cloud reference — never guess or resolve bare names.
+- `--workflow=` in edit mode must be an explicit local directory path or `cloud://author/name` reference — never guess or resolve bare names.

@@ -7,7 +7,7 @@ description: "Full development workflow: brainstorm a plan, execute with an agen
 
 Orchestrate any development cycle as a **config-driven state machine**. This document is the workflow-agnostic meta-protocol; the specific stages, transitions, and per-stage work are declared elsewhere.
 
-A **workflow** is a directory containing `workflow.json` (config) plus one `<stage>.md` per stage (instructions). The default workflow ships at `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/workflow/`; alternate workflows can be selected via `setup-workflow.sh --workflow=<path>` where `<path>` is a local directory path or an `author/name` hub reference — see the **Cloud mode** section below.
+A **workflow** is a directory containing `workflow.json` (config) plus one `<stage>.md` per stage (instructions). The default workflow ships at `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/workflow/`; alternate workflows can be selected via `setup-workflow.sh --workflow=<path>` where `<path>` is a local directory path or a `cloud://author/name` hub reference — see the **Cloud mode** section below.
 
 The plugin's runtime behavior is defined in three places:
 
@@ -50,7 +50,7 @@ The plugin parser accepts both `--workflow=<value>` (canonical) and `--workflow 
 **Requirements**: none for basic use. Authenticated users get workflow ownership (required for editing cloud workflows via `/dev-workflow:create-workflow --workflow=<path>`). Log in with `/dev-workflow:login` — a bearer token is stored at `~/.dev-workflow/auth.json` and sent on every cloud API call via `_cloud_auth_header` in `lib.sh`. Anonymous (unauthenticated) sessions are still accepted by endpoints that don't check ownership. `DEV_WORKFLOW_SERVER` can be exported to point at a self-hosted/staging/local deployment.
 
 **Workflow source resolution** in cloud mode:
-- `author/name` — fetches a named template bundle from `$DEV_WORKFLOW_SERVER/api/workflows/author/name`.
+- `cloud://author/name` — fetches a named template bundle from `$DEV_WORKFLOW_SERVER/api/workflows/author/name`.
 - `/abs/path` or `./rel/path` — copies a local workflow dir into the shadow (useful for iterating on a config before publishing it).
 - bare name — first tries a bundled workflow under `skills/dev-workflow/<name>/`; falls back to a named template on the server.
 - omitted — uses the plugin's default workflow.
@@ -172,9 +172,9 @@ fi
 
 ERRS=0
 
-# Validate: cloud author/name reference in local mode is forbidden
-if [[ "$MODE" == "local" && "$WORKFLOW_FLAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9] ]]; then
-  echo "❌ --workflow '${WORKFLOW_FLAG}' is a cloud author/name reference — cannot be used with --mode=local." >&2
+# Validate: cloud://author/name reference in local mode is forbidden
+if [[ "$MODE" == "local" && "$WORKFLOW_FLAG" =~ ^cloud:// ]]; then
+  echo "❌ --workflow '${WORKFLOW_FLAG}' is a cloud reference — cannot be used with --mode=local." >&2
   echo "   Remove --mode=local (cloud is the default) or pass a local directory path." >&2
   ERRS=1
 fi
@@ -236,7 +236,7 @@ Relay the banner to the user before continuing. If errors were printed, stop and
    ```
    The `--workflow` argument accepts:
    - local directory path (absolute or `~/…`) → used as-is
-   - `author/name` → fetched as a named template from the hub
+   - `cloud://author/name` → fetched as a named template from the hub
    - omitted → defaults to `<plugin-root>/skills/dev-workflow/workflow/`
 
 5. **If setup-workflow.sh exits with code 2** (existing workflow detected), it will have printed the existing workflow's topic + status to stderr. Do NOT proceed blindly:

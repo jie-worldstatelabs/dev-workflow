@@ -903,7 +903,7 @@ _cloud_post_json() {
 # ──────────────────────────────────────────────────────────────
 #
 # Supported forms (matches setup-workflow.sh --workflow argument):
-#   author/name       named template on $DEV_WORKFLOW_SERVER
+#   cloud://author/name  named template on $DEV_WORKFLOW_SERVER
 #   /abs/path         local absolute path (copied verbatim)
 #   bare name         resolved against PLUGIN_ROOT/skills/dev-workflow/
 #

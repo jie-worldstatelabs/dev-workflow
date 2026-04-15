@@ -20,7 +20,7 @@
 #
 # --workflow accepts:
 #   (omitted)          default:  ${PLUGIN_ROOT}/skills/dev-workflow/workflow/
-#   author/name        cloud:    named template on $DEV_WORKFLOW_SERVER
+#   cloud://author/name cloud:   named template on $DEV_WORKFLOW_SERVER
 #   /abs/path          local:    absolute local path
 #   ./rel/path         local:    relative local path
 

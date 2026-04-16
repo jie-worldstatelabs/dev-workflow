@@ -219,7 +219,7 @@ if [[ "$MODE" == "cloud" ]]; then
     "")
       # Cloud mode + no --workflow flag → use hub demo workflow
       _cloud_name="demo"
-      WORKFLOW_URL="${DEV_WORKFLOW_SERVER}/api/workflows/${_cloud_name}"
+      WORKFLOW_URL="cloud://demo"
       cloud_fetch_workflow_from_name "$_cloud_name" "$WORKFLOW_CACHE" || {
         rm -rf "$SCRATCH_DIR"
         exit 1
@@ -235,7 +235,7 @@ if [[ "$MODE" == "cloud" ]]; then
     cloud://*)
       # cloud://author/name — cloud named template
       _cloud_name="${WORKFLOW_NAME#cloud://}"
-      WORKFLOW_URL="${DEV_WORKFLOW_SERVER}/api/workflows/${_cloud_name}"
+      WORKFLOW_URL="${WORKFLOW_NAME}"
       cloud_fetch_workflow_from_name "$_cloud_name" "$WORKFLOW_CACHE" || {
         rm -rf "$SCRATCH_DIR"
         exit 1

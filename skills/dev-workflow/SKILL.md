@@ -7,7 +7,7 @@ description: "Full development workflow: brainstorm a plan, execute with an agen
 
 Orchestrate any development cycle as a **config-driven state machine**. This document is the workflow-agnostic meta-protocol; the specific stages, transitions, and per-stage work are declared elsewhere.
 
-A **workflow** is a directory containing `workflow.json` (config) plus one `<stage>.md` per stage (instructions). The default workflow ships at `${CLAUDE_PLUGIN_ROOT}/skills/dev-workflow/workflow/`; alternate workflows can be selected via `setup-workflow.sh --workflow=<path>` where `<path>` is a local directory path or a `cloud://author/name` hub reference — see the **Cloud mode** section below.
+A **workflow** is a directory containing `workflow.json` (config) plus one `<stage>.md` per stage (instructions). Alternate workflows can be selected via `setup-workflow.sh --workflow=<path>` where `<path>` is a local directory path or a `cloud://author/name` hub reference — see the **Cloud mode** section below. Omitting `--workflow` uses the plugin's default workflow.
 
 The plugin's runtime behavior is defined in three places:
 
@@ -19,111 +19,44 @@ The plugin's runtime behavior is defined in three places:
 
 Which workflow is active for the current run is recorded in `state.md` → `workflow_dir` (written by `setup-workflow.sh`).
 
-Runtime files live under the **project** root. Rule: **one Claude session = one run**. Each session's run is isolated in its own subdirectory named by the session_id, so multiple Claude sessions in the same worktree can run independent workflows without interfering. Starting a new run within the same session archives its prior run (if any) to `.dev-workflow/.archive/` before creating the new one.
+Rule: **one Claude session = one run**. Each session's run is isolated in its own subdirectory so multiple Claude sessions in the same worktree never interfere.
 
-| File / directory | What lives there |
-|------------------|------------------|
-| `<project>/.dev-workflow/<session_id>/state.md` | Current `status`, `epoch`, `topic`, `session_id`, `worktree` (this run's state) |
-| `<project>/.dev-workflow/<session_id>/<stage>-report.md` | Each stage's output artifact |
-| `<project>/.dev-workflow/<session_id>/<name>` | Run files — setup-time snapshots declared in `workflow.json` → `run_files` (e.g. `baseline` = git SHA before the run started) |
-| `<project>/.dev-workflow/<session_id>/journey-tests.md` | Cross-iteration QA state (optional, created by QA agent) |
-| `<project>/.dev-workflow/.archive/<ts>-<topic>[-cancelled]/` | Preserved prior runs — audit trail |
+Key runtime files (paths are always surfaced by scripts — never hardcode them):
 
-Routing rules:
-- **Hook routing** (stop-hook, agent-guard): use the `session_id` from the hook's stdin JSON to locate `.dev-workflow/<session_id>/state.md`. Hooks in sessions that have no workflow (sidecar observers, unrelated sessions) find nothing and exit cleanly — **no bystander session is ever blocked by another session's workflow**.
-- **CLI routing** (update-status, interrupt, continue, cancel): auto-resolve to the caller's own session via the session-id cache written by `hooks/session-start.sh`. Pass `--topic <name>` to disambiguate if ever needed; pass `--session <id>` to `continue-workflow.sh` to take over another session's interrupted run.
-- **Enforcement**: `setup-workflow.sh` only touches its own session's subdir. If that subdir already has an active run, setup refuses without `--force`; with `--force` (or for completed/empty dirs) it archives the prior run to `.dev-workflow/.archive/` before creating the new one. Other sessions' subdirs are never touched.
-- **Cancel behaviour**: `cancel-workflow.sh` archives to `.dev-workflow/.archive/<ts>-<topic>-cancelled/` by default. Pass `--hard` to skip the archive.
+| File | What lives there |
+|------|-----------------|
+| `<run-dir>/state.md` | Current `status`, `epoch`, `workflow_dir` — this run's state |
+| `<run-dir>/<stage>-report.md` | Each stage's output artifact |
+
+CLI commands (`update-status.sh`, `interrupt-workflow.sh`, `continue-workflow.sh`, `cancel-workflow.sh`) auto-resolve to the current session's run. Pass `--topic <name>` if you ever need to disambiguate.
 
 Everything this document says is true **regardless of what's in workflow.json or stages/**. Specific stage names (planning / executing / reviewing / …) appear only as examples of the currently-shipped default workflow — the protocol itself doesn't depend on them.
 
 ## Run Files
 
-**Run files** are setup-time snapshots created once by `setup-workflow.sh` and available to all stages as named inputs throughout the run. They capture information that exists at workflow start and must not be re-computed mid-run (e.g. the git HEAD SHA before any code is written).
-
-### Declaration
-
-Declare run files in `workflow.json` → `run_files` (top-level, alongside `stages`):
-
-```json
-{
-  "run_files": {
-    "baseline": {
-      "description": "Git SHA at workflow start — used by the reviewer to diff changes",
-      "init": "git rev-parse HEAD 2>/dev/null || echo EMPTY"
-    }
-  }
-}
-```
-
-Each entry has:
-- **`description`** — human-readable purpose
-- **`init`** — shell command executed once at setup time (CWD = project root). Its stdout is written to `<run-dir>/<name>`.
-
-### Consumption by stages
-
-Reference a run file in a stage's `inputs.required` or `inputs.optional` using `from_run_file`:
-
-```json
-{
-  "inputs": {
-    "required": [
-      { "from_run_file": "baseline", "description": "Git SHA at workflow start" }
-    ]
-  }
-}
-```
-
-`update-status.sh` checks that all `required` run files exist before allowing a transition into that stage. `stage-context.sh` and `agent-guard.sh` inject the **absolute path** for each run file into the stage's I/O context — stages read the path from their prompt and never hardcode it.
-
-### Known patterns
-
-See `run_files_catalog.md` in the active workflow directory for documented run file patterns (baseline SHA, workflow start time, custom snapshots) and authoring guidance.
+Some required or optional inputs in a stage's I/O context are **run files** — setup-time snapshots captured once when the workflow starts (e.g. the git SHA at baseline). Their absolute paths are injected into your I/O context the same way as any other input. Read from the provided path; never hardcode it.
 
 ## Cloud mode
 
-**Cloud mode is the default.** When the user runs `/dev-workflow:start <task>` without any flag, state + artifacts live on the remote **workflowUI** server. The project's `.dev-workflow/` gets nothing; a transient shadow at `~/.cache/dev-workflow/sessions/<session_id>/` backs Claude's filesystem tools locally.
+**Cloud mode is the default.** When the user runs `/dev-workflow:start <task>` without any flag, state + artifacts live on the remote **workflowUI** server. The project's `.dev-workflow/` gets nothing.
 
-**To opt OUT** (fully-offline local mode) in one of two ways:
+**To opt out** (fully-offline local mode):
 - Pass `--mode=local` to `setup-workflow.sh`, OR
-- Export `DEV_WORKFLOW_DEFAULT_MODE=local` in the shell env before launching Claude Code, which flips the default for every run in that shell.
+- Export `DEV_WORKFLOW_DEFAULT_MODE=local` in the shell env before launching Claude Code.
 
-The plugin parser accepts both `--workflow=<value>` (canonical) and `--workflow <value>` (legacy space-separated) forms.
+**Login**: run `/dev-workflow:login` for authenticated ownership (required to publish cloud workflows). Anonymous sessions are accepted for everything else. Export `DEV_WORKFLOW_SERVER` to point at an alternative deployment.
 
-**Requirements**: none for basic use. Authenticated users get workflow ownership (required for editing cloud workflows via `/dev-workflow:create-workflow --workflow=<path>`). Log in with `/dev-workflow:login` — a bearer token is stored at `~/.dev-workflow/auth.json` and sent on every cloud API call via `_cloud_auth_header` in `lib.sh`. Anonymous (unauthenticated) sessions are still accepted by endpoints that don't check ownership. `DEV_WORKFLOW_SERVER` can be exported to point at a self-hosted/staging/local deployment.
+**Workflow source** (what to pass as `--workflow`):
+- `cloud://author/name` — named template from the hub
+- `/abs/path` or `./rel/path` — local workflow directory
+- bare name — bundled workflow first, then hub
+- omitted — plugin default
 
-**Workflow source resolution** in cloud mode:
-- `cloud://author/name` — fetches a named template bundle from `$DEV_WORKFLOW_SERVER/api/workflows/author/name`.
-- `/abs/path` or `./rel/path` — copies a local workflow dir into the shadow (useful for iterating on a config before publishing it).
-- bare name — first tries a bundled workflow under `skills/dev-workflow/<name>/`; falls back to a named template on the server.
-- omitted — uses the plugin's default workflow.
+**Runtime**: authoritative state lives on the server. The project worktree gets **nothing** under `.dev-workflow/`. A transient local shadow holds the files your `Read`/`Write` tools need; setup prints its path. Inside stages, the skill operates exactly the same — read `state.md`, write artifacts, call `update-status.sh` — all against the shadow, mirrored to the server transparently.
 
-**Runtime layout** in cloud mode:
-- **Authoritative state lives on the server.** The project worktree gets **nothing** under `.dev-workflow/` — no state, no artifacts, no baseline. Cleanup, archive, and cancel all go through server endpoints (`/api/sessions/<session_id>/{archive,cancel}`), so a canceled cloud workflow leaves no local footprint.
-- A **transient shadow** at `~/.cache/dev-workflow/sessions/<session_id>/` holds the files the skill's `Read`/`Write` tools need real paths for. Every write to the shadow is mirrored to the server by `hooks/postwrite-hook.sh` on the way out. **The shadow is wiped on any terminal status** (not just on explicit cancel): when `update-status.sh` transitions to a terminal stage, it calls `cloud_wipe_scratch` + `cloud_unregister_session`, and `stop-hook.sh` does the same as a safety net if the workflow ever reaches a terminal status out-of-band.
-- A **cloud registry entry** at `~/.dev-workflow/cloud-registry/<session_id>.json` is what every script/hook uses to decide "is this session cloud-managed?". Presence of the file ⇒ cloud.
-- `resolve_state` short-circuits to the shadow's `state.md` whenever the session has a registry entry, reading the exact scratch dir from the registry (which allows cross-machine takeover to alias one physical shadow under two keys).
+**Live view**: `setup-workflow.sh` prints a `UI: <server>/s/<session_id>` URL after bootstrap. Share it to watch the workflow progress in a browser.
 
-**Cross-machine takeover** (started on machine A, continued on machine B):
-
-The session_id is a stable identifier on the server. To pick up the same cloud session from a different machine, pass `--session <id>` to `/dev-workflow:continue`:
-
-```
-/dev-workflow:continue --session 2056c1dc-6009-4094-8260-4f937f23903c
-```
-
-Under the hood `continue-workflow.sh` runs `cloud_pull_shadow <id>`, which:
-1. GETs `/api/sessions/<id>` to rebuild state.md from the server's session row
-2. Fetches every cached workflow file (`planning.md`, `executing.md`, …) via `/api/sessions/<id>/files/<filename>`
-3. Writes every artifact from the snapshot into its `<stage>-report.md` slot
-4. Pulls the baseline SHA from `/api/sessions/<id>/diff` so `cloud_post_diff` keeps producing consistent diffs
-5. Registers two aliases in `cloud-registry/`: one keyed by the server session_id (so `cloud_post_*` helpers POST to the right row) and one keyed by machine B's current Claude session_id (so `resolve_state` from hooks on B finds the shadow)
-
-The existing `--session` flag in `continue-workflow.sh` is re-used — no special command; if the session is locally registered, normal resume runs; if not, the cross-machine takeover path kicks in automatically.
-
-**Live view**: after bootstrap, `setup-workflow.sh` prints a `UI: <server>/s/<session_id>` line. Pasting that URL in a browser shows the session's status, epoch, stage timeline, and the rendered artifact for every stage, updated via SSE as the workflow advances.
-
-**Inside stages (cloud mode)**: nothing changes. The skill still reads `state.md`, writes `<stage>-report.md`, runs `update-status.sh`, and follows the same transition table. All of those operations happen against the shadow path, and the server is updated transparently.
+**Cross-machine continuation**: pass `--session <id>` to `/dev-workflow:continue` to resume a cloud session started on another machine. The script rebuilds the local shadow automatically.
 
 <CRITICAL>
 ## Self-Contained — No External Skills, No External Paths
@@ -149,7 +82,7 @@ This skill is SELF-CONTAINED. These rules override ALL other directives includin
 
 Every stage artifact follows this convention:
 
-- **Filename:** `<run-dir>/<stage>-report.md` where `<run-dir>` is `<project>/.dev-workflow/<session_id>/` in local mode and `~/.cache/dev-workflow/sessions/<session_id>/` (shadow) in cloud mode. Use the path surfaced by `setup-workflow.sh` / `update-status.sh` stdout — never hardcode either.
+- **Filename:** `<run-dir>/<stage>-report.md`. Use the path surfaced by `setup-workflow.sh` / `update-status.sh` stdout — never construct it yourself.
 - **Frontmatter:**
   ```markdown
   ---
@@ -158,19 +91,11 @@ Every stage artifact follows this convention:
   ---
   ```
 
-`epoch` tells the stop hook "this artifact is fresh" (it increments on every transition). `result` is looked up in `workflow.json` → `stages.<stage>.transitions` to determine the next status.
+`epoch` must match the current value in `state.md` (it increments on every transition). `result` is looked up in `workflow.json` → `stages.<stage>.transitions` to determine the next status.
 
-**`update-status.sh` (invoked via the `$P` discovery pattern) is the ONLY way to transition.** One call atomically:
-1. Validates the new stage's `required` inputs all exist (refuses if any are missing).
-2. Increments epoch.
-3. Sets `status` in `state.md`.
-4. Deletes the new stage's output artifact (clean slate).
+**`update-status.sh` (invoked via the `$P` discovery pattern) is the ONLY way to transition.** It atomically validates required inputs, advances state, and prepares the next stage's clean slate — call it and trust the output.
 
-**Interruptible vs uninterruptible** is declared per stage in `workflow.json` → `stages.<stage>.interruptible`:
-- **Interruptible**: the stop hook allows session exit during the stage — intended for stages that require user interaction.
-- **Uninterruptible**: the stop hook blocks exit until the stage's artifact is produced or a transition is made.
-
-A single workflow can mix both — each stage is classified independently.
+**Interruptible vs uninterruptible** is declared per stage in `workflow.json` → `stages.<stage>.interruptible`. Check it to determine whether you may pause for user input or must run autonomously through to the transition. A single workflow can mix both — each stage is classified independently.
 
 ## Protocol
 
@@ -261,23 +186,14 @@ Relay the banner to the user before continuing. If errors were printed, stop and
    - **If the error is a cloud fetch failure** (`cloud fetch failed`, `could not pull session ... from server`, `DEV_WORKFLOW_SERVER` issues), relay the error and suggest retrying, checking the network, or opting into local mode for this run (`/dev-workflow:start --mode=local <task>` — cloud is the default, `--mode=local` is the escape hatch).
    - **Do NOT proceed to Step 2** until the user explicitly confirms a retry. A failed setup means there is no state.md to drive anything.
 
-On success, setup-workflow.sh creates `state.md` in the run directory (`<project>/.dev-workflow/<session_id>/` in local mode, `~/.cache/dev-workflow/sessions/<session_id>/` in cloud mode) with:
-- `status` = `workflow.json` → `initial_stage`
-- `epoch` = 1
-- `session_id` = the Claude session that owns this run
-- `topic` = the topic name you passed
-- `workflow_dir` = resolved absolute path to the active workflow
-- `worktree` = absolute path to the git worktree root
-
-The stop hook becomes active. The initial stage's I/O context (required/optional inputs + output path) prints to stdout.
+On success, setup-workflow.sh creates `state.md` in the run directory and prints the initial stage's I/O context (required/optional inputs + output path). Key fields you'll read in the stage loop: `status` (current stage), `epoch` (freshness counter), `workflow_dir` (absolute path to the active workflow).
 
 ### Step 2 — Stage loop (run forever until a terminal status is reached)
 
 ```
 Loop:
-  a. Read the run-dir's `state.md` (path surfaced by setup-workflow.sh; in local
-     mode: `<project>/.dev-workflow/<session_id>/state.md`) → get current `status`,
-     `epoch`, and `workflow_dir`.
+  a. Read the run-dir's `state.md` (path surfaced by setup-workflow.sh) → get
+     current `status`, `epoch`, and `workflow_dir`.
   b. If `status` is in workflow.json → `terminal_stages`:
        announce completion and stop the loop.
   c. Read workflow.json → stages.<status>.execution.type to determine how to run
@@ -311,7 +227,7 @@ Loop:
      (The next iteration of the loop picks up the new status.)
 ```
 
-The CLI scripts (`update-status.sh` / `interrupt-workflow.sh` / `continue-workflow.sh` / `cancel-workflow.sh`) auto-resolve to the current session's own run via the session-id cache written by `hooks/session-start.sh`. Pass `--topic <name>` to disambiguate by topic if needed.
+The CLI scripts auto-resolve to the current session's run. Pass `--topic <name>` to disambiguate if needed.
 
 ### Rules for advancing between stages
 
@@ -322,18 +238,13 @@ The CLI scripts (`update-status.sh` / `interrupt-workflow.sh` / `continue-workfl
 
 ### Where stage I/O paths come from
 
-You never need to hardcode artifact paths. Three channels surface the current stage's required/optional input paths, output path, and execution params.
+You never need to hardcode artifact paths. Two channels surface the current stage's required/optional input paths, output path, and execution params.
 
-**Channel 1 — `setup-workflow.sh` / `update-status.sh` stdout** (primary for every stage)
-When the workflow enters a new stage, the transition script prints the stage's inputs and output. This is the main delivery mechanism for **inline stages**, which have no Agent-tool call and therefore do not trigger `agent-guard.sh`.
+**Channel 1 — `setup-workflow.sh` / `update-status.sh` stdout** (inline stages)
+When the workflow enters a new stage, the transition script prints the stage's inputs and output. Read and use these paths verbatim.
 
-**Channel 2 — `agent-guard.sh`** (PreToolUse hook on the Agent tool, subagent stages only)
-Fires **only in your context**, not the subagent's. PreToolUse hooks cannot modify tool parameters. The hook prints a clearly-labelled **`PROMPT TEMPLATE — copy verbatim into the Agent tool's prompt`** block; you MUST transcribe that block into the `prompt` argument of your Agent-tool call. Subagents can see only the prompt you pass them — they have no access to the hook's output. Never send a prompt like "see injected paths" — paths must appear literally in the prompt string.
-
-**Channel 3 — `stop-hook.sh`** (safety net, fires on attempted session exit)
-If the workflow is active, it either blocks (uninterruptible stages) or emits a `systemMessage` hint (interruptible stages), and re-surfaces the current stage's I/O context. Kicks in when channels 1 and 2 were missed.
-
-All three channels read the same `workflow.json`, so the paths they show always agree.
+**Channel 2 — `agent-guard.sh`** (subagent stages only)
+Fires **only in your context**, not the subagent's. The hook prints a clearly-labelled **`PROMPT TEMPLATE — copy verbatim into the Agent tool's prompt`** block; you MUST transcribe it into the `prompt` argument of your Agent-tool call. Subagents see only the prompt you pass — paths must appear literally in it.
 
 ## Error Handling
 
@@ -352,13 +263,13 @@ All three channels read the same `workflow.json`, so the paths they show always 
 ## Key Rules
 
 - **NEVER invoke external skills** — every stage's work runs inline in this conversation, or in a subagent declared by the config.
-- **`setup-workflow.sh` is the only way to activate the stop hook.** Never hand-write `state.md`.
-- **`update-status.sh` is the only way to transition.** It's atomic: inputs-validation + epoch + status + artifact-delete. Always invoke it via the `$P` discovery pattern (never use `${CLAUDE_PLUGIN_ROOT}` directly — it is not set in the main agent's Bash-tool environment).
+- **Never hand-write `state.md`** — always go through `setup-workflow.sh`.
+- **`update-status.sh` is the only way to transition.** Always invoke it via the `$P` discovery pattern.
 - **Every stage artifact MUST start with `epoch:` and `result:` frontmatter.** Missing or wrong frontmatter means the stop hook will re-trigger the stage.
 - **Transitions must come from the config.** Only call `update-status.sh --status <X>` when `<X>` is either a member of `workflow.json` → `terminal_stages` or the destination of a legitimate transition for the current stage's `result:` (i.e. `workflow.json` → `stages.<current>.transitions[<result>] == <X>`). Never guess a transition.
 - **Terminal statuses** (the values in `workflow.json` → `terminal_stages`) release the stop hook and end the workflow. `complete` is the conventional normal terminator reached via the transition table; `escalated` is the escape hatch for unrecoverable errors.
 - **Never self-approve** — only a subagent's or inline stage's legitimate `result:` (written to its artifact and matching a transition key) can move the workflow forward. Do not hand-write results to force a transition.
-- **All artifacts go to the run directory surfaced by `setup-workflow.sh`** — `<project>/.dev-workflow/<session_id>/` in local mode, `~/.cache/dev-workflow/sessions/<session_id>/` (shadow) in cloud mode. Never hardcode either path; read it from `state.md` → `workflow_dir` or from the paths printed by the transition scripts.
+- **All artifact paths come from script output** — use the paths printed by `setup-workflow.sh` / `update-status.sh` / `stage-context.sh`. Never construct a path yourself.
 - **The loop is infinite** — it stops only on reaching a terminal status, `/dev-workflow:interrupt`, or `/dev-workflow:cancel`.
   - `/dev-workflow:interrupt` — pause and preserve state (resumable via `/dev-workflow:continue`)
   - `/dev-workflow:cancel` — cancel and clear all state

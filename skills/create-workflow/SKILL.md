@@ -71,40 +71,8 @@ Parse flags, validate them, announce what will happen, then dispatch. **Do not p
 ```bash
 P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
 [[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
-source "$P/scripts/lib.sh"
-
-ARGS='$ARGUMENTS'
-eval "$("$P/scripts/parse-workflow-flags.sh" "$ARGS")" || exit 1
-
-_server="${DEV_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}"
-_author_raw="$(jq -r '.author // "anonymous"' "${HOME}/.dev-workflow/auth.json" 2>/dev/null || echo "anonymous")"
-_author="$(echo "$_author_raw" | tr '[:upper:]' '[:lower:]' | sed 's/[[:space:]][[:space:]]*/\-/g; s/[^a-z0-9._-]//g; s/^[^a-z0-9]*//')"
-_author="${_author:-anonymous}"
-_logged_in="$(cloud_is_logged_in && echo yes || echo no)"
-
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-if [[ -n "$WORKFLOW_FLAG" ]]; then
-  echo "  Action:   edit existing workflow"
-  if [[ "$WF_TYPE" == "cloud" ]]; then
-    echo "  Workflow: ${WORKFLOW_FLAG}  ←  ${_server}/hub/${WORKFLOW_FLAG#cloud://}"
-    echo "  Auth:     ${_author}  ($([ "$_logged_in" = yes ] && echo logged in || echo anonymous))"
-    echo "  After edit: changes pushed back to hub"
-  else
-    echo "  Workflow: ${WORKFLOW_FLAG}  (local)"
-    echo "  After edit: local files updated (publish manually if needed)"
-  fi
-else
-  echo "  Action:   create new workflow"
-  echo "  Mode:     ${MODE}"
-  if [[ "$MODE" == "cloud" ]]; then
-    echo "  Will publish as: cloud://${_author}/<suffix>  →  ${_server}/hub/${_author}/<suffix>"
-    echo "  Auth:     ${_author}  ($([ "$_logged_in" = yes ] && echo logged in || echo anonymous — will publish anonymously))"
-  else
-    echo "  Will save to: ~/.dev-workflow/workflows/<suffix>/"
-    echo "  No hub publish (local mode)"
-  fi
-fi
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+eval "$("$P/scripts/parse-workflow-flags.sh" '$ARGUMENTS')" || exit 1
+"$P/scripts/print-create-banner.sh" "$MODE" "$WORKFLOW_FLAG" "$WF_TYPE"
 ```
 
 Relay the banner to the user before continuing.

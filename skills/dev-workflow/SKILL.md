@@ -118,36 +118,8 @@ Before deriving a topic or running any script, parse the flags, validate them, t
 ```bash
 P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
 [[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
-source "$P/scripts/lib.sh"
-
-ARGS='$ARGUMENTS'
-eval "$("$P/scripts/parse-workflow-flags.sh" "$ARGS")" || exit 1
-
-_server="${DEV_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}"
-if [[ -z "$WORKFLOW_FLAG" ]]; then
-  if [[ "$MODE" == "cloud" ]]; then
-    _wf="demo  ←  ${_server}/hub/demo  (cloud default)"
-  else
-    _wf="default (bundled with plugin)"
-  fi
-elif [[ "$WF_TYPE" == "cloud" ]]; then
-  _wf="${WORKFLOW_FLAG}  ←  ${_server}/hub/${WORKFLOW_FLAG#cloud://}"
-else
-  _wf="${WORKFLOW_FLAG}  (local path)"
-fi
-
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Mode:     ${MODE}"
-if [[ "$MODE" == "cloud" ]]; then
-  echo "  State:    ${_server}/s/<session_id>  (live after setup)"
-  cloud_is_logged_in \
-    && echo "  Auth:     $(jq -r '.author // "unknown"' ~/.dev-workflow/auth.json 2>/dev/null)  (logged in)" \
-    || echo "  Auth:     anonymous  — run /dev-workflow:login to attach an account"
-else
-  echo "  State:    <project>/.dev-workflow/<session_id>/"
-fi
-echo "  Workflow: ${_wf}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+eval "$("$P/scripts/parse-workflow-flags.sh" '$ARGUMENTS')" || exit 1
+"$P/scripts/print-start-banner.sh" "$MODE" "$WORKFLOW_FLAG" "$WF_TYPE"
 ```
 
 Relay the banner to the user before continuing. If errors were printed, stop and wait for the user to correct the arguments.

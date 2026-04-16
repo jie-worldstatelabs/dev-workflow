@@ -82,6 +82,13 @@ if [[ -n "$WORKFLOW_FLAG" ]]; then
     echo "   Remove --mode=local (cloud is the default) or pass a local directory path." >&2
     ERRS=1
   fi
+
+  # Local path forbidden in cloud mode
+  if [[ $ERRS -eq 0 && "$WF_TYPE" == "local" && "$MODE" == "cloud" ]]; then
+    echo "❌ --workflow '${WORKFLOW_FLAG}' is a local path — cannot be used with --mode=cloud." >&2
+    echo "   Remove --mode=cloud (use --mode=local) or pass a cloud://author/name reference." >&2
+    ERRS=1
+  fi
 fi
 
 [[ $ERRS -eq 0 ]] || exit 1

@@ -81,9 +81,11 @@ The generator MUST respect these. `setup-workflow.sh --validate-only` will rejec
 - **`interruptible: true`** — the agent may pause for user input mid-stage. Instruct it to: (1) read `state.md` for the current epoch, (2) immediately write the artifact at the path shown in I/O context with `result: pending` (so the stop hook knows the stage is in progress), (3) do the work, optionally pausing for user input, (4) overwrite the artifact with the final `result:` when done.
 - **`interruptible: false`** — the agent runs autonomously. Instruct it to: read `state.md` for the epoch, do the work without pausing, write the artifact with the final `result:` when done.
 
+For both interruptible variants: instruct the agent to **read each required input from the path shown in its I/O context for that input — never construct or hardcode input paths**.
+
 Do NOT instruct the stage to call `update-status.sh` — that is the main loop's responsibility, not the stage file's.
 
-**For subagent stages** (execution.type = `subagent`): address the `workflow-subagent`. The epoch is provided in the subagent's prompt by the agent-guard hook — instruct it to read the epoch from its prompt, not from `state.md`. ("You are <role>. Read the inputs listed in your prompt. Do X, Y, Z. Write the output artifact at **the absolute path given in your prompt** with the frontmatter above, using the epoch from your prompt."). The subagent reads this file as its canonical protocol.
+**For subagent stages** (execution.type = `subagent`): address the `workflow-subagent`. The epoch is provided in the subagent's prompt by the agent-guard hook — instruct it to read the epoch from its prompt, not from `state.md`. Instruct it to **read each required input from the absolute path given in its prompt for that input — never construct or hardcode input paths**. ("You are <role>. Read the inputs listed in your prompt. Do X, Y, Z. Write the output artifact at **the absolute path given in your prompt** with the frontmatter above, using the epoch from your prompt."). The subagent reads this file as its canonical protocol.
 
 Tune the body to the stage's domain (a reviewer stage talks about severity classes, a tester stage talks about test commands, etc.). Look at `reviewing.md` and `qa-ing.md` in the default workflow for examples of domain-specific bodies.
 

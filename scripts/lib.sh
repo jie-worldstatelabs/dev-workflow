@@ -1373,6 +1373,32 @@ cloud_post_diff() {
   return 0
 }
 
+# POST a tool-use activity log entry to the server. Always runs in the
+# background — exits instantly, curl completes asynchronously. Uses a
+# 1-second hard timeout so a flaky network can't stall the agent.
+# Returns 0 unconditionally (fire-and-forget; failures are silent).
+cloud_post_activity() {
+  local sid="$1" stage="$2" epoch="$3" tool="$4" summary="$5"
+  cloud_require_env 2>/dev/null || return 0
+  local server; server="$(_cloud_server "$sid")"
+  [[ -z "$server" ]] && return 0
+  local payload
+  payload="$(jq -n \
+      --arg stage  "$stage" \
+      --arg tool   "$tool" \
+      --arg summary "$summary" \
+      --argjson epoch "${epoch:-0}" \
+      '{stage: $stage, tool: $tool, summary: $summary, epoch: $epoch}')" || return 0
+  curl -sS --max-time 1 \
+    -X POST "${server}/api/sessions/${sid}/activity" \
+    -H "Content-Type: application/json" \
+    -H "$(_cloud_auth_header)" \
+    --data "$payload" \
+    >/dev/null 2>&1 &
+  disown 2>/dev/null || true
+  return 0
+}
+
 # ──────────────────────────────────────────────────────────────
 # Deferred baseline / fingerprint backfill
 # ──────────────────────────────────────────────────────────────

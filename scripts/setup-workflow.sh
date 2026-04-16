@@ -32,6 +32,7 @@ source "${SCRIPT_DIR}/lib.sh"
 TOPIC=""
 WORKFLOW_NAME=""
 VALIDATE_ONLY=""
+FORCE=""
 # Default mode is cloud — authoritative state lives on the workflowUI
 # server, with a local shadow for Claude's Read/Write tools. Users who
 # want a fully-offline, local-only run can either:
@@ -48,6 +49,7 @@ while [[ $# -gt 0 ]]; do
     --mode=*)       MODE="${1#--mode=}";                   shift ;;
     --mode)         MODE="$2";                             shift 2 ;;
     --validate-only) VALIDATE_ONLY="yes";                  shift ;;
+    --force)        FORCE="yes";                           shift ;;
     *)              shift ;;
   esac
 done
@@ -194,7 +196,7 @@ if [[ "$MODE" == "cloud" ]]; then
 
   # Phase 0: detect existing cloud shadow (mirrors server 409 semantics
   # with a friendlier local error).
-  if [[ -f "${SCRATCH_DIR}/state.md" ]]; then
+  if [[ -f "${SCRATCH_DIR}/state.md" ]] && [[ -z "$FORCE" ]]; then
     existing_status=$(_read_fm_field "${SCRATCH_DIR}/state.md" status)
     existing_topic=$(_read_fm_field "${SCRATCH_DIR}/state.md" topic)
     case "$existing_status" in
@@ -209,6 +211,10 @@ if [[ "$MODE" == "cloud" ]]; then
         exit 2
         ;;
     esac
+  fi
+  # --force: wipe the existing shadow so the server session can be replaced.
+  if [[ -n "$FORCE" ]] && [[ -d "$SCRATCH_DIR" ]]; then
+    rm -rf "$SCRATCH_DIR"
   fi
 
   mkdir -p "$WORKFLOW_CACHE"
@@ -425,7 +431,7 @@ SESSION_RUN_DIR="${PROJECT_ROOT}/.dev-workflow/${SESSION_ID}"
 # ──────────────────────────────────────────────────────────────
 # Phase 0: Detect existing workflow for THIS session.
 # ──────────────────────────────────────────────────────────────
-if [[ -f "${SESSION_RUN_DIR}/state.md" ]]; then
+if [[ -f "${SESSION_RUN_DIR}/state.md" ]] && [[ -z "$FORCE" ]]; then
   etopic=$(_read_fm_field "${SESSION_RUN_DIR}/state.md" topic)
   estatus=$(_read_fm_field "${SESSION_RUN_DIR}/state.md" status)
   case "$estatus" in

@@ -66,13 +66,13 @@ if [[ -n "$WORKFLOW_FLAG" ]]; then
   elif [[ -d "$RESOLVED" ]]; then
     echo "❌ No workflow.json found in: ${WORKFLOW_FLAG}" >&2
     ERRS=1
-  elif [[ "$WORKFLOW_FLAG" =~ ^cloud://[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+  elif [[ "$WORKFLOW_FLAG" =~ ^cloud://[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)?$ ]]; then
     WF_TYPE="cloud"
   elif [[ "$WORKFLOW_FLAG" =~ ^(/|\.\.?/|~) ]]; then
     echo "❌ Workflow path not found: ${WORKFLOW_FLAG}" >&2
     ERRS=1
   else
-    echo "❌ '${WORKFLOW_FLAG}' is not a local workflow directory and does not look like a cloud://author/name reference." >&2
+    echo "❌ '${WORKFLOW_FLAG}' is not a local workflow directory and does not look like a cloud://name or cloud://author/name reference." >&2
     ERRS=1
   fi
 

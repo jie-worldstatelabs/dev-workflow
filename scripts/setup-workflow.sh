@@ -217,7 +217,13 @@ if [[ "$MODE" == "cloud" ]]; then
   WORKFLOW_URL=""
   case "$WORKFLOW_NAME" in
     "")
-      cp -R "${DEFAULT_WORKFLOW_DIR}/." "${WORKFLOW_CACHE}/"
+      # Cloud mode + no --workflow flag → use hub default
+      _cloud_name="worldstatelabs/default"
+      WORKFLOW_URL="${DEV_WORKFLOW_SERVER}/api/workflows/${_cloud_name}"
+      cloud_fetch_workflow_from_name "$_cloud_name" "$WORKFLOW_CACHE" || {
+        rm -rf "$SCRATCH_DIR"
+        exit 1
+      }
       ;;
     /*)
       cp -R "${WORKFLOW_NAME%/}/." "${WORKFLOW_CACHE}/" || {

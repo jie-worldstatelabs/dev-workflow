@@ -54,6 +54,7 @@ EOF
 DIR=""
 NAME=""
 DESCRIPTION=""
+VISIBILITY=""
 DRY_RUN=""
 
 while [[ $# -gt 0 ]]; do
@@ -70,6 +71,15 @@ while [[ $# -gt 0 ]]; do
     --description=*)
       DESCRIPTION="${1#--description=}"
       shift
+      ;;
+    --visibility=*)
+      VISIBILITY="${1#--visibility=}"
+      shift
+      ;;
+    --visibility)
+      [[ $# -ge 2 ]] || { echo "❌ --visibility needs a value" >&2; exit 1; }
+      VISIBILITY="$2"
+      shift 2
       ;;
     --description)
       [[ $# -ge 2 ]] || { echo "❌ --description needs a value" >&2; exit 1; }
@@ -207,8 +217,8 @@ for f in "${CANDIDATES[@]}"; do
                 '$base + {($k): $v}')"
 done
 
-PAYLOAD="$(jq -n --argjson files "$FILES_JSON" --arg desc "$DESCRIPTION" \
-  '{files: $files} + (if $desc == "" then {} else {description: $desc} end)')"
+PAYLOAD="$(jq -n --argjson files "$FILES_JSON" --arg desc "$DESCRIPTION" --arg vis "$VISIBILITY" \
+  '{files: $files} + (if $desc == "" then {} else {description: $desc} end) + (if $vis == "" then {} else {visibility: $vis} end)')"
 
 # Server URL is always populated via lib.sh's default; require_env
 # validates it didn't get unset out from under us.

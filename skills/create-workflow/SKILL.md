@@ -45,7 +45,7 @@ Read all seven files once before proposing a stage decomposition. Match their st
 
 ## Schema constraints (enforced by `config_validate`)
 
-The generator MUST respect these. `setup-workflow.sh --validate-only` will reject anything that violates them:
+You MUST respect these. `setup-workflow.sh --validate-only` will reject anything that violates them:
 
 - `.initial_stage` must be one of the declared stages
 - `.terminal_stages` must be a non-empty array of strings. Conventional terminal stages are `complete` and `escalated` (and optionally `cancelled`). Terminal stage names do NOT need to appear in `.stages`; they're just the values the state machine settles into.
@@ -149,7 +149,7 @@ Derive a short, kebab-case suffix from the user's description (e.g. "Python libr
 
 Ask the user to confirm the suffix.
 
-The local directory is always `~/.dev-workflow/workflows/<suffix>/` regardless of mode. The author prefix (e.g. `jie/paper-draft`) is added by `publish-workflow.sh` at publish time from the logged-in account — the skill never constructs or stores it.
+The local directory is always `~/.dev-workflow/workflows/<suffix>/` regardless of mode. The author prefix (e.g. `jie/paper-draft`) is added by `publish-workflow.sh` at publish time from the logged-in account — never construct or store it yourself.
 
 **Local collision check:** if `~/.dev-workflow/workflows/<suffix>/` already exists, tell the user and ask whether to pick a different name or overwrite. Do NOT overwrite silently.
 

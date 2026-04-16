@@ -1509,7 +1509,7 @@ ensure_git_baseline() {
   if ! git -C "$proot" rev-parse HEAD >/dev/null 2>&1; then
     git -C "$proot" add -A 2>/dev/null || true
     local has_files
-    has_files="$(git -C "$proot" diff --cached --name-only 2>/dev/null | head -1)"
+    has_files="$(git -C "$proot" diff --cached --name-only 2>/dev/null | head -1 || true)"
     git -C "$proot" \
       -c user.name='dev-workflow' \
       -c user.email='dev-workflow@local' \

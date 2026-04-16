@@ -14,7 +14,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
-while [[ $# -gt 0 ]]; do shift; done
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --session=*)  DESIRED_SESSION="${1#--session=}"; shift ;;
+    --session)    DESIRED_SESSION="$2"; shift 2 ;;
+    *)            shift ;;
+  esac
+done
 
 if ! resolve_state; then
   echo "No active dev workflow found." >&2

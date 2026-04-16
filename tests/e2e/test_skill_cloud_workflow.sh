@@ -195,14 +195,6 @@ if [[ -n "$SID1" ]]; then
   check "C2E-2-1: cloud registry removed after terminal" "$rc_reg1"
 
   # Server status should be complete (or escalated — smoke only has complete).
-  # Debug: print raw curl response to understand failures.
-  echo "  [debug C2E-2-1] SID1=${SID1}"
-  echo "  [debug C2E-2-1] Claude output (last 10 lines):"
-  printf '%s\n' "$OUTPUT1" | tail -10 | sed 's/^/    /'
-  _raw_srv1="$(curl -sS -w '\nHTTP:%{http_code}' --max-time 10 \
-    -H "$(_cloud_auth_header)" \
-    "${DEV_WORKFLOW_SERVER}/api/sessions/${SID1}" 2>/dev/null || echo 'CURL_FAILED')"
-  echo "  [debug C2E-2-1] raw response: $(printf '%s' "$_raw_srv1" | tail -3)"
   srv_status1="$(server_session_status "$SID1")"
   rc_srv1=0; [[ "$srv_status1" == "complete" ]] || rc_srv1=1
   check "C2E-2-1: server status = complete" "$rc_srv1" "got '$srv_status1'"

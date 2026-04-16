@@ -64,21 +64,33 @@ if [[ -n "${DESIRED_SESSION:-}" ]]; then
     exit 1
   fi
 else
-  rc=0
-  resolve_interrupted_state || rc=$?
-  if [[ "$rc" -ne 0 ]]; then
-    if [[ "$rc" -eq 2 ]]; then
-      # Multiple matches already printed by resolve_interrupted_state
+  # Cloud short-circuit: .dev-workflow/ doesn't exist in cloud mode, so
+  # resolve_interrupted_state (which walks the filesystem) would always
+  # fail. Check if the current session is cloud-registered first and, if
+  # so, resolve directly from the shadow dir via resolve_state.
+  _cur_sid="$(read_cached_session_id)"
+  if [[ -n "$_cur_sid" ]] && is_cloud_session "$_cur_sid"; then
+    if ! resolve_state; then
+      echo "No dev workflow found for the current cloud session (${_cur_sid})." >&2
       exit 1
     fi
-    echo "No interrupted dev workflow found." >&2
-    if workflows=$(list_all_workflows); [[ -n "$workflows" ]]; then
-      echo "   Available workflows:" >&2
-      echo "$workflows" >&2
-    else
-      echo "   Start a new workflow with: /dev-workflow:start <task>" >&2
+  else
+    rc=0
+    resolve_interrupted_state || rc=$?
+    if [[ "$rc" -ne 0 ]]; then
+      if [[ "$rc" -eq 2 ]]; then
+        # Multiple matches already printed by resolve_interrupted_state
+        exit 1
+      fi
+      echo "No interrupted dev workflow found." >&2
+      if workflows=$(list_all_workflows); [[ -n "$workflows" ]]; then
+        echo "   Available workflows:" >&2
+        echo "$workflows" >&2
+      else
+        echo "   Start a new workflow with: /dev-workflow:start <task>" >&2
+      fi
+      exit 1
     fi
-    exit 1
   fi
 fi
 

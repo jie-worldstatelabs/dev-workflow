@@ -42,13 +42,7 @@ if ! config_is_stage "$STATUS"; then
   exit 0
 fi
 
-BASELINE="${TOPIC_DIR}/baseline"
 ARTIFACT="$(config_artifact_path "$STATUS" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
-
-# Baseline is recorded at setup time by setup-workflow.sh and refreshed
-# on every transition by ensure_baseline_and_fingerprint (called from
-# update-status.sh). No stage-name-specific fallback needed here.
-
 EXEC_TYPE="$(config_execution_type "$STATUS")"
 TRANSITION_KEYS="$(config_transition_keys "$STATUS")"
 INSTRUCTIONS_PATH="$(config_stage_instructions_path "$STATUS")"
@@ -57,10 +51,14 @@ build_inputs_section() {
   local kind="$1"
   local source_fn="config_${kind}_inputs"
   local section=""
-  while IFS=$'\t' read -r from_stage description; do
-    [[ -z "$from_stage" ]] && continue
+  while IFS=$'\t' read -r type key description; do
+    [[ -z "$key" ]] && continue
     local path
-    path="$(config_artifact_path "$from_stage" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
+    if [[ "$type" == "run_file" ]]; then
+      path="$(config_run_file_path "$key")"
+    else
+      path="$(config_artifact_path "$key" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
+    fi
     if [[ "$kind" == "optional" ]]; then
       section+="  - $path (if exists, else \"none\") — $description"$'\n'
     else

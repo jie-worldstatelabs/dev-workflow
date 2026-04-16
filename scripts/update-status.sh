@@ -85,9 +85,14 @@ NEW_EPOCH=$((CURRENT_EPOCH + 1))
 # ──────────────────────────────────────────────────────────────
 if config_is_stage "$NEW_STATUS"; then
   MISSING_INPUTS=()
-  while IFS=$'\t' read -r from_stage description; do
-    [[ -z "$from_stage" ]] && continue
-    input_path="$(config_artifact_path "$from_stage" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
+  while IFS=$'\t' read -r type key description; do
+    [[ -z "$key" ]] && continue
+    local input_path
+    if [[ "$type" == "run_file" ]]; then
+      input_path="$(config_run_file_path "$key")"
+    else
+      input_path="$(config_artifact_path "$key" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
+    fi
     if [[ ! -f "$input_path" ]]; then
       MISSING_INPUTS+=("$input_path ($description)")
     fi

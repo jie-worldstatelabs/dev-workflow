@@ -1,6 +1,12 @@
 {
   "initial_stage": "planning",
   "terminal_stages": ["complete", "escalated", "cancelled"],
+  "run_files": {
+    "baseline": {
+      "description": "Git SHA at workflow start (used by the reviewer to diff changes)",
+      "init": "git rev-parse HEAD 2>/dev/null || echo EMPTY"
+    }
+  },
   "stages": {
     "planning": {
       "interruptible": true,
@@ -57,9 +63,10 @@
       },
       "inputs": {
         "required": [
-          { "from_stage": "planning",  "description": "Plan to review against" },
-          { "from_stage": "executing", "description": "Execution report" },
-          { "from_stage": "verifying", "description": "Verify report" }
+          { "from_stage": "planning",    "description": "Plan to review against" },
+          { "from_stage": "executing",   "description": "Execution report" },
+          { "from_stage": "verifying",   "description": "Verify report" },
+          { "from_run_file": "baseline", "description": "Git SHA at workflow start — for diffing changes" }
         ],
         "optional": [
           { "from_stage": "qa-ing", "description": "QA report from the previous iteration" }

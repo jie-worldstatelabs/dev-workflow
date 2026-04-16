@@ -339,18 +339,18 @@ EOF
 
   cloud_register_session "$SESSION_ID" "$DEV_WORKFLOW_SERVER" "$WORKFLOW_URL"
 
-  # Capture baseline SHA in the shadow so cloud_post_diff can compute diffs
-  # on subsequent transitions. The project worktree itself is never touched —
-  # if there's no git repo we record EMPTY and skip diffs quietly.
-  if git -C "${PROJECT_ROOT}" rev-parse --git-dir >/dev/null 2>&1; then
-    if git -C "${PROJECT_ROOT}" rev-parse HEAD >/dev/null 2>&1; then
-      git -C "${PROJECT_ROOT}" rev-parse HEAD > "${SCRATCH_DIR}/baseline"
-    else
-      echo "EMPTY" > "${SCRATCH_DIR}/baseline"
+  # Generate run_files declared in workflow.json into the shadow dir.
+  # Each init command is executed with PROJECT_ROOT as CWD.
+  while IFS= read -r _rf_name; do
+    [[ -z "$_rf_name" ]] && continue
+    _rf_init="$(config_run_file_init "$_rf_name")"
+    if [[ -z "$_rf_init" ]]; then
+      echo "❌ run_file '$_rf_name' has no init command in workflow.json" >&2
+      rm -rf "$SCRATCH_DIR"
+      exit 1
     fi
-  else
-    echo "EMPTY" > "${SCRATCH_DIR}/baseline"
-  fi
+    (cd "$PROJECT_ROOT" && bash -c "$_rf_init") > "${SCRATCH_DIR}/${_rf_name}"
+  done < <(config_run_file_names)
 
   # Seed the server with an initial (empty) diff so the session page's
   # "Working-tree diff" panel has content to anchor on.
@@ -504,9 +504,19 @@ started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 EOF
 
 # ──────────────────────────────────────────────────────────────
-# Phase 4: Record baseline (the git SHA we just ensured exists)
+# Phase 4: Generate run_files declared in workflow.json
 # ──────────────────────────────────────────────────────────────
-git -C "${PROJECT_ROOT}" rev-parse HEAD > "${TOPIC_DIR}/baseline"
+# Phase 1 above has already ensured a valid git HEAD exists, so
+# "git rev-parse HEAD 2>/dev/null || echo EMPTY" is safe here.
+while IFS= read -r _rf_name; do
+  [[ -z "$_rf_name" ]] && continue
+  _rf_init="$(config_run_file_init "$_rf_name")"
+  if [[ -z "$_rf_init" ]]; then
+    echo "❌ run_file '$_rf_name' has no init command in workflow.json" >&2
+    exit 1
+  fi
+  (cd "$PROJECT_ROOT" && bash -c "$_rf_init") > "${TOPIC_DIR}/${_rf_name}"
+done < <(config_run_file_names)
 
 # ──────────────────────────────────────────────────────────────
 # Phase 5: Surface context to the main agent

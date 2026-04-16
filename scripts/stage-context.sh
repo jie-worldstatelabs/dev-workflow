@@ -68,10 +68,14 @@ build_inputs_section() {
   local kind="$1"
   local source_fn="config_${kind}_inputs"
   local section=""
-  while IFS=$'\t' read -r from_stage description; do
-    [[ -z "$from_stage" ]] && continue
+  while IFS=$'\t' read -r type key description; do
+    [[ -z "$key" ]] && continue
     local path
-    path="$(config_artifact_path "$from_stage" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
+    if [[ "$type" == "run_file" ]]; then
+      path="$(config_run_file_path "$key")"
+    else
+      path="$(config_artifact_path "$key" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
+    fi
     if [[ "$kind" == "optional" ]]; then
       section+="  - $path (if exists, else \"none\") — $description"$'\n'
     else

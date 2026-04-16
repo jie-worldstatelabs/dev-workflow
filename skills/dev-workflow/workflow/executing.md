@@ -3,7 +3,7 @@
 _Runtime config (canonical): `workflow.json` → `stages.executing`_
 
 **Purpose:** implement the plan, producing the actual code changes.
-**Output artifact:** `<session_id>/executing-report.md` (exact absolute path given in your prompt)
+**Output artifact:** write to the absolute path provided in your prompt
 **Valid results this stage writes:** `done`
 
 > This file is the canonical protocol for the `executing` stage. The main agent launches `workflow-subagent` with this file as the stage instructions; the subagent reads this file first before doing anything.

@@ -3,7 +3,7 @@
 _Runtime config (canonical): `workflow.json` → `stages.reviewing`_
 
 **Purpose:** adversarial code review against the plan and the baseline commit. Focus is on code-level issues — correctness, completeness, design, edge cases, security. Out of this stage's scope: running tests, checking user-facing behavior (those concerns belong to `verifying` and `qa-ing`).
-**Output artifact:** `<session_id>/reviewing-report.md` (exact absolute path given in your prompt)
+**Output artifact:** write to the absolute path provided in your prompt
 **Valid results this stage writes:** `PASS`, `FAIL`
 
 > This file is the canonical protocol for the `reviewing` stage. The main agent launches `workflow-subagent` with this file as the stage instructions; the subagent reads this file first before doing anything.
@@ -20,7 +20,7 @@ If a QA report path was provided as an optional input, read it too. Note every c
 
 ### Step 2: Gather Changes
 
-1. **Read the baseline file** (at `<project>/.dev-workflow/<session_id>/baseline`) to get the commit hash (`cat <baseline-file>`).
+1. **Read the baseline file** — path provided as a required input in your prompt. Read it to get the commit hash.
 2. Use `git diff` to see what changed since the baseline:
    - If baseline is a valid commit hash:
      ```bash

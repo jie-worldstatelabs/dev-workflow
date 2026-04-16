@@ -497,7 +497,7 @@ config_validate() {
       fi
     done < <(jq -r --arg s "$stage" '.stages[$s].transitions // {} | to_entries[]? | "\(.key)\t\(.value)"' "$CONFIG_FILE")
 
-    # inputs.required[*] / inputs.optional[*] from_stage refs exist
+    # inputs.required[*] / inputs.optional[*] — validate from_stage and from_run_file refs
     local kind from
     for kind in required optional; do
       while read -r from; do
@@ -507,6 +507,14 @@ config_validate() {
           errors=$((errors + 1))
         fi
       done < <(jq -r --arg s "$stage" --arg k "$kind" '.stages[$s].inputs[$k][]? | .from_stage // empty' "$CONFIG_FILE")
+
+      while read -r from; do
+        [[ -z "$from" ]] && continue
+        if ! jq -e --arg n "$from" '.run_files[$n]' "$CONFIG_FILE" > /dev/null 2>&1; then
+          echo "❌ $prefix inputs.$kind references unknown from_run_file '$from' (not declared in .run_files)" >&2
+          errors=$((errors + 1))
+        fi
+      done < <(jq -r --arg s "$stage" --arg k "$kind" '.stages[$s].inputs[$k][]? | .from_run_file // empty' "$CONFIG_FILE")
     done
   done < <(config_all_stages)
 
@@ -569,12 +577,24 @@ config_transition_keys() {
   jq -r --arg s "$1" '.stages[$s].transitions // {} | keys | join(" ")' "$CONFIG_FILE"
 }
 
+# Emit tab-separated: type\tkey\tdescription
+# type is "stage" (from_stage) or "run_file" (from_run_file)
 config_required_inputs() {
-  jq -r --arg s "$1" '.stages[$s].inputs.required[]? | "\(.from_stage)\t\(.description)"' "$CONFIG_FILE"
+  jq -r --arg s "$1" '
+    .stages[$s].inputs.required[]? |
+    if .from_stage   then "stage\t\(.from_stage)\t\(.description)"
+    elif .from_run_file then "run_file\t\(.from_run_file)\t\(.description)"
+    else empty end
+  ' "$CONFIG_FILE"
 }
 
 config_optional_inputs() {
-  jq -r --arg s "$1" '.stages[$s].inputs.optional[]? | "\(.from_stage)\t\(.description)"' "$CONFIG_FILE"
+  jq -r --arg s "$1" '
+    .stages[$s].inputs.optional[]? |
+    if .from_stage   then "stage\t\(.from_stage)\t\(.description)"
+    elif .from_run_file then "run_file\t\(.from_run_file)\t\(.description)"
+    else empty end
+  ' "$CONFIG_FILE"
 }
 
 # Artifact path for a stage's output.
@@ -601,6 +621,31 @@ config_artifact_path() {
   echo "${project_root}/.dev-workflow/${run_dir_name}/${stage}-report.md"
 }
 
+# Path for a run_file (created once at setup time, stored in the run dir).
+# Resolution precedence mirrors config_artifact_path.
+config_run_file_path() {
+  local name="$1"
+  if [[ -n "${DW_RUN_BASE:-}" ]]; then
+    echo "${DW_RUN_BASE}/${RUN_DIR_NAME}/${name}"
+    return
+  fi
+  if [[ -n "${TOPIC_DIR:-}" ]]; then
+    echo "${TOPIC_DIR}/${name}"
+    return
+  fi
+  echo "${PROJECT_ROOT}/.dev-workflow/${RUN_DIR_NAME}/${name}"
+}
+
+# Init shell command for a run_file.
+config_run_file_init() {
+  jq -r --arg n "$1" '.run_files[$n].init // empty' "$CONFIG_FILE"
+}
+
+# All declared run_file names.
+config_run_file_names() {
+  jq -r '.run_files // {} | keys[]' "$CONFIG_FILE"
+}
+
 # Stage-instructions markdown path.
 config_stage_instructions_path() {
   local stage="$1"
@@ -614,18 +659,26 @@ config_show_stage_context() {
   local project_root="$3"
 
   local required=""
-  while IFS=$'\t' read -r from_stage description; do
-    [[ -z "$from_stage" ]] && continue
+  while IFS=$'\t' read -r type key description; do
+    [[ -z "$key" ]] && continue
     local path
-    path="$(config_artifact_path "$from_stage" "$topic" "$project_root")"
+    if [[ "$type" == "run_file" ]]; then
+      path="$(config_run_file_path "$key")"
+    else
+      path="$(config_artifact_path "$key" "$topic" "$project_root")"
+    fi
     required+="     - ${path} — ${description}"$'\n'
   done < <(config_required_inputs "$stage")
 
   local optional=""
-  while IFS=$'\t' read -r from_stage description; do
-    [[ -z "$from_stage" ]] && continue
+  while IFS=$'\t' read -r type key description; do
+    [[ -z "$key" ]] && continue
     local path
-    path="$(config_artifact_path "$from_stage" "$topic" "$project_root")"
+    if [[ "$type" == "run_file" ]]; then
+      path="$(config_run_file_path "$key")"
+    else
+      path="$(config_artifact_path "$key" "$topic" "$project_root")"
+    fi
     optional+="     - ${path} — ${description} (if exists)"$'\n'
   done < <(config_optional_inputs "$stage")
 

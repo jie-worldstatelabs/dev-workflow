@@ -3,7 +3,7 @@
 _Runtime config (canonical): `workflow.json` → `stages.qa-ing`_
 
 **Purpose:** run real user journey tests (Playwright, XcodeBuildMCP, etc.). Distinguish test bugs from app bugs — only confirmed app bugs block progress. Test bugs and unresolved uncertainties are tracked in `<session_id>/journey-tests.md` for future iterations.
-**Output artifact:** `<session_id>/qa-ing-report.md` (exact absolute path given in your prompt)
+**Output artifact:** write to the absolute path provided in your prompt
 **Valid results this stage writes:** `PASS`, `FAIL`
 
 > This file is the canonical protocol for the `qa-ing` stage. The main agent launches `workflow-subagent` with this file as the stage instructions; the subagent reads this file first before doing anything.

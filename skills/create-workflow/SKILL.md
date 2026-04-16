@@ -39,8 +39,9 @@ Re-derive `$P` inside every Bash-tool call — shell vars don't persist across c
 - `"$P/skills/dev-workflow/workflow/executing.md"` — subagent stage addressed to `workflow-subagent`, model override (opus)
 - `"$P/skills/dev-workflow/workflow/reviewing.md"` — subagent stage, sonnet
 - `"$P/skills/dev-workflow/workflow/qa-ing.md"` — subagent stage, loops back to executing on failure
+- `"$P/skills/dev-workflow/workflow/run_files_catalog.md"` — known run_file patterns and init syntax
 
-Read all six files once before proposing a stage decomposition. Match their style in the files you generate.
+Read all seven files once before proposing a stage decomposition. Match their style in the files you generate.
 
 ## Schema constraints (enforced by `config_validate`)
 
@@ -52,8 +53,9 @@ The generator MUST respect these. `setup-workflow.sh --validate-only` will rejec
   - `interruptible`: boolean
   - `execution`: `{ "type": "inline" }` OR `{ "type": "subagent", "model": "<opus|sonnet|haiku>" }`. Model is optional; omit to use the generic subagent's default (sonnet).
   - `transitions`: object mapping result-value strings to next-status strings (another declared stage OR a terminal)
-  - `inputs.required`: array of `{ "from_stage": "<name>", "description": "<text>" }`
+  - `inputs.required`: array of `{ "from_stage": "<name>", "description": "<text>" }` OR `{ "from_run_file": "<name>", "description": "<text>" }`
   - `inputs.optional`: same shape, may be empty
+- **`run_files` (optional top-level):** data created once at setup time and available to any stage. Each entry: `{ "description": "...", "init": "<shell command>" }`. The init command runs in `$PROJECT_ROOT`; its stdout becomes the file. Stages consume run_files via `from_run_file` in their inputs. See `run_files_catalog.md` for known patterns (e.g. `baseline` for git SHA). Every `from_run_file` reference must name a key declared in `.run_files` — the validator enforces this.
 - **Subagent stages MUST have `"interruptible": false`.** The main agent blocks on the Agent tool call — the stop hook has no chance to fire during a subagent run, so `interruptible: true` on a subagent stage is a silent lie the validator rejects.
 - `subagent_type` as a per-stage field is **NOT supported**. All subagent stages run under the single generic `dev-workflow:workflow-subagent`, whose system prompt is the stage file the main agent passes in the prompt template. Don't write this field; the validator rejects it.
 - Every declared stage must have a corresponding `<stage>.md` file next to `workflow.json`.

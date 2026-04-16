@@ -3,7 +3,7 @@
 _Runtime config (canonical): `workflow.json` → `stages.planning`_
 
 **Purpose:** produce an agreed implementation plan and record user approval.
-**Output artifact:** `<project>/.dev-workflow/<session_id>/planning-report.md`
+**Output artifact:** write to the absolute path provided in your prompt
 **Valid results this stage writes:** `pending` (plan drafted, awaiting user approval), `approved` (user has explicitly confirmed)
 
 <HARD-GATE>

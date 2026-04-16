@@ -351,6 +351,20 @@ EOF
 
   cloud_register_session "$SESSION_ID" "$DEV_WORKFLOW_SERVER" "$WORKFLOW_URL"
 
+  # Ensure a valid git HEAD before running run_file init commands.
+  # Local mode has Phase 1 for this; cloud mode exits before reaching it.
+  if ! git -C "$PROJECT_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+    git -C "$PROJECT_ROOT" init -q
+    _has_files="$(find "$PROJECT_ROOT" -maxdepth 1 -mindepth 1 -not -name ".*" -print -quit 2>/dev/null || true)"
+    if [[ -n "$_has_files" ]]; then
+      git -C "$PROJECT_ROOT" add -A 2>/dev/null || true
+    fi
+    git -C "$PROJECT_ROOT" \
+      -c user.name='dev-workflow' \
+      -c user.email='dev-workflow@local' \
+      commit --allow-empty -q -m "dev-workflow: initial baseline (topic=${TOPIC})"
+  fi
+
   # Generate run_files declared in workflow.json into the shadow dir.
   # Each init command is executed with PROJECT_ROOT as CWD.
   while IFS= read -r _rf_name; do

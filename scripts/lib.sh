@@ -1311,6 +1311,20 @@ EOF
     echo "EMPTY" > "${shadow}/baseline"
   fi
 
+  # run_files — restore the captured setup-time values so Claude has the
+  # same context on this machine as on the original. Stored in
+  # session.run_files as { name: content } in the server snapshot.
+  local run_files_json
+  run_files_json="$(printf '%s' "$snapshot" | jq -c '.session.run_files // empty' 2>/dev/null || true)"
+  if [[ -n "$run_files_json" ]] && [[ "$run_files_json" != "null" ]]; then
+    local rf_name rf_content
+    while IFS= read -r rf_name; do
+      [[ -z "$rf_name" ]] && continue
+      rf_content="$(printf '%s' "$run_files_json" | jq -r --arg k "$rf_name" '.[$k] // ""')"
+      printf '%s' "$rf_content" > "${shadow}/${rf_name}"
+    done < <(printf '%s' "$run_files_json" | jq -r 'keys[]')
+  fi
+
   echo "$shadow"
   return 0
 }

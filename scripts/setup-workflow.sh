@@ -279,6 +279,23 @@ if [[ "$MODE" == "cloud" ]]; then
   # cross-machine continue can verify the resume target is the same repo.
   PROJECT_FINGERPRINT="$(git_project_fingerprint "$PROJECT_ROOT")"
 
+  # Ensure a valid git HEAD before running run_file init commands.
+  # Must happen before the setup POST so run_files values are captured
+  # and included in the server payload for cross-machine reconstruction.
+  ensure_git_baseline "$PROJECT_ROOT" "$TOPIC"
+
+  # Generate run_files declared in workflow.json into the shadow dir.
+  generate_run_files "$SCRATCH_DIR" "$PROJECT_ROOT" || { rm -rf "$SCRATCH_DIR"; exit 1; }
+
+  # Build run_files payload: { name: content } for each generated file.
+  run_files_json="{}"
+  while IFS= read -r _rf_name; do
+    [[ -z "$_rf_name" ]] && continue
+    _rf_content="$(cat "${SCRATCH_DIR}/${_rf_name}" 2>/dev/null || true)"
+    run_files_json="$(jq -n --argjson base "$run_files_json" --arg k "$_rf_name" --arg v "$_rf_content" \
+                      '$base + {($k): $v}')"
+  done < <(config_run_file_names)
+
   # ── Build setup payload + POST to server ──
   files_json="{}"
   for f in "$WORKFLOW_CACHE"/*.md; do
@@ -293,6 +310,7 @@ if [[ "$MODE" == "cloud" ]]; then
       --arg topic "$TOPIC" \
       --argjson workflow "$wfval" \
       --argjson files "$files_json" \
+      --argjson run_files "$run_files_json" \
       --arg url "$WORKFLOW_URL" \
       --arg proot "$PROJECT_ROOT" \
       --arg fpr "$PROJECT_FINGERPRINT" \
@@ -301,6 +319,7 @@ if [[ "$MODE" == "cloud" ]]; then
         topic: $topic,
         workflow: $workflow,
         workflow_files: $files,
+        run_files: (if ($run_files | length) == 0 then null else $run_files end),
         workflow_url: (if $url == "" then null else $url end),
         project_root: $proot,
         project_fingerprint: (if $fpr == "" then null else $fpr end),
@@ -350,13 +369,6 @@ started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 EOF
 
   cloud_register_session "$SESSION_ID" "$DEV_WORKFLOW_SERVER" "$WORKFLOW_URL"
-
-  # Ensure a valid git HEAD before running run_file init commands.
-  # Local mode has Phase 1 for this; cloud mode exits before reaching it.
-  ensure_git_baseline "$PROJECT_ROOT" "$TOPIC"
-
-  # Generate run_files declared in workflow.json into the shadow dir.
-  generate_run_files "$SCRATCH_DIR" "$PROJECT_ROOT" || { rm -rf "$SCRATCH_DIR"; exit 1; }
 
   # Seed the server with an initial (empty) diff so the session page's
   # "Working-tree diff" panel has content to anchor on.

@@ -353,30 +353,10 @@ EOF
 
   # Ensure a valid git HEAD before running run_file init commands.
   # Local mode has Phase 1 for this; cloud mode exits before reaching it.
-  if ! git -C "$PROJECT_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
-    git -C "$PROJECT_ROOT" init -q
-    _has_files="$(find "$PROJECT_ROOT" -maxdepth 1 -mindepth 1 -not -name ".*" -print -quit 2>/dev/null || true)"
-    if [[ -n "$_has_files" ]]; then
-      git -C "$PROJECT_ROOT" add -A 2>/dev/null || true
-    fi
-    git -C "$PROJECT_ROOT" \
-      -c user.name='dev-workflow' \
-      -c user.email='dev-workflow@local' \
-      commit --allow-empty -q -m "dev-workflow: initial baseline (topic=${TOPIC})"
-  fi
+  ensure_git_baseline "$PROJECT_ROOT" "$TOPIC"
 
   # Generate run_files declared in workflow.json into the shadow dir.
-  # Each init command is executed with PROJECT_ROOT as CWD.
-  while IFS= read -r _rf_name; do
-    [[ -z "$_rf_name" ]] && continue
-    _rf_init="$(config_run_file_init "$_rf_name")"
-    if [[ -z "$_rf_init" ]]; then
-      echo "❌ run_file '$_rf_name' has no init command in workflow.json" >&2
-      rm -rf "$SCRATCH_DIR"
-      exit 1
-    fi
-    (cd "$PROJECT_ROOT" && bash -c "$_rf_init") > "${SCRATCH_DIR}/${_rf_name}"
-  done < <(config_run_file_names)
+  generate_run_files "$SCRATCH_DIR" "$PROJECT_ROOT" || { rm -rf "$SCRATCH_DIR"; exit 1; }
 
   # Seed the server with an initial (empty) diff so the session page's
   # "Working-tree diff" panel has content to anchor on.
@@ -469,25 +449,8 @@ fi
 # ──────────────────────────────────────────────────────────────
 # Phase 1: Ensure git repo with a HEAD commit (baseline)
 # ──────────────────────────────────────────────────────────────
-AUTO_GIT_MSG=""
-if ! git -C "${PROJECT_ROOT}" rev-parse --git-dir > /dev/null 2>&1; then
-  git -C "${PROJECT_ROOT}" init -q
-  AUTO_GIT_MSG="   (no git repo found — ran 'git init')"
-fi
-
-if ! git -C "${PROJECT_ROOT}" rev-parse HEAD > /dev/null 2>&1; then
-  git -C "${PROJECT_ROOT}" add -A
-  HAS_FILES=$(git -C "${PROJECT_ROOT}" diff --cached --name-only | head -1)
-  git -C "${PROJECT_ROOT}" \
-      -c user.name='dev-workflow' \
-      -c user.email='dev-workflow@local' \
-      commit --allow-empty -q -m "dev-workflow: initial baseline (topic=${TOPIC})"
-  if [[ -n "$HAS_FILES" ]]; then
-    AUTO_GIT_MSG="${AUTO_GIT_MSG}${AUTO_GIT_MSG:+\n}   (committed existing files as initial baseline)"
-  else
-    AUTO_GIT_MSG="${AUTO_GIT_MSG}${AUTO_GIT_MSG:+\n}   (created empty initial commit as baseline)"
-  fi
-fi
+ensure_git_baseline "${PROJECT_ROOT}" "$TOPIC"
+AUTO_GIT_MSG="$_ENSURE_GIT_MSG"
 
 WORKTREE_ROOT="$(git -C "${PROJECT_ROOT}" rev-parse --show-toplevel 2>/dev/null || echo "$PROJECT_ROOT")"
 
@@ -534,15 +497,7 @@ EOF
 # ──────────────────────────────────────────────────────────────
 # Phase 1 above has already ensured a valid git HEAD exists, so
 # "git rev-parse HEAD 2>/dev/null || echo EMPTY" is safe here.
-while IFS= read -r _rf_name; do
-  [[ -z "$_rf_name" ]] && continue
-  _rf_init="$(config_run_file_init "$_rf_name")"
-  if [[ -z "$_rf_init" ]]; then
-    echo "❌ run_file '$_rf_name' has no init command in workflow.json" >&2
-    exit 1
-  fi
-  (cd "$PROJECT_ROOT" && bash -c "$_rf_init") > "${TOPIC_DIR}/${_rf_name}"
-done < <(config_run_file_names)
+generate_run_files "$TOPIC_DIR" "$PROJECT_ROOT" || exit 1
 
 # ──────────────────────────────────────────────────────────────
 # Phase 5: Surface context to the main agent

@@ -1476,6 +1476,58 @@ ensure_baseline_and_fingerprint() {
 }
 
 # ──────────────────────────────────────────────────────────────
+# Git baseline helpers
+# ──────────────────────────────────────────────────────────────
+
+# Ensure <proot> has a git repo with at least one commit so that
+# "git rev-parse HEAD" is always valid (required by run_file init
+# commands that capture the baseline SHA).
+# Sets _ENSURE_GIT_MSG with human-readable notes; safe to call
+# repeatedly (no-ops when a HEAD already exists).
+_ENSURE_GIT_MSG=""
+ensure_git_baseline() {
+  local proot="$1" topic="${2:-}"
+  _ENSURE_GIT_MSG=""
+  if ! git -C "$proot" rev-parse --git-dir >/dev/null 2>&1; then
+    git -C "$proot" init -q
+    _ENSURE_GIT_MSG="   (no git repo found — ran 'git init')"
+  fi
+  if ! git -C "$proot" rev-parse HEAD >/dev/null 2>&1; then
+    git -C "$proot" add -A 2>/dev/null || true
+    local has_files
+    has_files="$(git -C "$proot" diff --cached --name-only 2>/dev/null | head -1)"
+    git -C "$proot" \
+      -c user.name='dev-workflow' \
+      -c user.email='dev-workflow@local' \
+      commit --allow-empty -q -m "dev-workflow: initial baseline (topic=${topic})"
+    if [[ -n "$has_files" ]]; then
+      _ENSURE_GIT_MSG="${_ENSURE_GIT_MSG:+${_ENSURE_GIT_MSG}
+}   (committed existing files as initial baseline)"
+    else
+      _ENSURE_GIT_MSG="${_ENSURE_GIT_MSG:+${_ENSURE_GIT_MSG}
+}   (created empty initial commit as baseline)"
+    fi
+  fi
+}
+
+# Run all declared run_file init commands into <dest_dir>.
+# Each init command is executed with <proot> as CWD.
+# Exits (or returns non-zero) on the first missing init command.
+generate_run_files() {
+  local dest_dir="$1" proot="$2"
+  local _rf_name _rf_init
+  while IFS= read -r _rf_name; do
+    [[ -z "$_rf_name" ]] && continue
+    _rf_init="$(config_run_file_init "$_rf_name")"
+    if [[ -z "$_rf_init" ]]; then
+      echo "❌ run_file '$_rf_name' has no init command in workflow.json" >&2
+      return 1
+    fi
+    (cd "$proot" && bash -c "$_rf_init") > "${dest_dir}/${_rf_name}"
+  done < <(config_run_file_names)
+}
+
+# ──────────────────────────────────────────────────────────────
 # Cloud state reconciliation
 # ──────────────────────────────────────────────────────────────
 #

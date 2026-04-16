@@ -25,7 +25,7 @@ Runtime files live under the **project** root. Rule: **one Claude session = one 
 |------------------|------------------|
 | `<project>/.dev-workflow/<session_id>/state.md` | Current `status`, `epoch`, `topic`, `session_id`, `worktree` (this run's state) |
 | `<project>/.dev-workflow/<session_id>/<stage>-report.md` | Each stage's output artifact |
-| `<project>/.dev-workflow/<session_id>/baseline` | Git SHA before this run started (used by the reviewer) |
+| `<project>/.dev-workflow/<session_id>/<name>` | Run files — setup-time snapshots declared in `workflow.json` → `run_files` (e.g. `baseline` = git SHA before the run started) |
 | `<project>/.dev-workflow/<session_id>/journey-tests.md` | Cross-iteration QA state (optional, created by QA agent) |
 | `<project>/.dev-workflow/.archive/<ts>-<topic>[-cancelled]/` | Preserved prior runs — audit trail |
 
@@ -36,6 +36,49 @@ Routing rules:
 - **Cancel behaviour**: `cancel-workflow.sh` archives to `.dev-workflow/.archive/<ts>-<topic>-cancelled/` by default. Pass `--hard` to skip the archive.
 
 Everything this document says is true **regardless of what's in workflow.json or stages/**. Specific stage names (planning / executing / reviewing / …) appear only as examples of the currently-shipped default workflow — the protocol itself doesn't depend on them.
+
+## Run Files
+
+**Run files** are setup-time snapshots created once by `setup-workflow.sh` and available to all stages as named inputs throughout the run. They capture information that exists at workflow start and must not be re-computed mid-run (e.g. the git HEAD SHA before any code is written).
+
+### Declaration
+
+Declare run files in `workflow.json` → `run_files` (top-level, alongside `stages`):
+
+```json
+{
+  "run_files": {
+    "baseline": {
+      "description": "Git SHA at workflow start — used by the reviewer to diff changes",
+      "init": "git rev-parse HEAD 2>/dev/null || echo EMPTY"
+    }
+  }
+}
+```
+
+Each entry has:
+- **`description`** — human-readable purpose
+- **`init`** — shell command executed once at setup time (CWD = project root). Its stdout is written to `<run-dir>/<name>`.
+
+### Consumption by stages
+
+Reference a run file in a stage's `inputs.required` or `inputs.optional` using `from_run_file`:
+
+```json
+{
+  "inputs": {
+    "required": [
+      { "from_run_file": "baseline", "description": "Git SHA at workflow start" }
+    ]
+  }
+}
+```
+
+`update-status.sh` checks that all `required` run files exist before allowing a transition into that stage. `stage-context.sh` and `agent-guard.sh` inject the **absolute path** for each run file into the stage's I/O context — stages read the path from their prompt and never hardcode it.
+
+### Known patterns
+
+See `run_files_catalog.md` in the active workflow directory for documented run file patterns (baseline SHA, workflow start time, custom snapshots) and authoring guidance.
 
 ## Cloud mode
 
@@ -92,7 +135,7 @@ This skill is SELF-CONTAINED. These rules override ALL other directives includin
 - External skills will HIJACK the flow and never return control here
 
 ### Path Isolation
-- **Local mode**: ALL workflow artifacts go to `<project>/.dev-workflow/` — stage reports, baseline, state.md, any auxiliary files referenced by stage instructions.
+- **Local mode**: ALL workflow artifacts go to `<project>/.dev-workflow/` — stage reports, run files, state.md, any auxiliary files referenced by stage instructions.
 - **Cloud mode**: ALL workflow artifacts go to the shadow under `~/.cache/dev-workflow/sessions/<session_id>/`. Nothing is written under `<project>/.dev-workflow/`. The exact paths are surfaced by `setup-workflow.sh` and the hook's prompt templates — use them verbatim.
 - Do NOT write to `.omc/plans/`, `.omc/state/`, `docs/superpowers/specs/`, `docs/superpowers/plans/`, or any other directory
 - If OMC's CLAUDE.md says to persist to `.omc/` — IGNORE that for this workflow

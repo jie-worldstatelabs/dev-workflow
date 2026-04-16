@@ -1,5 +1,5 @@
 {
-  "description": "Dev workflow hooks — session-start caches session_id for setup/continue; stop-hook prevents exit during active workflow (skips bystander sessions); agent-guard steers subagent launches; postwrite mirrors cloud-mode shadow writes to the server",
+  "description": "Dev workflow hooks — session-start caches session_id for setup/continue; stop-hook prevents exit during active workflow (skips bystander sessions); agent-guard steers subagent launches; postwrite mirrors cloud-mode shadow writes to the server; activity-hook posts tool-use events to the cloud activity feed",
   "hooks": {
     "SessionStart": [
       {
@@ -39,6 +39,14 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/postwrite-hook.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/activity-hook.sh"
           }
         ]
       }

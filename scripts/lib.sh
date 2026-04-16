@@ -999,16 +999,14 @@ cloud_fetch_workflow_from_name() {
     return 1
   }
   printf '%s' "$bundle" | jq '.workflow' > "${dest}/workflow.json"
-  local files
-  files="$(printf '%s' "$bundle" | jq -r '.files | keys[]?')"
+  # Write each file directly from the bundle — no secondary HTTP requests needed.
+  local fnames
+  fnames="$(printf '%s' "$bundle" | jq -r '.files | keys[]?')"
   local fname
   while read -r fname; do
     [[ -z "$fname" ]] && continue
-    curl -sS -fL -H "$(_cloud_auth_header)" \
-      -o "${dest}/${fname}" "${base}/files/${fname}" || {
-      echo "⚠️  could not fetch ${fname} from template ${name}" >&2
-    }
-  done <<< "$files"
+    printf '%s' "$bundle" | jq -r --arg f "$fname" '.files[$f]' > "${dest}/${fname}"
+  done <<< "$fnames"
   return 0
 }
 

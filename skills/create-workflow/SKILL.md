@@ -120,25 +120,19 @@ Ask the user: **"Does this design look right? Any changes to stages, order, or i
 
 Derive a short, kebab-case suffix from the user's description (e.g. "Python library dev with docs and publish" → `python-lib`, "research paper drafting" → `paper-draft`).
 
-In cloud mode (MODE=cloud), prefix the name with the user's author handle from auth.json:
-```bash
-_author_raw="$(jq -r '.author // "anonymous"' "${HOME}/.dev-workflow/auth.json" 2>/dev/null || echo "anonymous")"
-_author="$(echo "$_author_raw" | tr '[:upper:]' '[:lower:]' | sed 's/[[:space:]][[:space:]]*/\-/g; s/[^a-z0-9._-]//g; s/^[^a-z0-9]*//')"
-_author="${_author:-anonymous}"
-echo "AUTHOR=${_author}"
-```
-The full workflow name is `${_author}/${suffix}` (e.g. `jie/paper-draft`). In all user-facing output and launch commands, show it with the `cloud://` prefix: `cloud://${_author}/${suffix}`. The local directory and publish path use `${_author}/${suffix}` without the prefix. Ask the user to confirm the suffix part only.
+Ask the user to confirm the suffix.
 
-In local mode (MODE=local), the name is just the kebab-case suffix with no prefix.
+The local directory is always `~/.dev-workflow/workflows/<suffix>/` regardless of mode. The author prefix (e.g. `jie/paper-draft`) is added by `publish-workflow.sh` at publish time from the logged-in account — the skill never constructs or stores it.
 
-Check for collision: if `~/.dev-workflow/workflows/<author>/<suffix>/` already exists (cloud) or `~/.dev-workflow/workflows/<suffix>/` (local), tell the user and ask whether to pick a different name or overwrite. Do NOT overwrite silently.
+Check for collision: if `~/.dev-workflow/workflows/<suffix>/` already exists, tell the user and ask whether to pick a different name or overwrite. Do NOT overwrite silently.
 
 ### Step 4 — Write the files
 
 Create the target directory:
 
-- Cloud: `mkdir -p ~/.dev-workflow/workflows/<author>/<suffix>`
-- Local: `mkdir -p ~/.dev-workflow/workflows/<suffix>`
+```bash
+mkdir -p ~/.dev-workflow/workflows/<suffix>
+```
 
 Write `workflow.json` strictly matching the schema (see the Schema constraints section + read the default `workflow.json` as reference). Validate locally by eye against the constraints list — don't leak a per-stage `subagent_type` field or set `interruptible: true` on a subagent stage.
 
@@ -169,7 +163,7 @@ Run `setup-workflow.sh --validate-only --workflow=<absolute-path>`:
 ```bash
 P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
 [[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
-"$P/scripts/setup-workflow.sh" --validate-only --workflow="$HOME/.dev-workflow/workflows/<name>"
+"$P/scripts/setup-workflow.sh" --validate-only --workflow="$HOME/.dev-workflow/workflows/<suffix>"
 ```
 
 Expected on success:
@@ -191,25 +185,25 @@ Skip this step if `MODE=local`.
 ```bash
 P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
 [[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
-"$P/scripts/publish-workflow.sh" "$HOME/.dev-workflow/workflows/<name>"
+"$P/scripts/publish-workflow.sh" "$HOME/.dev-workflow/workflows/<suffix>"
 ```
 
 `publish-workflow.sh` handles auth automatically:
 - **Logged in** → workflow is **private** (only you can access it)
 - **Anonymous** → workflow is **public** (anyone with the link can use it)
 
-If publishing fails, tell the user and continue — the workflow is still usable locally via `--workflow=~/.dev-workflow/workflows/<name>`.
+If publishing fails, tell the user and continue — the workflow is still usable locally via `--workflow=~/.dev-workflow/workflows/<suffix>`.
 
 ### Step 6 — Report success
 
 Tell the user:
 
-- **Where**: `~/.dev-workflow/workflows/<name>/` (absolute path)
+- **Where**: `~/.dev-workflow/workflows/<suffix>/` (absolute path)
 - **What's in it**: `workflow.json` + one `.md` per stage
 - **Validator summary** from Step 5 (one line, N stages / M terminal)
-- **Hub** (cloud mode only): relay the output from `publish-workflow.sh` verbatim — it already prints the hub URL, visibility, and pull command. If it failed, show the error and note the local path still works.
+- **Hub** (cloud mode only): relay the output from `publish-workflow.sh` verbatim — it already prints the hub URL, pull command, and visibility. If it failed, show the error and note the local path still works.
 - **How to launch**:
-  - Cloud: `/dev-workflow:start --workflow=cloud://<author>/<suffix> <your task>`
+  - Cloud: `/dev-workflow:start --workflow=<cloud://... from publish output> <your task>`
   - Local: `/dev-workflow:start --workflow=~/.dev-workflow/workflows/<suffix> <your task>`
 
 Do NOT run `/dev-workflow:start` yourself — that's the user's next action. Your job is done when the files are on disk, validation passed, and (in cloud mode) the workflow is published.
@@ -360,7 +354,7 @@ Tell the user:
   - If publish succeeded: "Changes pushed to hub — `<hub-url>`"
   - If publish failed: "Changes saved locally at `$LOCAL_DIR` — push manually with `/dev-workflow:publish <LOCAL_DIR>`"
 - **How to launch**:
-  - Cloud: `/dev-workflow:start --workflow=cloud://<author>/<name> <your task>`
+  - Cloud: `/dev-workflow:start --workflow=<cloud://... from publish output> <your task>`
   - Local: `/dev-workflow:start --workflow=<path> <your task>`
 
 ---

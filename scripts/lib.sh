@@ -249,6 +249,66 @@ resolve_state() {
     fi
   fi
 
+  # Cloud registry fallback: when cwd-based session lookup didn't match
+  # (e.g. command runs from a different worktree than where the workflow
+  # was set up), scan all registry entries for an active shadow state.md.
+  # Unambiguous single-match → auto-resolve; multiple active → error.
+  local _reg_dir="${HOME}/.dev-workflow/cloud-registry"
+  if [[ -d "$_reg_dir" ]]; then
+    local _cloud_matches=()
+    local _rf
+    for _rf in "${_reg_dir}"/*.json; do
+      [[ -f "$_rf" ]] || continue
+      local _rsid; _rsid="$(jq -r '.session_id // ""' "$_rf" 2>/dev/null || true)"
+      [[ -z "$_rsid" ]] && continue
+      local _rsd; _rsd="$(jq -r '.scratch_dir // ""' "$_rf" 2>/dev/null || true)"
+      [[ -z "$_rsd" ]] && _rsd="${HOME}/.cache/dev-workflow/sessions/${_rsid}"
+      local _rst="${_rsd}/state.md"
+      [[ -f "$_rst" ]] || continue
+      # Skip terminal statuses
+      local _rss; _rss="$(_read_fm_field "$_rst" status)"
+      case "$_rss" in complete|escalated|cancelled|"") continue ;; esac
+      # If DESIRED_SESSION is set, only match that session
+      if [[ -n "${DESIRED_SESSION:-}" ]] && [[ "$_rsid" != "$DESIRED_SESSION" ]]; then
+        continue
+      fi
+      _cloud_matches+=("$_rst")
+    done
+    # Narrow by project_root: prefer sessions whose project_root is a
+    # prefix of (or equal to) the current working directory.
+    if [[ ${#_cloud_matches[@]} -gt 1 ]]; then
+      local _pwd_now; _pwd_now="$(pwd)"
+      local _narrowed=()
+      for _m in "${_cloud_matches[@]}"; do
+        local _mpr; _mpr="$(_read_fm_field "$_m" project_root)"
+        [[ -z "$_mpr" ]] && continue
+        # Match if cwd == project_root or cwd is inside project_root
+        if [[ "$_pwd_now" == "$_mpr" ]] || [[ "$_pwd_now" == "${_mpr}/"* ]]; then
+          _narrowed+=("$_m")
+        fi
+      done
+      [[ ${#_narrowed[@]} -gt 0 ]] && _cloud_matches=("${_narrowed[@]}")
+    fi
+
+    if [[ ${#_cloud_matches[@]} -eq 1 ]]; then
+      _populate_state_vars "${_cloud_matches[0]}" ""
+      local _cpr; _cpr="$(_read_fm_field "${_cloud_matches[0]}" project_root)"
+      [[ -z "$_cpr" ]] && _cpr="$(pwd)"
+      PROJECT_ROOT="$_cpr"
+      return 0
+    elif [[ ${#_cloud_matches[@]} -gt 1 ]]; then
+      echo "Multiple active cloud workflows found. Pass --session=<id> to disambiguate:" >&2
+      local _m
+      for _m in "${_cloud_matches[@]}"; do
+        local _mt; _mt="$(_read_fm_field "$_m" topic)"
+        local _ms; _ms="$(_read_fm_field "$_m" status)"
+        local _mid; _mid="$(_read_fm_field "$_m" session_id)"
+        echo "   ${_mid}  topic=${_mt}  status=${_ms}" >&2
+      done
+      return 1
+    fi
+  fi
+
   local dw
   dw="$(find_dw_root)" || return 1
   local project_root

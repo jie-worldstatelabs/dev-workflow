@@ -16,8 +16,10 @@ source "${SCRIPT_DIR}/lib.sh"
 HARD=""
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --hard) HARD="yes"; shift ;;
-    *)      shift ;;
+    --hard)       HARD="yes"; shift ;;
+    --session=*)  DESIRED_SESSION="${1#--session=}"; shift ;;
+    --session)    DESIRED_SESSION="$2"; shift 2 ;;
+    *)            shift ;;
   esac
 done
 

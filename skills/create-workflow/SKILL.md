@@ -124,7 +124,9 @@ Ask the user to confirm the suffix.
 
 The local directory is always `~/.dev-workflow/workflows/<suffix>/` regardless of mode. The author prefix (e.g. `jie/paper-draft`) is added by `publish-workflow.sh` at publish time from the logged-in account — the skill never constructs or stores it.
 
-Check for collision: if `~/.dev-workflow/workflows/<suffix>/` already exists, tell the user and ask whether to pick a different name or overwrite. Do NOT overwrite silently.
+**Local collision check:** if `~/.dev-workflow/workflows/<suffix>/` already exists, tell the user and ask whether to pick a different name or overwrite. Do NOT overwrite silently.
+
+**Cloud collision check:** `publish-workflow.sh` performs a GET pre-check before publishing. If the name is taken by another user it exits with a clear error; if you already own it, it warns "Updating existing workflow" and proceeds. No separate check needed here — the collision is caught at publish time.
 
 ### Step 4 — Write the files
 

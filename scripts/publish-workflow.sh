@@ -225,6 +225,27 @@ PAYLOAD="$(jq -n --argjson files "$FILES_JSON" --arg desc "$DESCRIPTION" --arg v
 cloud_require_env || exit 1
 URL="${DEV_WORKFLOW_SERVER}/api/workflows/${NAME}"
 
+# ── Pre-check: does a workflow with this name already exist? ──
+# GET the workflow before the PUT so we can give a clear error if the
+# name is owned by a different user, instead of a raw HTTP error code.
+if [[ -z "$DRY_RUN" ]]; then
+  _pre_tmp="$(mktemp -t dw-precheck-XXXXXX)"
+  _pre_code="$(curl -sS -o "$_pre_tmp" -w "%{http_code}" \
+    -H "$(_cloud_auth_header)" \
+    "$URL" 2>/dev/null || echo "000")"
+  if [[ "$_pre_code" == "200" ]]; then
+    _remote_uid="$(jq -r '.user_id // .workflow.user_id // empty' "$_pre_tmp" 2>/dev/null || echo "")"
+    _my_uid="$(jq -r '.user_id // empty' ~/.dev-workflow/auth.json 2>/dev/null || echo "")"
+    if [[ -n "$_remote_uid" && -n "$_my_uid" && "$_remote_uid" != "$_my_uid" ]]; then
+      echo "❌ Name '${NAME}' is already taken by another user." >&2
+      rm -f "$_pre_tmp"
+      exit 1
+    fi
+    echo "⚠️  Updating existing workflow '${NAME}' on the hub." >&2
+  fi
+  rm -f "$_pre_tmp"
+fi
+
 if [[ -n "$DRY_RUN" ]]; then
   echo "── dry run ──"
   echo "  PUT ${URL}"
@@ -246,7 +267,11 @@ http_code=$(curl -sS -o "$tmp_body" -w "%{http_code}" \
     --data "$PAYLOAD" || echo "000")
 
 if [[ "$http_code" != "200" ]]; then
-  echo "❌ PUT failed with HTTP ${http_code}" >&2
+  case "$http_code" in
+    403) echo "❌ Permission denied — '${NAME}' may be owned by a different user." >&2 ;;
+    409) echo "❌ Name '${NAME}' is already taken by another user." >&2 ;;
+    *)   echo "❌ Publish failed (HTTP ${http_code})." >&2 ;;
+  esac
   cat "$tmp_body" >&2
   echo "" >&2
   exit 1

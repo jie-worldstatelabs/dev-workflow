@@ -171,20 +171,12 @@ _session_cache_cwd_key() {
 read_cached_session_id() {
   local cache="$_DW_SESSION_CACHE_DIR"
   local key
-  # Try cwd key first, then walk up the directory tree.
-  # The SessionStart hook fires with the directory Claude Code was opened in,
-  # but Bash-tool subprocesses may run from a subdirectory of that root.
-  local dir; dir="$(pwd)"
-  while true; do
-    key="$(printf '%s' "$dir" | shasum -a 1 | cut -c1-16)"
-    if [[ -f "${cache}/cwd-${key}" ]]; then
-      cat "${cache}/cwd-${key}"
-      return 0
-    fi
-    local parent; parent="$(dirname "$dir")"
-    [[ "$parent" == "$dir" ]] && break   # reached filesystem root
-    dir="$parent"
-  done
+  # Try cwd key first (most reliable when there's no cd-drift)
+  key="$(_session_cache_cwd_key)"
+  if [[ -f "${cache}/cwd-${key}" ]]; then
+    cat "${cache}/cwd-${key}"
+    return 0
+  fi
   # Walk up the process tree looking for a matching ppid cache file
   local pid=$PPID
   local hops=0

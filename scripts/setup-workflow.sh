@@ -217,8 +217,8 @@ if [[ "$MODE" == "cloud" ]]; then
   WORKFLOW_URL=""
   case "$WORKFLOW_NAME" in
     "")
-      # Cloud mode + no --workflow flag → use hub default
-      _cloud_name="worldstatelabs/default"
+      # Cloud mode + no --workflow flag → use hub demo workflow
+      _cloud_name="worldstatelabs/demo"
       WORKFLOW_URL="${DEV_WORKFLOW_SERVER}/api/workflows/${_cloud_name}"
       cloud_fetch_workflow_from_name "$_cloud_name" "$WORKFLOW_CACHE" || {
         rm -rf "$SCRATCH_DIR"

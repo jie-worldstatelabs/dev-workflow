@@ -188,11 +188,18 @@ Loop:
          Wait for the subagent to complete.
          Read the artifact it produced to get the `result:` frontmatter value.
 
-  d. Look up <workflow_dir>/workflow.json → stages.<status>.transitions[<result>]
-     to get the next status, then run (re-discover $P each Bash-tool call):
+  d. Read the `result:` value from the artifact, then look up the destination
+     stage in the transition table — **do NOT pass the result key directly to
+     update-status.sh**; it only accepts stage names, not result keys:
+         CURRENT_STATUS=<status from state.md>
+         RESULT=<result: value from artifact>
+         NEXT_STATUS=$(jq -r --arg stage "$CURRENT_STATUS" --arg result "$RESULT" \
+           '.stages[$stage].transitions[$result] // empty' \
+           "<workflow_dir>/workflow.json")
+     Then run (re-discover $P each Bash-tool call):
          P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
          [[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
-         "$P/scripts/update-status.sh" --status <next>
+         "$P/scripts/update-status.sh" --status "$NEXT_STATUS"
      (The next iteration of the loop picks up the new status.)
 ```
 

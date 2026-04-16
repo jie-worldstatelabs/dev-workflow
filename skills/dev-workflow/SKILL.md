@@ -160,7 +160,11 @@ eval "$("$P/scripts/parse-workflow-flags.sh" "$ARGS")" || exit 1
 
 _server="${DEV_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}"
 if [[ -z "$WORKFLOW_FLAG" ]]; then
-  _wf="default (bundled with plugin)"
+  if [[ "$MODE" == "cloud" ]]; then
+    _wf="demo  ←  ${_server}/hub/demo  (cloud default)"
+  else
+    _wf="default (bundled with plugin)"
+  fi
 elif [[ "$WF_TYPE" == "cloud" ]]; then
   _wf="${WORKFLOW_FLAG}  ←  ${_server}/hub/${WORKFLOW_FLAG#cloud://}"
 else

@@ -53,6 +53,18 @@ trap cleanup EXIT
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+# Read the session UUID from the local session cache for a project directory.
+# The session-start hook writes ~/.dev-workflow/session-cache/cwd-<sha1> each
+# time a Claude session opens in that project. stop-hook does NOT clean it up,
+# so it persists after the workflow terminates — reliable for post-run lookups.
+read_project_session() {
+  local project="$1"
+  local key
+  key="$(cd "$project" && printf '%s' "$(pwd)" | shasum -a 1 | cut -c1-16)"
+  local cache_file="${HOME}/.dev-workflow/session-cache/cwd-${key}"
+  [[ -f "$cache_file" ]] && cat "$cache_file" || echo ""
+}
+
 make_git_project() {
   local dir="$1"
   mkdir -p "$dir"
@@ -161,14 +173,15 @@ run_claude "$P1" \
 
 check "C2E-2-1: claude exits 0" "$RC1"
 
-# Extract session UUID from output (look for "Session: <uuid>")
-SID1=""
-if [[ "$OUTPUT1" =~ Session:\ ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}) ]]; then
-  SID1="${BASH_REMATCH[1]}"
+# Read the session UUID from the session cache (stop-hook does not clean it up,
+# so it persists even after the workflow terminates in cloud mode).
+SID1="$(read_project_session "$P1")"
+if [[ -n "$SID1" ]]; then
   CREATED_SESSIONS+=("$SID1")
 fi
-rc_sid1=0; [[ -n "$SID1" ]] || rc_sid1=1
-check "C2E-2-1: session UUID visible in output" "$rc_sid1"
+rc_sid1=0
+[[ -n "$SID1" ]] && [[ "$SID1" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || rc_sid1=1
+check "C2E-2-1: session UUID recoverable from session cache" "$rc_sid1"
 
 if [[ -n "$SID1" ]]; then
   # Shadow should be wiped after terminal (cloud_wipe_scratch).
@@ -258,8 +271,10 @@ else
 fi
 
 # Real Claude invocation to continue the interrupted workflow.
-run_claude "$P3" "/dev-workflow:continue" OUT3_CONT RC3_CONT
-check "C2E-2-3: /dev-workflow:continue (real Claude) exits 0" "$RC3_CONT"
+# Must pass --session explicitly: the new Claude session's UUID overwrites the
+# session cache for P3, so continue-workflow.sh can't find SID3 via the cache.
+run_claude "$P3" "/dev-workflow:continue --session ${SID3}" OUT3_CONT RC3_CONT
+check "C2E-2-3: /dev-workflow:continue --session (real Claude) exits 0" "$RC3_CONT"
 
 # After continue drives to terminal: check for artifact in shadow (it may
 # already be wiped if stop-hook fired). The artifact is analyze-report.md.

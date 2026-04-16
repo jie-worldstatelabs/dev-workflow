@@ -68,6 +68,24 @@ In local mode, state and stage reports go under `<project>/.dev-workflow/<sessio
 
 `/dev-workflow:continue --session <id>` on a machine that has never seen this cloud session pulls the full snapshot (state + artifacts + workflow config + baseline) from the server and verifies the current `pwd` is the same git project via root-commit fingerprint. On match with a different absolute path, `project_root` auto-updates so downstream `git diff` operations use the right working copy. On mismatch it exits with a clear error — `--force-project-mismatch` overrides.
 
+## Examples
+
+### Custom design workflow
+
+```
+/dev-workflow:create-workflow Create a design workflow with three stages: plan, execute,
+and evaluate. The plan stage should browse the app's pages in a browser, read the
+codebase, discuss with the user the scope of the redesign and the desired direction,
+and produce a re-design plan. The execute stage implements changes based on the
+re-design plan. The evaluate stage tests the updated webapp by operating it in a browser.
+```
+
+This creates a `workflow.json` with three stages (`planning → executing → evaluating`),
+generates per-stage instruction files, and publishes the bundle to the hub so you can
+reuse it across projects with `--workflow=cloud://<you>/design`.
+
+---
+
 ## Command Reference
 
 ### `/dev-workflow:start` — start a workflow run

@@ -87,7 +87,7 @@ if config_is_stage "$NEW_STATUS"; then
   MISSING_INPUTS=()
   while IFS=$'\t' read -r type key description; do
     [[ -z "$key" ]] && continue
-    local input_path
+    input_path=
     if [[ "$type" == "run_file" ]]; then
       input_path="$(config_run_file_path "$key")"
     else

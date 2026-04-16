@@ -26,7 +26,7 @@ The output reports the **Topic** and **Phase** (the phase to jump back into).
 
 ## Step 2: Load the Workflow Skill
 
-Invoke `Skill("dev-workflow:dev")` and follow its instructions exactly. The skill is self-contained — do NOT invoke any other skill.
+Invoke `Skill("dev-workflow:dev-workflow")` and follow its instructions exactly. The skill is self-contained — do NOT invoke any other skill.
 
 ## Step 3: Resume From the Detected Phase
 

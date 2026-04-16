@@ -179,7 +179,6 @@ Write one `<stage>.md` per declared stage. Guidelines:
 **All stage files should include**:
 - A short header (`# Stage: <name>`)
 - A purpose line
-- An output-artifact path template: `<project>/.dev-workflow/<session_id>/<stage>-report.md`
 - The list of valid `result:` values (must match the keys in `transitions` for that stage)
 - The frontmatter format the file must produce:
   ```
@@ -189,9 +188,9 @@ Write one `<stage>.md` per declared stage. Guidelines:
   ---
   ```
 
-**For inline stages** (execution.type = `inline`): address the main agent ("You drive this stage directly. Read state.md to get the epoch, do <the work>, then write the output artifact with the frontmatter above."). Do NOT instruct the stage to call `update-status.sh` — that is the SKILL.md main loop's responsibility (step e), not the stage file's. The stage file's only job is to produce the artifact with a valid `result:` value.
+**For inline stages** (execution.type = `inline`): address the main agent ("You drive this stage directly. Read state.md to get the epoch, do <the work>, then write the output artifact at **the path shown in your I/O context** with the frontmatter above."). Do NOT instruct the stage to call `update-status.sh` — that is the main loop's responsibility (step d), not the stage file's. The stage file's only job is to produce the artifact with a valid `result:` value.
 
-**For subagent stages** (execution.type = `subagent`): address the generic `workflow-subagent` ("You are <role>. Read the inputs listed in your prompt. Do X, Y, Z. Write the output artifact at the absolute path given in your prompt with the frontmatter above."). The subagent will be given the stage file's absolute path via `agent-guard.sh`'s prompt template — it reads the file first as its canonical protocol.
+**For subagent stages** (execution.type = `subagent`): address the `workflow-subagent` ("You are <role>. Read the inputs listed in your prompt. Do X, Y, Z. Write the output artifact at **the absolute path given in your prompt** with the frontmatter above."). The subagent reads this file as its canonical protocol.
 
 Tune the body to the stage's domain (a reviewer stage talks about severity classes, a tester stage talks about test commands, etc.). Look at `reviewing.md` and `qa-ing.md` in the default workflow for examples of domain-specific bodies.
 
@@ -228,8 +227,8 @@ P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
 ```
 
 `publish-workflow.sh` handles auth automatically:
-- **Logged in** → Bearer token → server stamps `user_id` → workflow is **private** (only you can access it)
-- **Anonymous** → no token → workflow created without owner → **public** (anyone with the link can use it)
+- **Logged in** → workflow is **private** (only you can access it)
+- **Anonymous** → workflow is **public** (anyone with the link can use it)
 
 If publishing fails, tell the user and continue — the workflow is still usable locally via `--workflow=~/.dev-workflow/workflows/<name>`.
 

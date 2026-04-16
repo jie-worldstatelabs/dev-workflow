@@ -181,12 +181,6 @@ unset _CLOUD_REG _LOCAL_DIR
 # CLOUD MODE
 # ══════════════════════════════════════════════════════════════
 if [[ "$MODE" == "cloud" ]]; then
-  if [[ -n "$WORKFLOW_NAME" ]] && [[ "$WORKFLOW_NAME" != cloud://* ]]; then
-    echo "❌ '${WORKFLOW_NAME}' is a local path — cannot be used in cloud mode." >&2
-    echo "   Use --mode=local for a local workflow, or pass a cloud://author/name reference." >&2
-    exit 1
-  fi
-
   cloud_require_env || exit 1
 
   WORKTREE_ROOT="$(git -C "${PROJECT_ROOT}" rev-parse --show-toplevel 2>/dev/null || echo "$PROJECT_ROOT")"

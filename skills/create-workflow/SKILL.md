@@ -160,41 +160,13 @@ Tune the body to the stage's domain (a reviewer stage talks about severity class
 
 ### Step 5 — Validate
 
-Run `setup-workflow.sh --validate-only --workflow=<absolute-path>`:
-
-```bash
-P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
-"$P/scripts/setup-workflow.sh" --validate-only --workflow="$HOME/.dev-workflow/workflows/<suffix>"
-```
-
-Expected on success:
-
-```
-✓ Workflow validated: N stages, M terminal
-   dir:      <absolute path>
-   initial:  <initial_stage>
-   stages:   <space-separated stage names>
-   terminal: <space-separated terminal stages>
-```
-
-If validation fails, the output has `❌` lines for each problem (missing stage file, invalid transition target, unsupported `subagent_type` field, subagent stage with `interruptible: true`, etc.). **Read them, fix the generated files, re-run.** Do NOT proceed to Step 5.5 (cloud mode) or Step 6 (local mode) until validation passes.
+Run the [shared Validate step](#validate) with `--workflow="$HOME/.dev-workflow/workflows/<suffix>"`. Do NOT proceed to Step 5.5 (cloud mode) or Step 6 (local mode) until validation passes.
 
 ### Step 5.5 — Publish to hub (cloud mode only)
 
 Skip this step if `MODE=local`.
 
-```bash
-P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
-"$P/scripts/publish-workflow.sh" "$HOME/.dev-workflow/workflows/<suffix>"
-```
-
-`publish-workflow.sh` handles auth automatically:
-- **Logged in** → workflow is **private** (only you can access it)
-- **Anonymous** → workflow is **public** (anyone with the link can use it)
-
-If publishing fails, tell the user and continue — the workflow is still usable locally via `--workflow=~/.dev-workflow/workflows/<suffix>`.
+Run the [shared Publish step](#publish-to-hub) with `"$HOME/.dev-workflow/workflows/<suffix>"`. On failure, tell the user and continue — the workflow is still usable locally via `--workflow=~/.dev-workflow/workflows/<suffix>`.
 
 ### Step 6 — Report success
 
@@ -209,6 +181,44 @@ Tell the user:
   - Local: `/dev-workflow:start --workflow=~/.dev-workflow/workflows/<suffix> <your task>`
 
 Do NOT run `/dev-workflow:start` yourself — that's the user's next action. Your job is done when the files are on disk, validation passed, and (in cloud mode) the workflow is published.
+
+---
+
+## Validate
+
+```bash
+P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
+"$P/scripts/setup-workflow.sh" --validate-only --workflow="<absolute-path>"
+```
+
+Expected on success:
+
+```
+✓ Workflow validated: N stages, M terminal
+   dir:      <absolute path>
+   initial:  <initial_stage>
+   stages:   <space-separated stage names>
+   terminal: <space-separated terminal stages>
+```
+
+If validation fails, the output has `❌` lines for each problem (missing stage file, invalid transition target, unsupported `subagent_type` field, subagent stage with `interruptible: true`, etc.). **Read them, fix the generated files, re-run** until it passes.
+
+---
+
+## Publish to hub
+
+```bash
+P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
+"$P/scripts/publish-workflow.sh" "<absolute-path-to-workflow-dir>"
+```
+
+`publish-workflow.sh` handles auth automatically:
+- **Logged in** → workflow is **private** (only you can access it)
+- **Anonymous** → workflow is **public** (anyone with the link can use it)
+
+If the name already exists under your account, the script warns "Updating existing workflow" and proceeds. If the name is taken by another user, it exits with a clear error — pick a different suffix.
 
 ---
 
@@ -321,30 +331,13 @@ Write only the files that changed (workflow.json and/or the affected stage `.md`
 
 ### Edit Step 6 — Validate
 
-```bash
-P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
-"$P/scripts/setup-workflow.sh" --validate-only --workflow="<working directory absolute path>"
-```
-
-Fix any errors and re-run until validation passes.
+Run the [shared Validate step](#validate) with the working directory absolute path. Fix any errors and re-run until validation passes.
 
 ### Edit Step 6.5 — Push back to cloud (cloud source only)
 
 Skip this step if the workflow came from a local path.
 
-If the workflow came from a `cloud://author/name` reference, publish the updated local directory back to the hub now that validation has passed:
-
-```bash
-P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
-"$P/scripts/publish-workflow.sh" "$LOCAL_DIR"
-```
-
-`publish-workflow.sh` uses the stored auth token automatically — the workflow will be updated under the same name and ownership on the hub.
-
-- On success: note the hub URL printed by the script for the Step 7 report.
-- On failure: tell the user the changes are saved locally at `$LOCAL_DIR` and they can retry with `/dev-workflow:publish <LOCAL_DIR>`. Do NOT abort — the local edits are still valid.
+Run the [shared Publish step](#publish-to-hub) with `"$LOCAL_DIR"`. On success: note the hub URL for the Step 7 report. On failure: tell the user the changes are saved locally at `$LOCAL_DIR` and they can retry with `/dev-workflow:publish <LOCAL_DIR>`. Do NOT abort — the local edits are still valid.
 
 ### Edit Step 7 — Report success
 

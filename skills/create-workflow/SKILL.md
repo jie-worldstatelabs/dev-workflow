@@ -144,17 +144,22 @@ Write one `<stage>.md` per declared stage. Guidelines:
 - A short header (`# Stage: <name>`)
 - A purpose line
 - The list of valid `result:` values (must match the keys in `transitions` for that stage)
-- The frontmatter format the file must produce:
+- The frontmatter format the file must produce (epoch source differs by execution type — see below):
   ```
   ---
-  epoch: <epoch from the prompt>
+  epoch: <epoch>
   result: <one of the valid values>
   ---
   ```
 
-**For inline stages** (execution.type = `inline`): address the main agent ("You drive this stage directly. Read state.md to get the epoch, do <the work>, then write the output artifact at **the path shown in your I/O context** with the frontmatter above."). Do NOT instruct the stage to call `update-status.sh` — that is the main loop's responsibility (step d), not the stage file's. The stage file's only job is to produce the artifact with a valid `result:` value.
+**For inline stages** (execution.type = `inline`): address the main agent. The epoch comes from reading `state.md`. Distinguish by `interruptible`:
 
-**For subagent stages** (execution.type = `subagent`): address the `workflow-subagent` ("You are <role>. Read the inputs listed in your prompt. Do X, Y, Z. Write the output artifact at **the absolute path given in your prompt** with the frontmatter above."). The subagent reads this file as its canonical protocol.
+- **`interruptible: true`** — the agent may pause for user input mid-stage. Instruct it to: (1) read `state.md` for the current epoch, (2) immediately write the artifact at the path shown in I/O context with `result: pending` (so the stop hook knows the stage is in progress), (3) do the work, optionally pausing for user input, (4) overwrite the artifact with the final `result:` when done.
+- **`interruptible: false`** — the agent runs autonomously. Instruct it to: read `state.md` for the epoch, do the work without pausing, write the artifact with the final `result:` when done.
+
+Do NOT instruct the stage to call `update-status.sh` — that is the main loop's responsibility (step d), not the stage file's.
+
+**For subagent stages** (execution.type = `subagent`): address the `workflow-subagent`. The epoch is provided in the subagent's prompt by the agent-guard hook — instruct it to read the epoch from its prompt, not from `state.md`. ("You are <role>. Read the inputs listed in your prompt. Do X, Y, Z. Write the output artifact at **the absolute path given in your prompt** with the frontmatter above, using the epoch from your prompt."). The subagent reads this file as its canonical protocol.
 
 Tune the body to the stage's domain (a reviewer stage talks about severity classes, a tester stage talks about test commands, etc.). Look at `reviewing.md` and `qa-ing.md` in the default workflow for examples of domain-specific bodies.
 

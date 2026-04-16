@@ -24,6 +24,49 @@ AUTH_FILE="${AUTH_DIR}/auth.json"
 mkdir -p "$AUTH_DIR"
 chmod 700 "$AUTH_DIR"
 
+# ── Demo shortcut ──────────────────────────────────────────────────────────
+# Usage: login-workflow.sh --demo
+# Fetches a pre-seeded plugin token for the shared demo account without
+# going through the OAuth device-code flow. Intended for testing only.
+if [[ "${1:-}" == "--demo" ]]; then
+  if [[ -f "$AUTH_FILE" ]]; then
+    existing_user="$(jq -r '.user_id // empty' "$AUTH_FILE" 2>/dev/null || true)"
+    if [[ -n "$existing_user" ]]; then
+      echo "Already signed in as: $existing_user"
+      echo "Run /dev-workflow:logout first to switch to the demo account."
+      exit 0
+    fi
+  fi
+  echo "Fetching demo token from ${SERVER}…"
+  resp="$(curl -sS "${SERVER}/api/auth/demo-token")" || {
+    echo "❌ Failed to reach ${SERVER}/api/auth/demo-token" >&2
+    exit 1
+  }
+  token="$(echo "$resp" | jq -r '.token // empty')"
+  user_id="$(echo "$resp" | jq -r '.user_id // empty')"
+  author="$(echo "$resp" | jq -r '.author // empty')"
+  if [[ -z "$token" ]]; then
+    echo "❌ Server did not return a token:" >&2
+    echo "$resp" >&2
+    exit 1
+  fi
+  jq -n \
+    --arg server "$SERVER" \
+    --arg token "$token" \
+    --arg user_id "$user_id" \
+    --arg author "$author" \
+    --arg label "demo" \
+    --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    '{server: $server, token: $token, user_id: $user_id, author: $author, label: $label, created_at: $created_at}' \
+    > "${AUTH_FILE}.tmp"
+  mv "${AUTH_FILE}.tmp" "$AUTH_FILE"
+  chmod 600 "$AUTH_FILE"
+  echo "✓ Signed in as ${author} (${user_id})"
+  echo "  Token stored in ${AUTH_FILE}"
+  exit 0
+fi
+# ───────────────────────────────────────────────────────────────────────────
+
 if [[ -f "$AUTH_FILE" ]]; then
   existing_user="$(jq -r '.user_id // empty' "$AUTH_FILE" 2>/dev/null || true)"
   if [[ -n "$existing_user" ]]; then

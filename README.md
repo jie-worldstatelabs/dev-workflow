@@ -3,10 +3,8 @@
 A Claude Code plugin that runs **config-driven development workflows** as a state machine. You declare stages, transitions, and inputs in a single `workflow.json`; the plugin's hooks and scripts drive the loop.
 
 Two modes:
+- **Cloud** (default) — state mirrored to a hosted webapp with a live browser viewer, cross-machine resume, and zero project-dir footprint.
 - **Local** — state and artifacts live under `<project>/.meta-workflow/`, no network.
-- **Cloud** (default) — state mirrored to a hosted Next.js + Postgres webapp with a live browser viewer, cross-machine resume, and zero project-dir footprint.
-
-The protocol is identical; cloud mode is just "where do the files live."
 
 ## Installation
 

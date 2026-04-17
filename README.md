@@ -8,31 +8,45 @@ Two modes:
 
 ## Installation
 
-```bash
-claude plugin marketplace add https://github.com/jie-worldstatelabs/meta-workflow
-claude plugin install meta-workflow
+Run these slash commands **inside a Claude Code session**. Cloud mode is on by default — no config, no keys, no account required.
+
+```
+/plugin marketplace add jie-worldstatelabs/meta-workflow
+/plugin install meta-workflow
 ```
 
 Requires: [Claude Code](https://claude.ai/claude-code), `jq`.
 
 ## Quick Start
 
+Start a workflow — the default development workflow builds what you describe:
+
 ```
-/meta-workflow:start Build a web app for diary and MBTI analysis
+/meta-workflow:start "Build a webapp for diary and MBTI analysis"
 ```
 
-The skill prints a UI URL (cloud mode):
+The skill prints a live UI URL:
 
 ```
 UI: https://workflows.worldstatelabs.com/s/<session_id>
 ```
 
-Paste it in a browser to watch the stage timeline, rendered artifacts, and `git diff baseline..HEAD` update live via SSE. The project worktree gets **nothing** under `.meta-workflow/`.
+Paste it in a browser to watch the stage timeline, rendered artifacts, and `git diff baseline..HEAD` update live via SSE. The project worktree stays clean — nothing under `.meta-workflow/`.
 
-For a fully offline run:
+Or define your own workflow from a natural-language prompt — meta-workflow scaffolds the stages:
 
 ```
-/meta-workflow:start --mode=local Build a web app for diary and MBTI analysis
+/meta-workflow:create-workflow "Create a design workflow with plan, execute,
+and evaluate stages. Plan browses the app and codebase and agrees a re-design
+plan with the user. Execute implements it. Evaluate operates the app in a
+browser and scores it on design quality, originality, craft, functionality,
+and adherence to the plan."
+```
+
+For a fully offline run, switch to local mode:
+
+```
+/meta-workflow:start --mode=local "Build a webapp for diary and MBTI analysis"
 ```
 
 ## The Default Workflow

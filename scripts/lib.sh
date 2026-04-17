@@ -829,7 +829,7 @@ _cloud_server() {
 #     attribute the request to the logged-in user and stamp user_id on
 #     any rows it creates.
 #
-#   - Anonymous: no auth file. We emit a benign X-Dev-Workflow marker
+#   - Anonymous: no auth file. We emit a benign X-Meta-Workflow marker
 #     so the curl -H argument is always well-formed (curl rejects empty
 #     -H values). Server routes that don't require auth continue to
 #     accept the request; routes that check user_id see NULL.
@@ -858,7 +858,7 @@ _cloud_auth_header() {
       return 0
     fi
   fi
-  echo "X-Dev-Workflow: plugin"
+  echo "X-Meta-Workflow: plugin"
 }
 
 # ──────────────────────────────────────────────────────────────

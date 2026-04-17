@@ -36,10 +36,23 @@ done
 # block, resolve_state will find the shadow via either key.
 if [[ -n "${DESIRED_SESSION:-}" ]] && ! is_cloud_session "$DESIRED_SESSION"; then
   echo "▶️  Attempting cross-machine takeover of cloud session ${DESIRED_SESSION}..." >&2
-  scratch_path="$(cloud_pull_shadow "$DESIRED_SESSION")" || {
+  scratch_path="$(cloud_pull_shadow "$DESIRED_SESSION")"
+  _pull_rc=$?
+  if [[ $_pull_rc -eq 2 ]]; then
+    # 404 — session was deleted from the server.
+    echo "❌ Session ${DESIRED_SESSION} no longer exists on the server." >&2
+    echo "   It was deleted via the web UI or the server API." >&2
+    echo "   There is no state to resume. Start a new workflow with:" >&2
+    echo "   /dev-workflow:start <task>" >&2
+    # Clean up any stale local state for this session.
+    cloud_wipe_scratch "$DESIRED_SESSION" 2>/dev/null || true
+    cloud_unregister_session "$DESIRED_SESSION" 2>/dev/null || true
+    exit 1
+  fi
+  if [[ $_pull_rc -ne 0 ]]; then
     echo "❌ could not pull session ${DESIRED_SESSION} from server" >&2
     exit 1
-  }
+  fi
   # Primary alias — matches the server-side session_id and the scratch
   # dir basename, so cloud_post_* helpers POST to the right row.
   cloud_register_session "$DESIRED_SESSION" "${DEV_WORKFLOW_SERVER}" "" "$scratch_path"

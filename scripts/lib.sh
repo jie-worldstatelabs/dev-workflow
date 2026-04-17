@@ -1221,13 +1221,23 @@ cloud_pull_shadow() {
     return 1
   fi
 
-  local snapshot
-  snapshot="$(curl -sS -fL \
+  local _pull_tmp _pull_http
+  _pull_tmp="$(mktemp -t dw-pull-XXXXXX)"
+  # shellcheck disable=SC2064
+  trap "rm -f '$_pull_tmp'" RETURN
+  _pull_http="$(curl -sS -o "$_pull_tmp" -w "%{http_code}" \
       -H "$(_cloud_auth_header)" \
-      "${DEV_WORKFLOW_SERVER}/api/sessions/${sid}" 2>/dev/null)" || {
-    echo "❌ could not fetch session ${sid} from server" >&2
+      "${DEV_WORKFLOW_SERVER}/api/sessions/${sid}" 2>/dev/null)" || _pull_http="000"
+  if [[ "$_pull_http" == "404" ]]; then
+    echo "❌ session ${sid} was deleted from the server (HTTP 404)" >&2
+    return 2
+  fi
+  if [[ "$_pull_http" != "200" ]]; then
+    echo "❌ could not fetch session ${sid} from server (HTTP ${_pull_http})" >&2
     return 1
-  }
+  fi
+  local snapshot
+  snapshot="$(cat "$_pull_tmp")"
   if ! printf '%s' "$snapshot" | jq empty 2>/dev/null; then
     echo "❌ server returned non-JSON for session ${sid}" >&2
     return 1

@@ -39,7 +39,12 @@ For a fully offline run:
 
 ## The Default Workflow
 
-Bundled at `skills/dev-workflow/workflow/`, the default workflow is a **plan → execute → verify → review → QA → loop** cycle:
+With no `--workflow` flag:
+
+- **Cloud mode** (default) fetches `cloud://demo` from the hub
+- **Local mode** uses the plugin-bundled workflow at `skills/dev-workflow/workflow/` (offline fallback)
+
+Both are the same **plan → execute → verify → review → QA → loop** cycle:
 
 1. **Planning** *(interruptible)* — inline Q&A with you: clarifying questions, proposed approaches, plan file. You confirm before anything gets built.
 2. **Executing** — subagent (opus) implements the plan: tests-first when specified, minimal focused changes.
@@ -82,7 +87,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the `workflow.json` schema.
 | `/dev-workflow:login` / `:logout` / `:whoami` | Manage your hub identity |
 
 **`--workflow=<ref>`** accepts:
-- *(omitted)* — bundled default workflow
+- *(omitted)* — cloud mode fetches `cloud://demo` from the hub; local mode uses the plugin-bundled workflow
 - `cloud://author/name` — fetched from the hub (cloud mode)
 - `/abs/path` or `./rel/path` — local workflow directory
 

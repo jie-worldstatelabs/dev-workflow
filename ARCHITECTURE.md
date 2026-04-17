@@ -26,7 +26,9 @@ skills/
   dev-workflow/
     SKILL.md             ← meta-protocol: how to drive the state machine
                            (workflow-agnostic)
-    workflow/            ← bundled default workflow package
+    workflow/            ← bundled workflow package (local-mode fallback
+                           when --workflow is omitted; cloud mode fetches
+                           cloud://demo from the hub instead)
       workflow.json      ← state-machine shape
       planning.md        ← per-stage instructions
       executing.md

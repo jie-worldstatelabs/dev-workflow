@@ -20,7 +20,7 @@ Requires: [Claude Code](https://claude.ai/claude-code), `jq`.
 ## Quick Start
 
 ```
-/dev-workflow:start Build a REST API with user authentication
+/dev-workflow:start Build a web app for diary and MBTI analysis
 ```
 
 The skill prints a UI URL (cloud mode):
@@ -34,9 +34,7 @@ Paste it in a browser to watch the stage timeline, rendered artifacts, and `git 
 For a fully offline run:
 
 ```
-/dev-workflow:start --mode=local Build a REST API
-# or flip the default for the whole shell:
-export DEV_WORKFLOW_DEFAULT_MODE=local
+/dev-workflow:start --mode=local Build a web app for diary and MBTI analysis
 ```
 
 ## The Default Workflow

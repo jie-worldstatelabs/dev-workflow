@@ -110,8 +110,6 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the `workflow.json` schema.
 | Cross-machine continue | Not supported | `/meta-workflow:continue --session <id>` with project-fingerprint verification |
 | `.gitignore` entry needed | `echo '/.meta-workflow/' >> .gitignore` | None |
 
-For the full cloud architecture (write-through mirror, SSE, cross-machine protocol, API reference, deploy guide), see the **[workflowUI README](https://github.com/jie-worldstatelabs/workflowUI)**.
-
 ## Key Design Decisions
 
 - **Config-driven** — stages, transitions, interruptible flags, subagent types/models, and input dependencies all live in `workflow.json`. Adding a stage or changing a transition is a config edit, not a code change.

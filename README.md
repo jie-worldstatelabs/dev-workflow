@@ -1,9 +1,9 @@
-# dev-workflow
+# meta-workflow
 
 A Claude Code plugin that runs **config-driven development workflows** as a state machine. You declare stages, transitions, and inputs in a single `workflow.json`; the plugin's hooks and scripts drive the loop.
 
 Two modes:
-- **Local** — state and artifacts live under `<project>/.dev-workflow/`, no network.
+- **Local** — state and artifacts live under `<project>/.meta-workflow/`, no network.
 - **Cloud** (default) — state mirrored to a hosted Next.js + Postgres webapp with a live browser viewer, cross-machine resume, and zero project-dir footprint.
 
 The protocol is identical; cloud mode is just "where do the files live."
@@ -11,8 +11,8 @@ The protocol is identical; cloud mode is just "where do the files live."
 ## Installation
 
 ```bash
-claude plugin marketplace add https://github.com/jie-worldstatelabs/dev-workflow
-claude plugin install dev-workflow
+claude plugin marketplace add https://github.com/jie-worldstatelabs/meta-workflow
+claude plugin install meta-workflow
 ```
 
 Requires: [Claude Code](https://claude.ai/claude-code), `jq`.
@@ -20,7 +20,7 @@ Requires: [Claude Code](https://claude.ai/claude-code), `jq`.
 ## Quick Start
 
 ```
-/dev-workflow:start Build a web app for diary and MBTI analysis
+/meta-workflow:start Build a web app for diary and MBTI analysis
 ```
 
 The skill prints a UI URL (cloud mode):
@@ -29,12 +29,12 @@ The skill prints a UI URL (cloud mode):
 UI: https://workflows.worldstatelabs.com/s/<session_id>
 ```
 
-Paste it in a browser to watch the stage timeline, rendered artifacts, and `git diff baseline..HEAD` update live via SSE. The project worktree gets **nothing** under `.dev-workflow/`.
+Paste it in a browser to watch the stage timeline, rendered artifacts, and `git diff baseline..HEAD` update live via SSE. The project worktree gets **nothing** under `.meta-workflow/`.
 
 For a fully offline run:
 
 ```
-/dev-workflow:start --mode=local Build a web app for diary and MBTI analysis
+/meta-workflow:start --mode=local Build a web app for diary and MBTI analysis
 ```
 
 ## The Default Workflow
@@ -42,7 +42,7 @@ For a fully offline run:
 With no `--workflow` flag:
 
 - **Cloud mode** (default) fetches `cloud://demo` from the hub
-- **Local mode** uses the plugin-bundled workflow at `skills/dev-workflow/workflow/` (offline fallback)
+- **Local mode** uses the plugin-bundled workflow at `skills/meta-workflow/workflow/` (offline fallback)
 
 Both are the same **plan → execute → verify → review → QA → loop** cycle:
 
@@ -59,17 +59,17 @@ The `execute → verify → review → QA` loop runs **autonomously** after you 
 The plugin is **generic** — any stage shape works as long as it follows the schema. Create a custom workflow via natural language:
 
 ```
-/dev-workflow:create-workflow Create a design workflow with plan, execute,
+/meta-workflow:create-workflow Create a design workflow with plan, execute,
 and evaluate stages. Plan browses the app and codebase and agrees a re-design
 plan with the user. Execute implements it. Evaluate operates the app in a
 browser and scores it on design quality, originality, craft, functionality,
 and adherence to the plan.
 ```
 
-This writes a `workflow.json` + per-stage instruction files to `~/.dev-workflow/workflows/<name>/` and publishes the bundle to the hub. Reuse it with:
+This writes a `workflow.json` + per-stage instruction files to `~/.meta-workflow/workflows/<name>/` and publishes the bundle to the hub. Reuse it with:
 
 ```
-/dev-workflow:start --workflow=cloud://<you>/<name> <task>
+/meta-workflow:start --workflow=cloud://<you>/<name> <task>
 ```
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the `workflow.json` schema.
@@ -78,13 +78,13 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the `workflow.json` schema.
 
 | Command | Purpose |
 |---|---|
-| `/dev-workflow:start [--mode=cloud\|local] [--workflow=<ref>] <task>` | Start a new run |
-| `/dev-workflow:interrupt` | Pause the active run at the end of the current stage |
-| `/dev-workflow:continue [--session <id>]` | Resume an interrupted run (`--session` for cross-machine cloud takeover) |
-| `/dev-workflow:cancel [--hard]` | Cancel and archive (or wipe with `--hard`) |
-| `/dev-workflow:create-workflow [--workflow=<ref>] <description>` | Create a new workflow or edit an existing one |
-| `/dev-workflow:publish <dir> [--name <n>] [--description <d>] [--dry-run]` | Publish a local workflow to the hub |
-| `/dev-workflow:login` / `:logout` / `:whoami` | Manage your hub identity |
+| `/meta-workflow:start [--mode=cloud\|local] [--workflow=<ref>] <task>` | Start a new run |
+| `/meta-workflow:interrupt` | Pause the active run at the end of the current stage |
+| `/meta-workflow:continue [--session <id>]` | Resume an interrupted run (`--session` for cross-machine cloud takeover) |
+| `/meta-workflow:cancel [--hard]` | Cancel and archive (or wipe with `--hard`) |
+| `/meta-workflow:create-workflow [--workflow=<ref>] <description>` | Create a new workflow or edit an existing one |
+| `/meta-workflow:publish <dir> [--name <n>] [--description <d>] [--dry-run]` | Publish a local workflow to the hub |
+| `/meta-workflow:login` / `:logout` / `:whoami` | Manage your hub identity |
 
 **`--workflow=<ref>`** accepts:
 - *(omitted)* — cloud mode fetches `cloud://demo` from the hub; local mode uses the plugin-bundled workflow
@@ -95,18 +95,18 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the `workflow.json` schema.
 
 | Variable | Default | Effect |
 |---|---|---|
-| `DEV_WORKFLOW_DEFAULT_MODE` | `cloud` | Set to `local` to flip the default for every run in the shell |
-| `DEV_WORKFLOW_SERVER` | `https://workflows.worldstatelabs.com` | Point at a self-hosted or staging server |
+| `META_WORKFLOW_DEFAULT_MODE` | `cloud` | Set to `local` to flip the default for every run in the shell |
+| `META_WORKFLOW_SERVER` | `https://workflows.worldstatelabs.com` | Point at a self-hosted or staging server |
 
 ## Local vs Cloud
 
 | Concern | Local | Cloud |
 |---|---|---|
-| Authoritative state | `<project>/.dev-workflow/<session>/state.md` | Postgres `sessions` row; local shadow mirrors |
-| Where the files live on your disk | Project worktree | `~/.cache/dev-workflow/sessions/<session>/` — wiped on terminal |
+| Authoritative state | `<project>/.meta-workflow/<session>/state.md` | Postgres `sessions` row; local shadow mirrors |
+| Where the files live on your disk | Project worktree | `~/.cache/meta-workflow/sessions/<session>/` — wiped on terminal |
 | Live viewer | None — read the files | `https://workflows.worldstatelabs.com/s/<session_id>` |
-| Cross-machine continue | Not supported | `/dev-workflow:continue --session <id>` with project-fingerprint verification |
-| `.gitignore` entry needed | `echo '/.dev-workflow/' >> .gitignore` | None |
+| Cross-machine continue | Not supported | `/meta-workflow:continue --session <id>` with project-fingerprint verification |
+| `.gitignore` entry needed | `echo '/.meta-workflow/' >> .gitignore` | None |
 
 For the full cloud architecture (write-through mirror, SSE, cross-machine protocol, API reference, deploy guide), see the **[workflowUI README](https://github.com/jie-worldstatelabs/workflowUI)**.
 

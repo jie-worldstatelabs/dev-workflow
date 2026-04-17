@@ -6,20 +6,20 @@ TESTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(cd "${TESTS_DIR}/.." && pwd)"
 source "${TESTS_DIR}/helpers.sh"
 
-WORKFLOW_DIR="${PLUGIN_ROOT}/skills/dev-workflow/workflow"
+WORKFLOW_DIR="${PLUGIN_ROOT}/skills/meta-workflow/workflow"
 
 echo "T6 — stage files: no hardcoded run-dir path placeholders"
 
-# No stage file should contain <project>/.dev-workflow/<session_id> style paths
+# No stage file should contain <project>/.meta-workflow/<session_id> style paths
 for f in "${WORKFLOW_DIR}"/*.md; do
   [[ "$(basename "$f")" == "run_files_catalog.md" ]] && continue
   name="$(basename "$f")"
 
-  ! grep -q '\.dev-workflow/<session_id>' "$f"
-  check "${name}: no .dev-workflow/<session_id> placeholder" $?
+  ! grep -q '\.meta-workflow/<session_id>' "$f"
+  check "${name}: no .meta-workflow/<session_id> placeholder" $?
 
-  ! grep -q '<project>/\.dev-workflow' "$f"
-  check "${name}: no <project>/.dev-workflow placeholder" $?
+  ! grep -q '<project>/\.meta-workflow' "$f"
+  check "${name}: no <project>/.meta-workflow placeholder" $?
 done
 
 # Output artifact lines must not contain path placeholders
@@ -35,7 +35,7 @@ for f in "${WORKFLOW_DIR}"/*.md; do
 done
 
 # reviewing.md specifically must not have hardcoded baseline path
-! grep -q '<project>/\.dev-workflow' "${WORKFLOW_DIR}/reviewing.md"
+! grep -q '<project>/\.meta-workflow' "${WORKFLOW_DIR}/reviewing.md"
 check "reviewing.md: no hardcoded baseline path" $?
 
 # reviewing.md should say "provided in your" to confirm it reads from prompt

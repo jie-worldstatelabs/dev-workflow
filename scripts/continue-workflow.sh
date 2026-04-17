@@ -2,9 +2,9 @@
 
 # Dev Workflow Continue Script
 # Resumes an interrupted workflow by restoring the saved resume_status.
-# Only works when status is "interrupted" — use /dev-workflow:start for a fresh start.
+# Only works when status is "interrupted" — use /meta-workflow:start for a fresh start.
 #
-# Session-keyed model: each run lives under .dev-workflow/<session_id>/.
+# Session-keyed model: each run lives under .meta-workflow/<session_id>/.
 # If the user resumes from a NEW Claude session (e.g. reopened terminal),
 # the interrupted run's dir is renamed to this session's id so the stop hook
 # and other session-scoped machinery resolve correctly.
@@ -43,7 +43,7 @@ if [[ -n "${DESIRED_SESSION:-}" ]] && ! is_cloud_session "$DESIRED_SESSION"; the
     echo "❌ Session ${DESIRED_SESSION} no longer exists on the server." >&2
     echo "   It was deleted via the web UI or the server API." >&2
     echo "   There is no state to resume. Start a new workflow with:" >&2
-    echo "   /dev-workflow:start <task>" >&2
+    echo "   /meta-workflow:start <task>" >&2
     # Clean up any stale local state for this session.
     cloud_wipe_scratch "$DESIRED_SESSION" 2>/dev/null || true
     cloud_unregister_session "$DESIRED_SESSION" 2>/dev/null || true
@@ -55,20 +55,20 @@ if [[ -n "${DESIRED_SESSION:-}" ]] && ! is_cloud_session "$DESIRED_SESSION"; the
   fi
   # Primary alias — matches the server-side session_id and the scratch
   # dir basename, so cloud_post_* helpers POST to the right row.
-  cloud_register_session "$DESIRED_SESSION" "${DEV_WORKFLOW_SERVER}" "" "$scratch_path"
+  cloud_register_session "$DESIRED_SESSION" "${META_WORKFLOW_SERVER}" "" "$scratch_path"
   # Local alias — the current Claude session's id, so resolve_state from
   # hooks/CLI on this machine (which keys on read_cached_session_id)
   # finds the same scratch dir.
   LOCAL_SID="$(read_cached_session_id)"
   if [[ -n "$LOCAL_SID" ]] && [[ "$LOCAL_SID" != "$DESIRED_SESSION" ]]; then
-    cloud_register_session "$LOCAL_SID" "${DEV_WORKFLOW_SERVER}" "" "$scratch_path"
+    cloud_register_session "$LOCAL_SID" "${META_WORKFLOW_SERVER}" "" "$scratch_path"
   fi
   echo "   Shadow restored at: $scratch_path" >&2
 fi
 
 # Resolve the workflow to resume. Strategy:
 #   1. If DESIRED_TOPIC or DESIRED_SESSION was set, use resolve_state (scoped).
-#   2. Otherwise, scan all .dev-workflow/*/ for a single interrupted run
+#   2. Otherwise, scan all .meta-workflow/*/ for a single interrupted run
 #      (cross-session takeover — the common case when the user reopened
 #      Claude Code in a fresh session).
 if [[ -n "${DESIRED_SESSION:-}" ]]; then
@@ -77,7 +77,7 @@ if [[ -n "${DESIRED_SESSION:-}" ]]; then
     exit 1
   fi
 else
-  # Cloud short-circuit: .dev-workflow/ doesn't exist in cloud mode, so
+  # Cloud short-circuit: .meta-workflow/ doesn't exist in cloud mode, so
   # resolve_interrupted_state (which walks the filesystem) would always
   # fail. Check if the current session is cloud-registered first and, if
   # so, resolve directly from the shadow dir via resolve_state.
@@ -100,7 +100,7 @@ else
         echo "   Available workflows:" >&2
         echo "$workflows" >&2
       else
-        echo "   Start a new workflow with: /dev-workflow:start <task>" >&2
+        echo "   Start a new workflow with: /meta-workflow:start <task>" >&2
       fi
       exit 1
     fi
@@ -165,7 +165,7 @@ if is_terminal_status "$STATUS" 2>/dev/null; then
   case "$STATUS" in
     cancelled)
       echo "⚠️  Workflow '$TOPIC' was cancelled — resume unavailable." >&2
-      echo "    Start a new workflow with /dev-workflow:start if you want to retry." >&2
+      echo "    Start a new workflow with /meta-workflow:start if you want to retry." >&2
       ;;
     *)
       echo "⚠️  Workflow '$TOPIC' is already $STATUS — nothing to resume." >&2
@@ -188,7 +188,7 @@ if [[ "$STATUS" == "interrupted" ]]; then
   fi
   if [[ -z "$RESUME_STATUS" ]]; then
     echo "⚠️  Workflow '$TOPIC' has no resume_status and no initial_stage — cannot resume safely." >&2
-    echo "   Inspect $STATE_FILE and set resume_status manually, or start over with /dev-workflow:start." >&2
+    echo "   Inspect $STATE_FILE and set resume_status manually, or start over with /meta-workflow:start." >&2
     exit 1
   fi
   DISPLAY_PHASE="$RESUME_STATUS"
@@ -210,7 +210,7 @@ if [[ "$IS_CLOUD" != "true" ]]; then
   NEW_SESSION="$(read_cached_session_id)"
   OLD_SESSION="$RUN_DIR_NAME"
   if [[ -n "$NEW_SESSION" ]] && [[ "$NEW_SESSION" != "$OLD_SESSION" ]]; then
-    NEW_DIR="${PROJECT_ROOT}/.dev-workflow/${NEW_SESSION}"
+    NEW_DIR="${PROJECT_ROOT}/.meta-workflow/${NEW_SESSION}"
     if [[ -e "$NEW_DIR" ]]; then
       echo "⚠️  This session already has a workflow dir at $NEW_DIR — refusing to overwrite." >&2
       echo "   Cancel or resolve that run first, then retry continue." >&2
@@ -248,5 +248,5 @@ echo "   Session: $RUN_DIR_NAME"
 echo "   State dir: $TOPIC_DIR"
 echo ""
 echo "   The stop hook is now active again."
-echo "   To interrupt again: /dev-workflow:interrupt"
-echo "   To cancel: /dev-workflow:cancel"
+echo "   To interrupt again: /meta-workflow:interrupt"
+echo "   To cancel: /meta-workflow:cancel"

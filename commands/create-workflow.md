@@ -4,7 +4,7 @@ argument-hint: "[--mode=cloud|local] [--workflow=<local-dir|cloud-url>] <brief d
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---
 
-Create or edit a dev-workflow. The `create-workflow` skill will interview the user (if needed), propose a stage decomposition, iterate on the design, write the files under `~/.dev-workflow/workflows/<name>/`, and validate the result.
+Create or edit a meta-workflow. The `create-workflow` skill will interview the user (if needed), propose a stage decomposition, iterate on the design, write the files under `~/.meta-workflow/workflows/<name>/`, and validate the result.
 
 - **No flag** → create a brand-new workflow and publish it to the hub (cloud mode by default).
 - **`--mode=local`** → create locally only, skip hub publishing.
@@ -13,10 +13,10 @@ Create or edit a dev-workflow. The `create-workflow` skill will interview the us
 
 Task from user: `$ARGUMENTS`
 
-Invoke `Skill("dev-workflow:create-workflow")` and follow its instructions exactly. The skill is self-contained — do NOT invoke any other skill before, during, or after.
+Invoke `Skill("meta-workflow:create-workflow")` and follow its instructions exactly. The skill is self-contained — do NOT invoke any other skill before, during, or after.
 
 When the skill finishes, the workflow is ready to launch with:
 
 ```
-/dev-workflow:start --workflow=<path> <task description>
+/meta-workflow:start --workflow=<path> <task description>
 ```

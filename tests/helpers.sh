@@ -1,5 +1,5 @@
 #!/bin/bash
-# Shared test helpers and fixtures for dev-workflow tests.
+# Shared test helpers and fixtures for meta-workflow tests.
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

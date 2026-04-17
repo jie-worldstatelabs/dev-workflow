@@ -1,5 +1,5 @@
 ---
-description: "Pause the active dev workflow loop without clearing state — resume later with /dev-workflow:continue"
+description: "Pause the active dev workflow loop without clearing state — resume later with /meta-workflow:continue"
 allowed-tools: ["Bash"]
 ---
 

@@ -1,5 +1,5 @@
 {
-  "name": "dev-workflow",
+  "name": "meta-workflow",
   "description": "Plan-Execute-Review development workflow with brainstorming, executor agent, and adversarial code review loop",
   "version": "1.16.0",
   "author": {

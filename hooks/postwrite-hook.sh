@@ -40,7 +40,7 @@ case "$FILE_PATH" in
 esac
 
 # Extract the session UUID from the file path (first dir under SCRATCH_ROOT).
-# For a normal start:       ~/.cache/dev-workflow/sessions/<uuid>/<file>
+# For a normal start:       ~/.cache/meta-workflow/sessions/<uuid>/<file>
 # For a cross-machine/--session continue the scratch dir is keyed by the
 # SERVER uuid (not the current local Claude session uuid), so using the path
 # is the only reliable way to get the right SID.

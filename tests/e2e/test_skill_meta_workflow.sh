@@ -1,7 +1,7 @@
 #!/bin/bash
-# E2E-1 — dev-workflow SKILL: real Claude execution
+# E2E-1 — meta-workflow SKILL: real Claude execution
 #
-# Invokes the dev-workflow skill via `claude --print` and asserts on the
+# Invokes the meta-workflow skill via `claude --print` and asserts on the
 # filesystem state after Claude runs. No mocking — real Claude, real scripts.
 #
 # Design note on state.md lifecycle:
@@ -19,7 +19,7 @@ PLUGIN_ROOT="$(cd "${TESTS_DIR}/../.." && pwd)"
 source "${TESTS_DIR}/../helpers.sh"
 source "${PLUGIN_ROOT}/scripts/lib.sh"
 
-echo "E2E-1 — dev-workflow SKILL (real Claude)"
+echo "E2E-1 — meta-workflow SKILL (real Claude)"
 
 SMOKE_WF="${PLUGIN_ROOT}/tests/e2e/fixtures/smoke-workflow"
 MODEL="claude-sonnet-4-6"
@@ -41,14 +41,14 @@ make_git_project() {
 # the directory itself (which persists along with artifacts).
 find_run_dir() {
   local project="$1"
-  find "$project/.dev-workflow" -maxdepth 1 -mindepth 1 -type d \
+  find "$project/.meta-workflow" -maxdepth 1 -mindepth 1 -type d \
        -not -name ".archive" 2>/dev/null | head -1
 }
 
 # Find state.md for ACTIVE (non-terminal) sessions.
 find_state() {
   local project="$1"
-  find "$project/.dev-workflow" -name "state.md" \
+  find "$project/.meta-workflow" -name "state.md" \
        -not -path "*/.archive/*" 2>/dev/null | head -1
 }
 
@@ -61,8 +61,8 @@ seed_state() {
   # which also uses $(pwd) after cd — on macOS /var/ → /private/var/ symlink
   # means printf '%s' "$project" gives a different hash than $(cd && pwd).
   key="$(cd "$project" && printf '%s' "$(pwd)" | shasum -a 1 | cut -c1-16)"
-  mkdir -p "$HOME/.dev-workflow/session-cache"
-  echo "$session_id" > "$HOME/.dev-workflow/session-cache/cwd-$key"
+  mkdir -p "$HOME/.meta-workflow/session-cache"
+  echo "$session_id" > "$HOME/.meta-workflow/session-cache/cwd-$key"
   (cd "$project" && "${PLUGIN_ROOT}/scripts/setup-workflow.sh" \
       --mode=local --topic="$topic" --workflow="$workflow" > /dev/null 2>&1)
 }
@@ -86,14 +86,14 @@ P1="$TMP/project1"
 make_git_project "$P1"
 
 run_claude "$P1" \
-    "/dev-workflow:start --mode=local --workflow=${SMOKE_WF} smoke-check-e2e" \
+    "/meta-workflow:start --mode=local --workflow=${SMOKE_WF} smoke-check-e2e" \
     OUTPUT1 RC1
 
 check "E2E-1-1: claude exits 0" "$RC1"
 
 RUN_DIR1="$(find_run_dir "$P1")"
 rc_rd1=0; [[ -n "$RUN_DIR1" ]] || rc_rd1=$?
-check "E2E-1-1: run dir created under project .dev-workflow/" "$rc_rd1"
+check "E2E-1-1: run dir created under project .meta-workflow/" "$rc_rd1"
 
 if [[ -n "$RUN_DIR1" ]]; then
   # state.md is intentionally deleted by stop-hook on terminal status (local mode)
@@ -138,7 +138,7 @@ fi
 
 # ── E2E-1-3: interrupt → real-Claude continue lifecycle ──────────────────────
 # Seed an interrupted local state (no Claude needed for setup), then invoke
-# real Claude via /dev-workflow:continue and verify it drives the stage to done.
+# real Claude via /meta-workflow:continue and verify it drives the stage to done.
 WF3="$TMP/wf-interruptible"
 mkdir -p "$WF3"
 cat > "$WF3/workflow.json" <<'EOF'
@@ -181,7 +181,7 @@ seed_state "$P3" "$WF3" "e2e-interrupt-test" "$SID3"
 rc_seed3=$?
 check "E2E-1-3: setup-workflow.sh seeds initial state" "$rc_seed3"
 
-STATE3="$P3/.dev-workflow/$SID3/state.md"
+STATE3="$P3/.meta-workflow/$SID3/state.md"
 rc_s3=0; [[ -f "$STATE3" ]] || rc_s3=$?
 check "E2E-1-3: state.md exists after seed" "$rc_s3"
 
@@ -197,8 +197,8 @@ if [[ -f "$STATE3" ]]; then
 
   if [[ "$int_status" == "interrupted" ]]; then
     # Real Claude invocation to continue the interrupted workflow
-    run_claude "$P3" "/dev-workflow:continue" OUT3_CONT RC3_CONT
-    check "E2E-1-3: /dev-workflow:continue (real Claude) exits 0" "$RC3_CONT"
+    run_claude "$P3" "/meta-workflow:continue" OUT3_CONT RC3_CONT
+    check "E2E-1-3: /meta-workflow:continue (real Claude) exits 0" "$RC3_CONT"
 
     # After continue, Claude drives the stage to terminal; run dir persists, state.md gone
     RUN_DIR3="$(find_run_dir "$P3")"
@@ -215,14 +215,14 @@ if [[ -f "$STATE3" ]]; then
       check "E2E-1-3: thinking-report.md artifact written after continue" 1
     fi
   else
-    check "E2E-1-3: /dev-workflow:continue (real Claude) exits 0" 1
+    check "E2E-1-3: /meta-workflow:continue (real Claude) exits 0" 1
     check "E2E-1-3: run dir persists after continue completes" 1
     check "E2E-1-3: continue drove workflow to completion" 1
   fi
 else
   check "E2E-1-3: interrupt-workflow.sh exits 0" 1
   check "E2E-1-3: status = interrupted after interrupt-workflow.sh" 1
-  check "E2E-1-3: /dev-workflow:continue (real Claude) exits 0" 1
+  check "E2E-1-3: /meta-workflow:continue (real Claude) exits 0" 1
   check "E2E-1-3: run dir persists after continue completes" 1
   check "E2E-1-3: continue drove workflow to completion" 1
 fi
@@ -238,7 +238,7 @@ rc_seed4=0
 seed_state "$P4" "$SMOKE_WF" "e2e-cancel-test" "$SID4" || rc_seed4=$?
 check "E2E-1-4: seed_state creates initial state" "$rc_seed4"
 
-STATE4="$P4/.dev-workflow/$SID4/state.md"
+STATE4="$P4/.meta-workflow/$SID4/state.md"
 rc_state4=0; [[ -f "$STATE4" ]] || rc_state4=$?
 check "E2E-1-4: state.md exists after seed" "$rc_state4"
 

@@ -1,5 +1,5 @@
 ---
-description: "Show the signed-in dev-workflow cloud identity"
+description: "Show the signed-in meta-workflow cloud identity"
 allowed-tools: ["Bash"]
 ---
 

@@ -5,7 +5,7 @@ description: "Create a new workflow suite from a natural-language description, o
 
 # Create / Edit Workflow
 
-This skill **creates or edits** a dev-workflow definition. It does NOT run one.
+This skill **creates or edits** a meta-workflow definition. It does NOT run one.
 
 - **Create mode** (no `--workflow` flag): interviews the user, designs a new workflow from scratch.
 - **Edit mode** (`--workflow=<path>`): loads an existing workflow and applies the requested changes.
@@ -14,7 +14,7 @@ This skill **creates or edits** a dev-workflow definition. It does NOT run one.
 - Do NOT invoke any other skill before, during, or after.
 - Do NOT run `setup-workflow.sh` without `--validate-only`. This skill only creates/edits files; running a workflow is the user's next action.
 - Do NOT write files until the user explicitly approves the design (create mode) or the changes (edit mode).
-- Do NOT overwrite an existing `~/.dev-workflow/workflows/<name>/` without confirmation (create mode).
+- Do NOT overwrite an existing `~/.meta-workflow/workflows/<name>/` without confirmation (create mode).
 - Do NOT edit a cloud workflow if the user is not logged in or does not own it. Hard stop — tell the user and refuse.
 </CRITICAL>
 
@@ -23,8 +23,8 @@ This skill **creates or edits** a dev-workflow definition. It does NOT run one.
 `$CLAUDE_PLUGIN_ROOT` is **not** set in the main agent's Bash-tool env — use the session-cached path (written by the SessionStart hook), with a filesystem fallback:
 
 ```bash
-P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
+P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
 ```
 
 Re-derive `$P` inside every Bash-tool call — shell vars don't persist across calls.
@@ -33,13 +33,13 @@ Re-derive `$P` inside every Bash-tool call — shell vars don't persist across c
 
 **Before drafting anything, read the plugin's default workflow as your schema reference and stage-file style guide**:
 
-- `"$P/skills/dev-workflow/workflow/workflow.json"` — the canonical schema shape
-- `"$P/skills/dev-workflow/workflow/planning.md"` — interruptible inline stage example
-- `"$P/skills/dev-workflow/workflow/verifying.md"` — uninterruptible inline stage example
-- `"$P/skills/dev-workflow/workflow/executing.md"` — subagent stage addressed to `workflow-subagent`, model override (opus)
-- `"$P/skills/dev-workflow/workflow/reviewing.md"` — subagent stage, sonnet
-- `"$P/skills/dev-workflow/workflow/qa-ing.md"` — subagent stage, loops back to executing on failure
-- `"$P/skills/dev-workflow/workflow/run_files_catalog.md"` — known run_file patterns and init syntax
+- `"$P/skills/meta-workflow/workflow/workflow.json"` — the canonical schema shape
+- `"$P/skills/meta-workflow/workflow/planning.md"` — interruptible inline stage example
+- `"$P/skills/meta-workflow/workflow/verifying.md"` — uninterruptible inline stage example
+- `"$P/skills/meta-workflow/workflow/executing.md"` — subagent stage addressed to `workflow-subagent`, model override (opus)
+- `"$P/skills/meta-workflow/workflow/reviewing.md"` — subagent stage, sonnet
+- `"$P/skills/meta-workflow/workflow/qa-ing.md"` — subagent stage, loops back to executing on failure
+- `"$P/skills/meta-workflow/workflow/run_files_catalog.md"` — known run_file patterns and init syntax
 
 Read all seven files once before proposing a stage decomposition. Match their style in the files you generate.
 
@@ -57,7 +57,7 @@ You MUST respect these. `setup-workflow.sh --validate-only` will reject anything
   - `inputs.optional`: same shape, may be empty
 - **`run_files` (optional top-level):** data created once at setup time and available to any stage. Each entry: `{ "description": "...", "init": "<shell command>" }`. The init command runs in `$PROJECT_ROOT`; its stdout becomes the file. Stages consume run_files via `from_run_file` in their inputs. See `run_files_catalog.md` for known patterns (e.g. `baseline` for git SHA). Every `from_run_file` reference must name a key declared in `.run_files` — the validator enforces this.
 - **Subagent stages MUST have `"interruptible": false`.** The main agent blocks on the Agent tool call — the stop hook has no chance to fire during a subagent run, so `interruptible: true` on a subagent stage is a silent lie the validator rejects.
-- `subagent_type` as a per-stage field is **NOT supported**. All subagent stages run under the single generic `dev-workflow:workflow-subagent`, whose system prompt is the stage file the main agent passes in the prompt template. Don't write this field; the validator rejects it.
+- `subagent_type` as a per-stage field is **NOT supported**. All subagent stages run under the single generic `meta-workflow:workflow-subagent`, whose system prompt is the stage file the main agent passes in the prompt template. Don't write this field; the validator rejects it.
 - Every declared stage must have a corresponding `<stage>.md` file next to `workflow.json`.
 - Every transition target must be either another declared stage name OR a terminal stage name.
 - Every `inputs.required[*].from_stage` and `inputs.optional[*].from_stage` must reference a declared stage.
@@ -96,8 +96,8 @@ Tune the body to the stage's domain (a reviewer stage talks about severity class
 Parse flags, validate them, announce what will happen, then dispatch. **Do not proceed if any error is emitted.**
 
 ```bash
-P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/dev-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/dev-workflow/*/ 2>/dev/null | head -1)"; }
+P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
 eval "$("$P/scripts/parse-workflow-flags.sh" '$ARGUMENTS')" || exit 1
 "$P/scripts/print-create-banner.sh" "$MODE" "$WORKFLOW_FLAG" "$WF_TYPE"
 ```
@@ -111,7 +111,7 @@ Relay the banner to the user before continuing.
 
 ### Step 1 — Understand the user's goal
 
-Read `$ARGUMENTS` (the description the user typed after `/dev-workflow:create-workflow`). If it's empty or too vague to decompose, ask ONE clarifying question at a time (cap at 5 questions total). Useful axes:
+Read `$ARGUMENTS` (the description the user typed after `/meta-workflow:create-workflow`). If it's empty or too vague to decompose, ask ONE clarifying question at a time (cap at 5 questions total). Useful axes:
 
 - What kind of work does this workflow orchestrate? (coding, writing, data analysis, review, etc.)
 - What are the rough phases? (a 3-line sketch is enough — you'll refine them in Step 2.)
@@ -149,9 +149,9 @@ Derive a short, kebab-case suffix from the user's description (e.g. "Python libr
 
 Ask the user to confirm the suffix.
 
-The local directory is always `~/.dev-workflow/workflows/<suffix>/` regardless of mode. The author prefix (e.g. `jie/paper-draft`) is added by `publish-workflow.sh` at publish time from the logged-in account — never construct or store it yourself.
+The local directory is always `~/.meta-workflow/workflows/<suffix>/` regardless of mode. The author prefix (e.g. `jie/paper-draft`) is added by `publish-workflow.sh` at publish time from the logged-in account — never construct or store it yourself.
 
-**Local collision check:** if `~/.dev-workflow/workflows/<suffix>/` already exists, tell the user and ask whether to pick a different name or overwrite. Do NOT overwrite silently.
+**Local collision check:** if `~/.meta-workflow/workflows/<suffix>/` already exists, tell the user and ask whether to pick a different name or overwrite. Do NOT overwrite silently.
 
 **Cloud collision check:** `publish-workflow.sh` performs a GET pre-check before publishing. If the name is taken by another user it exits with a clear error; if you already own it, it warns "Updating existing workflow" and proceeds. No separate check needed here — the collision is caught at publish time.
 
@@ -160,7 +160,7 @@ The local directory is always `~/.dev-workflow/workflows/<suffix>/` regardless o
 Create the target directory:
 
 ```bash
-mkdir -p ~/.dev-workflow/workflows/<suffix>
+mkdir -p ~/.meta-workflow/workflows/<suffix>
 ```
 
 Write `workflow.json` strictly matching the schema (see the Schema constraints section + read the default `workflow.json` as reference). Validate locally by eye against the constraints list — don't leak a per-stage `subagent_type` field or set `interruptible: true` on a subagent stage.
@@ -169,35 +169,35 @@ Write one `<stage>.md` per declared stage — see the [shared Stage file guideli
 
 ### Step 5 — Validate
 
-Run the [shared Validate step](#validate) with `--workflow="$HOME/.dev-workflow/workflows/<suffix>"`. Do NOT proceed to Step 5.5 (cloud mode) or Step 6 (local mode) until validation passes.
+Run the [shared Validate step](#validate) with `--workflow="$HOME/.meta-workflow/workflows/<suffix>"`. Do NOT proceed to Step 5.5 (cloud mode) or Step 6 (local mode) until validation passes.
 
 ### Step 5.5 — Publish to hub (cloud mode only)
 
 Skip this step if `MODE=local`.
 
-Run the [shared Publish step](#publish-to-hub) with `"$HOME/.dev-workflow/workflows/<suffix>"`. On failure, tell the user and continue — the workflow is still usable locally via `--workflow=~/.dev-workflow/workflows/<suffix>`.
+Run the [shared Publish step](#publish-to-hub) with `"$HOME/.meta-workflow/workflows/<suffix>"`. On failure, tell the user and continue — the workflow is still usable locally via `--workflow=~/.meta-workflow/workflows/<suffix>`.
 
 ### Step 6 — Report success
 
 Tell the user:
 
-- **Where**: `~/.dev-workflow/workflows/<suffix>/` (absolute path)
+- **Where**: `~/.meta-workflow/workflows/<suffix>/` (absolute path)
 - **What's in it**: `workflow.json` + one `.md` per stage
 - **Validator summary** from Step 5 (one line, N stages / M terminal)
 - **Hub** (cloud mode only): relay the output from `publish-workflow.sh` verbatim — it already prints the hub URL, pull command, and visibility. If it failed, show the error and note the local path still works.
 - **How to launch**:
-  - Cloud: `/dev-workflow:start --workflow=<cloud://... from publish output> <your task>`
-  - Local: `/dev-workflow:start --workflow=~/.dev-workflow/workflows/<suffix> <your task>`
+  - Cloud: `/meta-workflow:start --workflow=<cloud://... from publish output> <your task>`
+  - Local: `/meta-workflow:start --workflow=~/.meta-workflow/workflows/<suffix> <your task>`
 
-Do NOT run `/dev-workflow:start` yourself — that's the user's next action. Your job is done when the files are on disk, validation passed, and (in cloud mode) the workflow is published.
+Do NOT run `/meta-workflow:start` yourself — that's the user's next action. Your job is done when the files are on disk, validation passed, and (in cloud mode) the workflow is published.
 
 ---
 
 ## Validate
 
 ```bash
-P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
+P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || P=~/.claude/plugins/meta-workflow
 "$P/scripts/setup-workflow.sh" --validate-only --workflow="<absolute-path>"
 ```
 
@@ -218,8 +218,8 @@ If validation fails, the output has `❌` lines for each problem (missing stage 
 ## Publish to hub
 
 ```bash
-P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
+P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || P=~/.claude/plugins/meta-workflow
 "$P/scripts/publish-workflow.sh" "<absolute-path-to-workflow-dir>"
 ```
 
@@ -266,29 +266,29 @@ This check prevents the `--mode` flag from being silently ignored when it confli
 
 **This step only runs for `cloud://author/name` paths.**
 
-The API URL is: `${DEV_WORKFLOW_SERVER}/api/workflows/${WORKFLOW_FLAG}`
+The API URL is: `${META_WORKFLOW_SERVER}/api/workflows/${WORKFLOW_FLAG}`
 
 #### 2a — Check login
 
 ```bash
-P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
+P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || P=~/.claude/plugins/meta-workflow
 source "$P/scripts/lib.sh"
 cloud_is_logged_in && echo "LOGGED_IN" || echo "NOT_LOGGED_IN"
 ```
 
-If `NOT_LOGGED_IN` → **hard stop**: tell the user they must run `/dev-workflow:login` first, then refuse to proceed.
+If `NOT_LOGGED_IN` → **hard stop**: tell the user they must run `/meta-workflow:login` first, then refuse to proceed.
 
 #### 2b — Verify ownership
 
 ```bash
-P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
+P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || P=~/.claude/plugins/meta-workflow
 source "$P/scripts/lib.sh"
 
 _WF_NAME="${WORKFLOW_FLAG#cloud://}"
-CLOUD_URL="${DEV_WORKFLOW_SERVER}/api/workflows/${_WF_NAME}"
-MY_USER_ID="$(jq -r '.user_id // empty' ~/.dev-workflow/auth.json 2>/dev/null)"
+CLOUD_URL="${META_WORKFLOW_SERVER}/api/workflows/${_WF_NAME}"
+MY_USER_ID="$(jq -r '.user_id // empty' ~/.meta-workflow/auth.json 2>/dev/null)"
 AUTH_HEADER="$(_cloud_auth_header)"
 BUNDLE="$(curl -sf -H "$AUTH_HEADER" "$CLOUD_URL" 2>/dev/null || echo "")"
 
@@ -309,12 +309,12 @@ fi
 To download:
 
 ```bash
-P="$(cat ~/.dev-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || P=~/.claude/plugins/dev-workflow
+P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || P=~/.claude/plugins/meta-workflow
 source "$P/scripts/lib.sh"
 
 _WF_NAME="${WORKFLOW_FLAG#cloud://}"
-LOCAL_DIR="${HOME}/.dev-workflow/workflows/${_WF_NAME}"
+LOCAL_DIR="${HOME}/.meta-workflow/workflows/${_WF_NAME}"
 mkdir -p "$LOCAL_DIR"
 cloud_fetch_workflow_from_name "$_WF_NAME" "$LOCAL_DIR"
 echo "Downloaded to $LOCAL_DIR"
@@ -346,7 +346,7 @@ Run the [shared Validate step](#validate) with the working directory absolute pa
 
 Skip this step if the workflow came from a local path.
 
-Run the [shared Publish step](#publish-to-hub) with `"$LOCAL_DIR"`. On success: note the hub URL for the Step 7 report. On failure: tell the user the changes are saved locally at `$LOCAL_DIR` and they can retry with `/dev-workflow:publish <LOCAL_DIR>`. Do NOT abort — the local edits are still valid.
+Run the [shared Publish step](#publish-to-hub) with `"$LOCAL_DIR"`. On success: note the hub URL for the Step 7 report. On failure: tell the user the changes are saved locally at `$LOCAL_DIR` and they can retry with `/meta-workflow:publish <LOCAL_DIR>`. Do NOT abort — the local edits are still valid.
 
 ### Edit Step 7 — Report success
 
@@ -356,10 +356,10 @@ Tell the user:
 - **Validator summary** from Edit Step 6
 - **Hub** (cloud source only):
   - If publish succeeded: "Changes pushed to hub — `<hub-url>`"
-  - If publish failed: "Changes saved locally at `$LOCAL_DIR` — push manually with `/dev-workflow:publish <LOCAL_DIR>`"
+  - If publish failed: "Changes saved locally at `$LOCAL_DIR` — push manually with `/meta-workflow:publish <LOCAL_DIR>`"
 - **How to launch**:
-  - Cloud: `/dev-workflow:start --workflow=<cloud://... from publish output> <your task>`
-  - Local: `/dev-workflow:start --workflow=<path> <your task>`
+  - Cloud: `/meta-workflow:start --workflow=<cloud://... from publish output> <your task>`
+  - Local: `/meta-workflow:start --workflow=<path> <your task>`
 
 ---
 
@@ -369,10 +369,10 @@ Tell the user:
 - Always iterate on the design with the user before writing files.
 - Always run `--validate-only` before reporting success.
 - Always push back to the hub after a successful edit of a cloud workflow (Edit Step 6.5).
-- Never write to `~/.dev-workflow/workflows/<name>/` without user approval.
+- Never write to `~/.meta-workflow/workflows/<name>/` without user approval.
 - Never overwrite an existing workflow dir without confirmation (create mode).
 - Never set `interruptible: true` on a subagent stage.
-- Never write a `subagent_type` field — all subagent stages use the generic `dev-workflow:workflow-subagent`.
+- Never write a `subagent_type` field — all subagent stages use the generic `meta-workflow:workflow-subagent`.
 - Never invoke any other skill or run the full `setup-workflow.sh` (only `--validate-only`).
 - Never edit a cloud workflow unless the user is logged in AND owns it — hard stop otherwise.
 - `--workflow=` in edit mode must be an explicit local directory path or `cloud://author/name` reference — never guess or resolve bare names.

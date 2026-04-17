@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# parse-workflow-flags.sh — shared flag parser for dev-workflow skill bash blocks.
+# parse-workflow-flags.sh — shared flag parser for meta-workflow skill bash blocks.
 #
 # Usage:
 #   eval "$("$P/scripts/parse-workflow-flags.sh" "$ARGS")"
@@ -10,7 +10,7 @@
 #
 # On success (exit 0), prints sourciable variable assignments to stdout:
 #   WORKFLOW_FLAG='...'   value of --workflow (empty if omitted)
-#   MODE='...'            cloud|local  (default: DEV_WORKFLOW_DEFAULT_MODE or cloud)
+#   MODE='...'            cloud|local  (default: META_WORKFLOW_DEFAULT_MODE or cloud)
 #   WF_TYPE='...'         local|cloud  (empty when WORKFLOW_FLAG is empty)
 #   DESCRIPTION='...'     remaining text after stripping --workflow and --mode flags
 #
@@ -29,7 +29,7 @@ source "${SCRIPT_DIR}/lib.sh"
 
 ARGS="${1:-}"
 WORKFLOW_FLAG=""
-MODE="${DEV_WORKFLOW_DEFAULT_MODE:-cloud}"
+MODE="${META_WORKFLOW_DEFAULT_MODE:-cloud}"
 WF_TYPE=""
 DESCRIPTION="$ARGS"
 

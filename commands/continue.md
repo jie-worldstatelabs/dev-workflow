@@ -26,7 +26,7 @@ The output reports the **Topic** and **Phase** (the phase to jump back into).
 
 ## Step 2: Load the Workflow Skill
 
-Invoke `Skill("dev-workflow:dev-workflow")` and follow its instructions exactly. The skill is self-contained — do NOT invoke any other skill.
+Invoke `Skill("meta-workflow:meta-workflow")` and follow its instructions exactly. The skill is self-contained — do NOT invoke any other skill.
 
 ## Step 3: Resume From the Detected Phase
 
@@ -38,4 +38,4 @@ The script reports the current **Phase** (stage name) and its execution type (`i
 
 The actual subagent_type, model, and stage-instructions path are injected by the `agent-guard.sh` PreToolUse hook when you call the Agent tool — copy them verbatim, don't hand-write.
 
-Run the loop without stopping. To interrupt again: `/dev-workflow:interrupt`. To cancel: `/dev-workflow:cancel`.
+Run the loop without stopping. To interrupt again: `/meta-workflow:interrupt`. To cancel: `/meta-workflow:cancel`.

@@ -89,7 +89,7 @@ REQUIRED_SECTION="$(build_inputs_section required)"
 OPTIONAL_SECTION="$(build_inputs_section optional)"
 
 cat <<EOF
-[dev-workflow] Inline stage context: $STATUS (epoch $EPOCH)
+[meta-workflow] Inline stage context: $STATUS (epoch $EPOCH)
 
 Stage instructions: $INSTRUCTIONS_PATH
   → Read this file first — it is the full protocol for this stage.

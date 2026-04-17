@@ -4,17 +4,17 @@
 # scripts and skill instructions can find them later:
 #
 #   1. session_id  → the Claude Code session UUID, keyed by cwd hash
-#      and by harness PPID. Used as the .dev-workflow/<session_id>/
+#      and by harness PPID. Used as the .meta-workflow/<session_id>/
 #      directory name and as the session_id field inside state.md.
 #
 #   2. plugin_root → the absolute path to this plugin's install
 #      directory. $CLAUDE_PLUGIN_ROOT is set here (the hook runs in a
 #      hook subprocess) but is NOT present in the main agent's Bash-tool
-#      env. Writing it to ~/.dev-workflow/plugin-root lets SKILL.md and
+#      env. Writing it to ~/.meta-workflow/plugin-root lets SKILL.md and
 #      ad-hoc scripts read it back with a single `cat` without a
 #      filesystem discovery pattern.
 #
-# Cache layout: ~/.dev-workflow/
+# Cache layout: ~/.meta-workflow/
 #   plugin-root                             ← one-line absolute path
 #   session-cache/cwd-<sha1-of-pwd>         ← session_id, primary key
 #   session-cache/ppid-<PPID>               ← session_id, secondary key
@@ -25,7 +25,7 @@ HOOK_INPUT=$(cat)
 SID=$(echo "$HOOK_INPUT" | jq -r '.session_id // ""' 2>/dev/null)
 [[ -z "$SID" ]] && exit 0
 
-CACHE_DIR="${HOME}/.dev-workflow/session-cache"
+CACHE_DIR="${HOME}/.meta-workflow/session-cache"
 mkdir -p "$CACHE_DIR"
 
 CWD_HASH=$(printf '%s' "$(pwd)" | shasum -a 1 | cut -c1-16)
@@ -36,7 +36,7 @@ echo "$SID" > "${CACHE_DIR}/ppid-${PPID}"
 # always matches the current install path (useful if the plugin moves
 # between marketplace version bumps).
 if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]] && [[ -d "$CLAUDE_PLUGIN_ROOT/scripts" ]]; then
-  echo "$CLAUDE_PLUGIN_ROOT" > "${HOME}/.dev-workflow/plugin-root"
+  echo "$CLAUDE_PLUGIN_ROOT" > "${HOME}/.meta-workflow/plugin-root"
 fi
 
 # Opportunistic GC: prune session-cache entries older than 7 days

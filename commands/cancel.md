@@ -5,7 +5,7 @@ allowed-tools: ["Bash"]
 
 Cancel the current session's active dev workflow.
 
-**Default behaviour**: archives the run dir to `.dev-workflow/.archive/<YYYYMMDD-HHMMSS>-<topic>-cancelled/` so all stage reports and the baseline survive as an audit trail. The dir name's `-cancelled` suffix distinguishes cancelled runs from natural replacements.
+**Default behaviour**: archives the run dir to `.meta-workflow/.archive/<YYYYMMDD-HHMMSS>-<topic>-cancelled/` so all stage reports and the baseline survive as an audit trail. The dir name's `-cancelled` suffix distinguishes cancelled runs from natural replacements.
 
 **`--hard`**: skip the archive and `rm -rf` the run dir. Use when you really don't want any artifacts left behind.
 

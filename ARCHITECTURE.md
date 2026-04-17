@@ -1,4 +1,4 @@
-# dev-workflow Architecture
+# meta-workflow Architecture
 
 Internal reference for contributors, workflow authors, and anyone debugging the plugin.
 
@@ -8,7 +8,7 @@ Internal reference for contributors, workflow authors, and anyone debugging the 
 
 ```
 commands/
-  start.md               ← /dev-workflow:start — kick off a run
+  start.md               ← /meta-workflow:start — kick off a run
   interrupt.md           ← pause at the current stage (state preserved)
   continue.md            ← resume from interrupt
   cancel.md              ← abort + archive (or wipe with --hard)
@@ -23,7 +23,7 @@ agents/
                            stage's instructions file at runtime
 
 skills/
-  dev-workflow/
+  meta-workflow/
     SKILL.md             ← meta-protocol: how to drive the state machine
                            (workflow-agnostic)
     workflow/            ← bundled workflow package (local-mode fallback
@@ -68,7 +68,7 @@ scripts/
                            shadow
   publish-workflow.sh    ← uploads a workflow bundle to the hub
   login-workflow.sh      ← browser-based device-code flow; stores token at
-                           ~/.dev-workflow/auth.json
+                           ~/.meta-workflow/auth.json
   logout-workflow.sh     ← removes auth.json
   whoami-workflow.sh     ← prints identity + verifies token
   stage-context.sh       ← prints a stage's I/O context (paths) after a
@@ -87,7 +87,7 @@ scripts/
 ### Local mode
 
 ```
-<project>/.dev-workflow/
+<project>/.meta-workflow/
   <session_id>/
     state.md                ← status, epoch, topic, session_id, workflow_dir
     baseline                ← git SHA at workflow start
@@ -107,7 +107,7 @@ scripts/
 The authoritative copy is the Postgres `sessions` + `artifacts` rows on the server. The local shadow is a write-through mirror — wiped on any terminal status.
 
 ```
-~/.cache/dev-workflow/sessions/
+~/.cache/meta-workflow/sessions/
   <session_id>/              ← shadow
     state.md                 ← local mirror
     baseline
@@ -120,7 +120,7 @@ The authoritative copy is the Postgres `sessions` + `artifacts` rows on the serv
       workflow.json
       <stage>.md files
 
-~/.dev-workflow/cloud-registry/
+~/.meta-workflow/cloud-registry/
   <session_id>.json          ← existence flag; every hook/script uses it
                                to decide "local or cloud"
 ```
@@ -172,7 +172,7 @@ A workflow is a directory that bundles `workflow.json` + one `<stage>.md` per st
 | `stages.*.transitions` | Map of `result:` values to next status (another stage or a terminal) |
 | `stages.*.inputs.required` / `optional` | Declares which other stages' artifacts (or run_files) this stage reads. Required artifacts are enforced by `update-status.sh` |
 
-Per-stage `subagent_type` is **NOT supported** — all subagent stages run under the single generic `dev-workflow:workflow-subagent`. The validator rejects it.
+Per-stage `subagent_type` is **NOT supported** — all subagent stages run under the single generic `meta-workflow:workflow-subagent`. The validator rejects it.
 
 ---
 
@@ -216,7 +216,7 @@ The stop hook fires at every Claude turn-end. It reads `state.md` and the curren
 | Uninterruptible stage, artifact `result:` unrecognised | **Blocks exit** — asks for manual inspection |
 | Interruptible stage | **Never blocks** — emits a `systemMessage` status hint |
 | Status is terminal (`complete` / `escalated` / `cancelled`) | Deletes `state.md`, allows exit |
-| Status is `interrupted` | Allows exit; keeps `state.md` for `/dev-workflow:continue` |
+| Status is `interrupted` | Allows exit; keeps `state.md` for `/meta-workflow:continue` |
 
 ---
 
@@ -227,7 +227,7 @@ Example task: **"Build a note-taking app"** → topic `note-app`.
 ### Bootstrap
 
 ```
-USER  ► /dev-workflow:start Build a note-taking app
+USER  ► /meta-workflow:start Build a note-taking app
 MAIN  ► reads SKILL.md (meta-protocol)
 MAIN  ► derives topic `note-app`
 MAIN  ▶ scripts/setup-workflow.sh --topic note-app
@@ -334,7 +334,7 @@ Cloud mode mirrors every workflow file to the hosted webapp so you can watch pro
 
 ### Cross-machine continue
 
-`/dev-workflow:continue --session <id>` on a machine that has never seen this cloud session:
+`/meta-workflow:continue --session <id>` on a machine that has never seen this cloud session:
 
 1. Pulls the full snapshot (state + artifacts + workflow config + baseline) from the server
 2. Verifies the current `pwd` is the same git project via **root-commit fingerprint** (`git rev-list --max-parents=0 HEAD`)

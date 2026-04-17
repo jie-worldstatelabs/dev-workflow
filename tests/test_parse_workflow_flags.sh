@@ -3,7 +3,7 @@
 # Category A — parse-workflow-flags.sh unit tests
 #
 # Run from anywhere:
-#   bash ~/.claude/plugins/dev-workflow/tests/test_parse_workflow_flags.sh
+#   bash ~/.claude/plugins/meta-workflow/tests/test_parse_workflow_flags.sh
 #
 # Exit 0 = all pass. Exit 1 = one or more failures.
 

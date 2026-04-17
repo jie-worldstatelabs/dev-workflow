@@ -3,12 +3,12 @@
 # Dev Workflow Setup Script
 #
 # Two modes:
-#   local (default)  workflow lives on disk under <project>/.dev-workflow/
+#   local (default)  workflow lives on disk under <project>/.meta-workflow/
 #                    — one run per session per worktree.
 #   cloud            state and artifacts are mirrored to a remote server
 #                    (the workflowUI webapp); the project worktree gets
-#                    nothing under .dev-workflow/. A transient shadow at
-#                    ~/.cache/dev-workflow/sessions/<session_id>/ holds
+#                    nothing under .meta-workflow/. A transient shadow at
+#                    ~/.cache/meta-workflow/sessions/<session_id>/ holds
 #                    the minimum files the skill needs to Read/Write
 #                    against. Every write is POSTed to the server.
 #
@@ -19,8 +19,8 @@
 #   setup-workflow.sh --validate-only [--workflow <name-or-path>]
 #
 # --workflow accepts:
-#   (omitted)          default:  ${PLUGIN_ROOT}/skills/dev-workflow/workflow/
-#   cloud://author/name cloud:   named template on $DEV_WORKFLOW_SERVER
+#   (omitted)          default:  ${PLUGIN_ROOT}/skills/meta-workflow/workflow/
+#   cloud://author/name cloud:   named template on $META_WORKFLOW_SERVER
 #   /abs/path          local:    absolute local path
 #   ./rel/path         local:    relative local path
 
@@ -37,8 +37,8 @@ FORCE=""
 # server, with a local shadow for Claude's Read/Write tools. Users who
 # want a fully-offline, local-only run can either:
 #   • pass `--mode=local` on the command line, or
-#   • export DEV_WORKFLOW_DEFAULT_MODE=local in their shell env
-MODE="${DEV_WORKFLOW_DEFAULT_MODE:-cloud}"
+#   • export META_WORKFLOW_DEFAULT_MODE=local in their shell env
+MODE="${META_WORKFLOW_DEFAULT_MODE:-cloud}"
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -135,7 +135,7 @@ SESSION_ID="$(read_cached_session_id)"
 if [[ -z "$SESSION_ID" ]]; then
   echo "❌ Error: session_id is unknown." >&2
   echo "   The SessionStart hook (hooks/session-start.sh) did not populate" >&2
-  echo "   the cache. Ensure the dev-workflow plugin is properly installed" >&2
+  echo "   the cache. Ensure the meta-workflow plugin is properly installed" >&2
   echo "   and restart your Claude Code session." >&2
   exit 1
 fi
@@ -147,17 +147,17 @@ fi
 # branch makes the local copy invisible), and every cloud_reconcile_state
 # fire ends up overwriting server progress with stale shadow state.
 # ══════════════════════════════════════════════════════════════
-_CLOUD_REG="${HOME}/.dev-workflow/cloud-registry/${SESSION_ID}.json"
-_LOCAL_DIR="${PROJECT_ROOT}/.dev-workflow/${SESSION_ID}"
+_CLOUD_REG="${HOME}/.meta-workflow/cloud-registry/${SESSION_ID}.json"
+_LOCAL_DIR="${PROJECT_ROOT}/.meta-workflow/${SESSION_ID}"
 
 if [[ "$MODE" == "local" ]] && [[ -f "$_CLOUD_REG" ]]; then
   echo "❌ Error: session ${SESSION_ID} is already registered as cloud-managed." >&2
   echo "   Registry: $_CLOUD_REG" >&2
   echo "   Setting up as local would create a second state.md that drifts apart" >&2
-  echo "   from the shadow at ~/.cache/dev-workflow/sessions/${SESSION_ID}/." >&2
+  echo "   from the shadow at ~/.cache/meta-workflow/sessions/${SESSION_ID}/." >&2
   echo "" >&2
   echo "   Resolve this by either:" >&2
-  echo "     1. /dev-workflow:cancel the cloud workflow first (archives + unregisters)" >&2
+  echo "     1. /meta-workflow:cancel the cloud workflow first (archives + unregisters)" >&2
   echo "     2. Or re-run with --mode=cloud (same mode as the existing run)" >&2
   exit 1
 fi
@@ -170,7 +170,7 @@ if [[ "$MODE" == "cloud" ]] && [[ -f "$_LOCAL_DIR/state.md" ]]; then
   echo "   reaching the hooks." >&2
   echo "" >&2
   echo "   Resolve this by either:" >&2
-  echo "     1. /dev-workflow:cancel the local workflow first" >&2
+  echo "     1. /meta-workflow:cancel the local workflow first" >&2
   echo "     2. Or omit --mode=cloud (same mode as the existing run)" >&2
   exit 1
 fi
@@ -185,7 +185,7 @@ if [[ "$MODE" == "cloud" ]]; then
 
   WORKTREE_ROOT="$(git -C "${PROJECT_ROOT}" rev-parse --show-toplevel 2>/dev/null || echo "$PROJECT_ROOT")"
 
-  SCRATCH_DIR="${HOME}/.cache/dev-workflow/sessions/${SESSION_ID}"
+  SCRATCH_DIR="${HOME}/.cache/meta-workflow/sessions/${SESSION_ID}"
   WORKFLOW_CACHE="${SCRATCH_DIR}/.workflow-cache"
 
   # Phase 0: detect existing cloud shadow (mirrors server 409 semantics
@@ -201,7 +201,7 @@ if [[ "$MODE" == "cloud" ]]; then
         echo "   Session: ${SESSION_ID}" >&2
         echo "   Existing topic: ${existing_topic:-?}   status: ${existing_status}" >&2
         echo "" >&2
-        echo "   /dev-workflow:interrupt to pause, /dev-workflow:cancel to stop." >&2
+        echo "   /meta-workflow:interrupt to pause, /meta-workflow:cancel to stop." >&2
         exit 2
         ;;
     esac
@@ -329,7 +329,7 @@ if [[ "$MODE" == "cloud" ]]; then
   tmp_body="$(mktemp -t dw-setup-XXXXXX)"
   trap 'rm -f "$tmp_body"' EXIT
   http_code=$(curl -sS -o "$tmp_body" -w "%{http_code}" \
-      -X POST "${DEV_WORKFLOW_SERVER}/api/sessions/${SESSION_ID}/setup" \
+      -X POST "${META_WORKFLOW_SERVER}/api/sessions/${SESSION_ID}/setup" \
       -H "$(_cloud_auth_header)" \
       -H "Content-Type: application/json" \
       --data "$payload" || echo "000")
@@ -338,7 +338,7 @@ if [[ "$MODE" == "cloud" ]]; then
     remote_status=$(jq -r '.status // "?"' "$tmp_body" 2>/dev/null || echo "?")
     echo "⚠️  Server refused setup — an active workflow already exists for this session." >&2
     echo "    Remote status: ${remote_status}" >&2
-    echo "    Use /dev-workflow:cancel to stop the existing run first." >&2
+    echo "    Use /meta-workflow:cancel to stop the existing run first." >&2
     rm -rf "$SCRATCH_DIR"
     exit 2
   fi
@@ -368,14 +368,14 @@ started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ---
 EOF
 
-  cloud_register_session "$SESSION_ID" "$DEV_WORKFLOW_SERVER" "$WORKFLOW_URL"
+  cloud_register_session "$SESSION_ID" "$META_WORKFLOW_SERVER" "$WORKFLOW_URL"
 
   # Seed the server with an initial (empty) diff so the session page's
   # "Working-tree diff" panel has content to anchor on.
   cloud_post_diff "$SESSION_ID" || true
 
-  # Force config_show_stage_context to print shadow paths, not ${project}/.dev-workflow/.
-  DW_RUN_BASE="${HOME}/.cache/dev-workflow/sessions"
+  # Force config_show_stage_context to print shadow paths, not ${project}/.meta-workflow/.
+  DW_RUN_BASE="${HOME}/.cache/meta-workflow/sessions"
   export DW_RUN_BASE
 
   INTERRUPTIBLE_HINT=""
@@ -401,13 +401,13 @@ EOF
 
   echo ""
   echo "   Shadow dir: $SCRATCH_DIR"
-  echo "   Server:     $DEV_WORKFLOW_SERVER"
-  echo "   UI:         ${DEV_WORKFLOW_SERVER}/s/${SESSION_ID}"
-  echo "   To pause:  /dev-workflow:interrupt"
-  echo "   To cancel: /dev-workflow:cancel"
+  echo "   Server:     $META_WORKFLOW_SERVER"
+  echo "   UI:         ${META_WORKFLOW_SERVER}/s/${SESSION_ID}"
+  echo "   To pause:  /meta-workflow:interrupt"
+  echo "   To cancel: /meta-workflow:cancel"
 
   # Anonymous-cloud nudge: if the user has no bearer token stored at
-  # ~/.dev-workflow/auth.json, they're running as an anonymous capability
+  # ~/.meta-workflow/auth.json, they're running as an anonymous capability
   # URL (whoever knows the session_id can read/write it). Surface the
   # benefits of logging in once, right after activation, so they don't
   # miss the browser dashboard / cross-device resume / private sessions
@@ -422,7 +422,7 @@ EOF
     echo "     • Your own rate-limit quota instead of shared anonymous"
     echo ""
     echo "   One command:"
-    echo "     /dev-workflow:login"
+    echo "     /meta-workflow:login"
   fi
 
   exit 0
@@ -432,7 +432,7 @@ fi
 # LOCAL MODE (original behavior)
 # ══════════════════════════════════════════════════════════════
 
-SESSION_RUN_DIR="${PROJECT_ROOT}/.dev-workflow/${SESSION_ID}"
+SESSION_RUN_DIR="${PROJECT_ROOT}/.meta-workflow/${SESSION_ID}"
 
 # ──────────────────────────────────────────────────────────────
 # Phase 0: Detect existing workflow for THIS session.
@@ -445,14 +445,14 @@ if [[ -f "${SESSION_RUN_DIR}/state.md" ]] && [[ -z "$FORCE" ]]; then
       # Terminal or unreadable — safe to replace.
       ;;
     *)
-      echo "⚠️  This session already has an active dev-workflow." >&2
+      echo "⚠️  This session already has an active meta-workflow." >&2
       echo "" >&2
       echo "   Session: ${SESSION_ID}" >&2
       echo "   Existing topic: ${etopic:-?}   status: ${estatus}" >&2
       echo "   Existing dir: ${SESSION_RUN_DIR}" >&2
       echo "" >&2
-      echo "   /dev-workflow:interrupt to pause, /dev-workflow:cancel to stop," >&2
-      echo "   /dev-workflow:continue to resume." >&2
+      echo "   /meta-workflow:interrupt to pause, /meta-workflow:cancel to stop," >&2
+      echo "   /meta-workflow:continue to resume." >&2
       exit 2
       ;;
   esac
@@ -477,7 +477,7 @@ case $rc in
   2) ARCHIVE_MSG="   ⚠️  Archive failed; previous run removed." ;;
   # rc=1 → nothing to archive, stay silent
 esac
-rm -f "${PROJECT_ROOT}/.dev-workflow/state.md"
+rm -f "${PROJECT_ROOT}/.meta-workflow/state.md"
 
 # ──────────────────────────────────────────────────────────────
 # Phase 3: Create this session's run dir and state.md
@@ -539,5 +539,5 @@ fi
 echo ""
 echo "   Run dir: $TOPIC_DIR"
 echo "   Workflow dir: $WORKFLOW_DIR"
-echo "   To pause: /dev-workflow:interrupt"
-echo "   To cancel: /dev-workflow:cancel"
+echo "   To pause: /meta-workflow:interrupt"
+echo "   To cancel: /meta-workflow:cancel"

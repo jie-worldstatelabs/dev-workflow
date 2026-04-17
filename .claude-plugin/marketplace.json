@@ -1,14 +1,14 @@
 {
-  "name": "dev-workflow-local",
+  "name": "meta-workflow-local",
   "owner": {
     "name": "jie"
   },
   "metadata": {
-    "description": "Local marketplace for dev-workflow plugin"
+    "description": "Local marketplace for meta-workflow plugin"
   },
   "plugins": [
     {
-      "name": "dev-workflow",
+      "name": "meta-workflow",
       "description": "Plan-Execute-Review development workflow with brainstorming, executor agent, and adversarial code review loop",
       "source": "./"
     }

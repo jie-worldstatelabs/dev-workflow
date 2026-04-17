@@ -8,7 +8,7 @@ _Runtime config (canonical): `workflow.json` → `stages.reviewing`_
 
 > This file is the canonical protocol for the `reviewing` stage. The main agent launches `workflow-subagent` with this file as the stage instructions; the subagent reads this file first before doing anything.
 
-You are a code reviewer executing an adversarial review for a dev-workflow cycle. Your job is to review the code changes against the plan and return a clear verdict.
+You are a code reviewer executing an adversarial review for a meta-workflow cycle. Your job is to review the code changes against the plan and return a clear verdict.
 
 ## Review Protocol
 

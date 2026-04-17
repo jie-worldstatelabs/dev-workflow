@@ -48,7 +48,7 @@ if ! resolve_state; then
     echo "$workflows" >&2
     echo "   Pass --topic <name> to select one." >&2
   else
-    echo "   No workflows found. Run /dev-workflow:start to start one." >&2
+    echo "   No workflows found. Run /meta-workflow:start to start one." >&2
   fi
   exit 1
 fi
@@ -150,7 +150,7 @@ if is_cloud_session "$RUN_DIR_NAME"; then
   fi
 fi
 
-echo "[dev-workflow] Topic: $TOPIC | Status: $NEW_STATUS | epoch: $NEW_EPOCH"
+echo "[meta-workflow] Topic: $TOPIC | Status: $NEW_STATUS | epoch: $NEW_EPOCH"
 
 if config_is_stage "$NEW_STATUS"; then
   config_show_stage_context "$NEW_STATUS" "$RUN_DIR_NAME" "$PROJECT_ROOT"

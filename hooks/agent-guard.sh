@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Dev Workflow Agent Guard (PreToolUse hook for Agent tool)
-# When a dev-workflow is active and Claude launches an Agent, this hook
+# When a meta-workflow is active and Claude launches an Agent, this hook
 # injects guidance about what subagent_type / mode / prompt contents to use,
 # driven by workflow.json.
 
@@ -73,7 +73,7 @@ OPTIONAL_SECTION="$(build_inputs_section optional)"
 
 if [[ "$EXEC_TYPE" == "inline" ]]; then
   cat <<EOF
-[dev-workflow] Active workflow (phase: $STATUS, epoch: $EPOCH).
+[meta-workflow] Active workflow (phase: $STATUS, epoch: $EPOCH).
 This stage is INLINE — the main agent runs it directly.
 Do NOT launch a subagent for this phase.
 If you're about to launch workflow-subagent, you probably need to transition out of $STATUS first via ${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh.
@@ -92,11 +92,11 @@ fi
 # the single generic workflow-subagent; per-stage behavior comes from the
 # stage instructions file, not from per-stage agent definitions. Model
 # can still be overridden per stage via workflow.json.stages.<s>.execution.model.
-SUBAGENT_TYPE="dev-workflow:workflow-subagent"
+SUBAGENT_TYPE="meta-workflow:workflow-subagent"
 MODEL="$(config_model "$STATUS")"
 
 cat <<EOF
-[dev-workflow] agent-guard (PreToolUse hook for Agent tool)
+[meta-workflow] agent-guard (PreToolUse hook for Agent tool)
 Active workflow phase: $STATUS (epoch $EPOCH) — stage instructions: $INSTRUCTIONS_PATH
 
 ⚠️  IMPORTANT — how this hook works:
@@ -113,7 +113,7 @@ Agent tool parameters to use:
 
 ━━━━━━━━━━ PROMPT TEMPLATE — copy verbatim into the Agent tool's \`prompt\` ━━━━━━━━━━
 
-Execute the $STATUS stage of the dev-workflow.
+Execute the $STATUS stage of the meta-workflow.
 
 Stage name: $STATUS
 Stage instructions file: $INSTRUCTIONS_PATH

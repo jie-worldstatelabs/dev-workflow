@@ -87,10 +87,6 @@ if [[ "$MODE" == "local" ]]; then
     WORKFLOW_DIR="$DEFAULT_WORKFLOW_DIR"
   elif [[ "$WORKFLOW_NAME" == /* ]]; then
     WORKFLOW_DIR="$WORKFLOW_NAME"
-  elif [[ "$WORKFLOW_NAME" == cloud://* ]]; then
-    echo "❌ '${WORKFLOW_NAME}' is a cloud reference — cannot be used in local mode." >&2
-    echo "   Use the default (--mode=cloud) or pass a local directory path." >&2
-    exit 1
   elif [[ "$WORKFLOW_NAME" == */* ]]; then
     WORKFLOW_DIR="$(cd "$WORKFLOW_NAME" 2>/dev/null && pwd || echo "$WORKFLOW_NAME")"
   else

@@ -35,4 +35,13 @@ else
   echo "  State:    <project>/.meta-workflow/<session_id>/"
 fi
 echo "  Workflow: ${_wf}"
+if [[ "$MODE" == "cloud" ]]; then
+  echo "  Tip:      To run locally: /meta-workflow:start --mode=local [--workflow=<path>]"
+else
+  if [[ -n "$WORKFLOW_FLAG" && "$WF_TYPE" != "cloud" ]]; then
+    echo "  Tip:      To run on cloud: /meta-workflow:start --workflow=cloud://<name>  (publish your local workflow first)"
+  else
+    echo "  Tip:      To run on cloud: /meta-workflow:start  (defaults to cloud mode, pulls cloud://<name>)"
+  fi
+fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

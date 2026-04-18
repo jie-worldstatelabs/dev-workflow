@@ -141,41 +141,105 @@ if [[ -z "$SESSION_ID" ]]; then
 fi
 
 # ══════════════════════════════════════════════════════════════
-# Mixed-mode guard — one session_id can only be used in ONE mode.
-# Setting up the same session_id as both cloud and local creates two
-# independent state.md files that drift apart (resolve_state's cloud-first
-# branch makes the local copy invisible), and every cloud_reconcile_state
-# fire ends up overwriting server progress with stale shadow state.
+# Phase 0: Detect any active workflow for this session (local or cloud).
+# One unified check before mode-specific branches so the user always
+# gets the same clear message regardless of mode.
+#
+# Check order:
+#   1. Cloud shadow  (~/.cache/meta-workflow/sessions/<sid>/state.md)
+#   2. Local run dir (<project>/.meta-workflow/<sid>/state.md)
+#   3. Cloud registry (~/.meta-workflow/cloud-registry/<sid>.json, shadow lost)
+#   4. Cloud server GET (authoritative cross-machine check; skipped if offline)
+#
+# On active found → exit 2 so SKILL.md's Step 1 can ask the user.
+# With --force   → skip the check entirely (SKILL.md re-runs with --force
+#                  after the user confirms).
 # ══════════════════════════════════════════════════════════════
-_CLOUD_REG="${HOME}/.meta-workflow/cloud-registry/${SESSION_ID}.json"
-_LOCAL_DIR="${PROJECT_ROOT}/.meta-workflow/${SESSION_ID}"
+if [[ -z "$FORCE" ]]; then
+  _active_topic="" _active_status="" _active_mode="" _active_loc=""
 
-if [[ "$MODE" == "local" ]] && [[ -f "$_CLOUD_REG" ]]; then
-  echo "❌ Error: session ${SESSION_ID} is already registered as cloud-managed." >&2
-  echo "   Registry: $_CLOUD_REG" >&2
-  echo "   Setting up as local would create a second state.md that drifts apart" >&2
-  echo "   from the shadow at ~/.cache/meta-workflow/sessions/${SESSION_ID}/." >&2
-  echo "" >&2
-  echo "   Resolve this by either:" >&2
-  echo "     1. /meta-workflow:cancel the cloud workflow first (archives + unregisters)" >&2
-  echo "     2. Or re-run with --mode=cloud (same mode as the existing run)" >&2
-  exit 1
+  # 1. Cloud shadow
+  _cs="${HOME}/.cache/meta-workflow/sessions/${SESSION_ID}/state.md"
+  if [[ -f "$_cs" ]]; then
+    _s="$(_read_fm_field "$_cs" status)"
+    case "$_s" in complete|escalated|cancelled|"") ;;
+      *)
+        _active_topic="$(_read_fm_field "$_cs" topic)"
+        _active_status="$_s"
+        _active_mode="cloud"
+        _active_loc="$_cs"
+        ;;
+    esac
+  fi
+
+  # 2. Local run dir (only if cloud shadow didn't already fire)
+  _ld="${PROJECT_ROOT}/.meta-workflow/${SESSION_ID}/state.md"
+  if [[ -z "$_active_status" ]] && [[ -f "$_ld" ]]; then
+    _s="$(_read_fm_field "$_ld" status)"
+    case "$_s" in complete|escalated|cancelled|"") ;;
+      *)
+        _active_topic="$(_read_fm_field "$_ld" topic)"
+        _active_status="$_s"
+        _active_mode="local"
+        _active_loc="$_ld"
+        ;;
+    esac
+  fi
+
+  # 3. Cloud registry without shadow (orphaned registration)
+  _cr="${HOME}/.meta-workflow/cloud-registry/${SESSION_ID}.json"
+  if [[ -z "$_active_status" ]] && [[ -f "$_cr" ]]; then
+    _active_mode="cloud"
+    _active_status="unknown (registry exists, shadow missing)"
+    _active_topic="$(jq -r '.topic // ""' "$_cr" 2>/dev/null)"
+    _active_loc="$_cr"
+  fi
+
+  # 4. Cloud server GET — authoritative cross-machine check.
+  #    Only attempted when META_WORKFLOW_SERVER is set and we haven't
+  #    already found an active run locally. On network failure we fall
+  #    through (offline-safe) and note the caveat in the output.
+  _server_unreachable=""
+  if [[ -z "$_active_status" ]] && [[ -n "${META_WORKFLOW_SERVER:-}" ]]; then
+    _srv_snap="$(curl -sS -fL --max-time 4 \
+        -H "$(_cloud_auth_header)" \
+        "${META_WORKFLOW_SERVER}/api/sessions/${SESSION_ID}" 2>/dev/null)" || true
+    if [[ -n "$_srv_snap" ]] && printf '%s' "$_srv_snap" | jq empty 2>/dev/null; then
+      _srv_status="$(printf '%s' "$_srv_snap" | jq -r '.session.status // ""')"
+      _srv_active="$(printf '%s' "$_srv_snap" | jq -r '.session.active // "false"')"
+      case "$_srv_status" in complete|escalated|cancelled|"") ;;
+        *)
+          if [[ "$_srv_active" == "true" ]]; then
+            _active_topic="$(printf '%s' "$_srv_snap" | jq -r '.session.topic // ""')"
+            _active_status="$_srv_status"
+            _active_mode="cloud (server)"
+            _active_loc="${META_WORKFLOW_SERVER}/s/${SESSION_ID}"
+          fi
+          ;;
+      esac
+    elif [[ -n "${META_WORKFLOW_SERVER:-}" ]]; then
+      _server_unreachable="   (server unreachable — relying on local state only)"
+    fi
+  fi
+
+  if [[ -n "$_active_status" ]]; then
+    echo "⚠️  This session already has an active workflow." >&2
+    echo "" >&2
+    echo "   Session : ${SESSION_ID}" >&2
+    echo "   Topic   : ${_active_topic:-?}" >&2
+    echo "   Status  : ${_active_status}" >&2
+    echo "   Mode    : ${_active_mode}" >&2
+    echo "   Location: ${_active_loc}" >&2
+    [[ -n "$_server_unreachable" ]] && echo "$_server_unreachable" >&2
+    echo "" >&2
+    echo "   /meta-workflow:interrupt to pause, /meta-workflow:continue to resume," >&2
+    echo "   /meta-workflow:cancel to stop the existing workflow first." >&2
+    exit 2
+  fi
+
+  unset _active_topic _active_status _active_mode _active_loc
+  unset _cs _ld _cr _s _srv_snap _srv_status _srv_active _server_unreachable
 fi
-
-if [[ "$MODE" == "cloud" ]] && [[ -f "$_LOCAL_DIR/state.md" ]]; then
-  echo "❌ Error: session ${SESSION_ID} already has a local workflow at $_LOCAL_DIR/" >&2
-  echo "   Setting up as cloud would create a shadow that drifts apart from the" >&2
-  echo "   local run. resolve_state's cloud-first branch would then make the local" >&2
-  echo "   state.md invisible, so update-status.sh writes would silently stop" >&2
-  echo "   reaching the hooks." >&2
-  echo "" >&2
-  echo "   Resolve this by either:" >&2
-  echo "     1. /meta-workflow:cancel the local workflow first" >&2
-  echo "     2. Or omit --mode=cloud (same mode as the existing run)" >&2
-  exit 1
-fi
-
-unset _CLOUD_REG _LOCAL_DIR
 
 # ══════════════════════════════════════════════════════════════
 # CLOUD MODE
@@ -188,24 +252,6 @@ if [[ "$MODE" == "cloud" ]]; then
   SCRATCH_DIR="${HOME}/.cache/meta-workflow/sessions/${SESSION_ID}"
   WORKFLOW_CACHE="${SCRATCH_DIR}/.workflow-cache"
 
-  # Phase 0: detect existing cloud shadow (mirrors server 409 semantics
-  # with a friendlier local error).
-  if [[ -f "${SCRATCH_DIR}/state.md" ]] && [[ -z "$FORCE" ]]; then
-    existing_status=$(_read_fm_field "${SCRATCH_DIR}/state.md" status)
-    existing_topic=$(_read_fm_field "${SCRATCH_DIR}/state.md" topic)
-    case "$existing_status" in
-      complete|escalated|cancelled|"") ;;
-      *)
-        echo "⚠️  This session already has an active cloud workflow." >&2
-        echo "" >&2
-        echo "   Session: ${SESSION_ID}" >&2
-        echo "   Existing topic: ${existing_topic:-?}   status: ${existing_status}" >&2
-        echo "" >&2
-        echo "   /meta-workflow:interrupt to pause, /meta-workflow:cancel to stop." >&2
-        exit 2
-        ;;
-    esac
-  fi
   # --force: wipe the existing shadow so the server session can be replaced.
   if [[ -n "$FORCE" ]] && [[ -d "$SCRATCH_DIR" ]]; then
     rm -rf "$SCRATCH_DIR"
@@ -433,30 +479,6 @@ fi
 # ══════════════════════════════════════════════════════════════
 
 SESSION_RUN_DIR="${PROJECT_ROOT}/.meta-workflow/${SESSION_ID}"
-
-# ──────────────────────────────────────────────────────────────
-# Phase 0: Detect existing workflow for THIS session.
-# ──────────────────────────────────────────────────────────────
-if [[ -f "${SESSION_RUN_DIR}/state.md" ]] && [[ -z "$FORCE" ]]; then
-  etopic=$(_read_fm_field "${SESSION_RUN_DIR}/state.md" topic)
-  estatus=$(_read_fm_field "${SESSION_RUN_DIR}/state.md" status)
-  case "$estatus" in
-    complete|escalated|cancelled|"")
-      # Terminal or unreadable — safe to replace.
-      ;;
-    *)
-      echo "⚠️  This session already has an active meta-workflow." >&2
-      echo "" >&2
-      echo "   Session: ${SESSION_ID}" >&2
-      echo "   Existing topic: ${etopic:-?}   status: ${estatus}" >&2
-      echo "   Existing dir: ${SESSION_RUN_DIR}" >&2
-      echo "" >&2
-      echo "   /meta-workflow:interrupt to pause, /meta-workflow:cancel to stop," >&2
-      echo "   /meta-workflow:continue to resume." >&2
-      exit 2
-      ;;
-  esac
-fi
 
 # ──────────────────────────────────────────────────────────────
 # Phase 1: Ensure git repo with a HEAD commit (baseline)

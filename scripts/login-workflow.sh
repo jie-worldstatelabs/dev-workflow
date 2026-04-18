@@ -55,9 +55,9 @@ if [[ "${1:-}" == "--demo" ]]; then
     --arg token "$token" \
     --arg user_id "$user_id" \
     --arg author "$author" \
-    --arg label "demo" \
+    --arg lbl "demo" \
     --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    '{server: $server, token: $token, user_id: $user_id, author: $author, label: $label, created_at: $created_at}' \
+    '{server: $server, token: $token, user_id: $user_id, author: $author, label: $lbl, created_at: $created_at}' \
     > "${AUTH_FILE}.tmp"
   mv "${AUTH_FILE}.tmp" "$AUTH_FILE"
   chmod 600 "$AUTH_FILE"
@@ -79,7 +79,7 @@ fi
 echo "Requesting device code from ${SERVER}…"
 resp="$(curl -sS -X POST \
   -H 'Content-Type: application/json' \
-  -d "$(jq -n --arg label "$LABEL" '{label: $label}')" \
+  -d "$(jq -n --arg lbl "$LABEL" '{label: $lbl}')" \
   "${SERVER}/api/auth/device/code")"
 
 if ! echo "$resp" | jq -e '.device_code' >/dev/null 2>&1; then
@@ -133,9 +133,9 @@ while :; do
       --arg token "$token" \
       --arg user_id "$user_id" \
       --arg author "$author" \
-      --arg label "$LABEL" \
+      --arg lbl "$LABEL" \
       --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-      '{server: $server, token: $token, user_id: $user_id, author: $author, label: $label, created_at: $created_at}' \
+      '{server: $server, token: $token, user_id: $user_id, author: $author, label: $lbl, created_at: $created_at}' \
       > "${AUTH_FILE}.tmp"
     mv "${AUTH_FILE}.tmp" "$AUTH_FILE"
     chmod 600 "$AUTH_FILE"

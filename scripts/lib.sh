@@ -1594,28 +1594,47 @@ cloud_reconcile_state() {
   server_status="$(printf '%s' "$snapshot" | jq -r '.session.status // ""')"
   server_epoch="$(printf '%s' "$snapshot" | jq -r '.session.epoch // ""')"
 
-  # State reconcile — server is authoritative. In cloud mode the server
-  # is the source of truth (SKILL.md's Cloud mode section says so, and
-  # multiple Claude sessions on different machines may be advancing the
-  # same session via update-status.sh). On mismatch we pull server state
-  # DOWN into the local shadow state.md. The local write that just
-  # happened (update-status.sh → set_fm_field + cloud_post_state) is
-  # already visible on the server by this point because stop-hook fires
-  # AFTER the turn's tool calls finished — so a server value newer than
-  # local means another writer advanced the session.
+  # State reconcile — higher epoch wins (Model 2: local-first + server mirror).
+  # Write path: update-status.sh → set_fm_field (local) → cloud_post_state (server).
+  # Local is written first for latency and offline resilience; the server is the
+  # cross-machine coordination point but NOT a blanket authority. The reconcile
+  # closes the gap in either direction using the monotonic per-session epoch:
   #
-  # Trade-off vs the old "local wins" policy: if cloud_post_state silently
-  # fails during a transition (network blip between set_fm_field and this
-  # reconcile), the local advance will be silently reverted on the next
-  # reconcile. That's safer than the previous behavior where reconcile
-  # would keep overwriting a healthy server with stale local state — the
-  # diary 4/14 incident showed that "local wins" corrupted the server side.
-  # If you hit this in practice, inspect the sync-warnings.log and retry
-  # the update-status.sh call.
-  if [[ "$server_status" != "$local_status" ]] || [[ "$server_epoch" != "$local_epoch" ]]; then
+  #   server.epoch > local.epoch → another machine advanced; pull server → local
+  #   server.epoch < local.epoch → prior POST was lost; re-push local → server
+  #   equal epoch, different status → POST dropped mid-flight; re-push local
+  #   equal and same → in sync; no-op
+  #
+  # This replaces the old "server always wins" policy, which silently reverted
+  # local advances whenever cloud_post_state had a transient failure (network
+  # blip between set_fm_field and the next reconcile). The previous "local
+  # always wins" policy was worse — the 4/14 diary incident showed it
+  # overwriting a healthy server with stale local state. Higher-epoch-wins
+  # avoids both failure modes: epochs only go up, so whichever side saw the
+  # newer write carries it across.
+  #
+  # Non-numeric epochs fall back to 0 so a corrupted value can't starve
+  # reconcile and leave the two sides permanently diverged.
+  local _l_ep=0 _s_ep=0
+  [[ "$local_epoch"  =~ ^[0-9]+$ ]] && _l_ep="$local_epoch"
+  [[ "$server_epoch" =~ ^[0-9]+$ ]] && _s_ep="$server_epoch"
+
+  if (( _s_ep > _l_ep )); then
     set_fm_field "$shadow/state.md" status "$server_status"
     set_fm_field "$shadow/state.md" epoch "$server_epoch"
     _cloud_warn "$sid" "reconcile: pulled server → local (was local=${local_status}/${local_epoch}, now ${server_status}/${server_epoch})"
+  elif (( _s_ep < _l_ep )) || [[ "$server_status" != "$local_status" ]]; then
+    local _l_resume _l_active _l_pr _l_fpr
+    _l_resume="$(_read_fm_field "$shadow/state.md" resume_status)"
+    _l_active="$(_read_fm_field "$shadow/state.md" active)"
+    _l_pr="$(_read_fm_field     "$shadow/state.md" project_root)"
+    _l_fpr="$(_read_fm_field    "$shadow/state.md" project_fingerprint)"
+    [[ -z "$_l_active" ]] && _l_active="true"
+    if cloud_post_state "$sid" "$local_status" "$local_epoch" "$_l_resume" "$_l_active" "$_l_pr" "$_l_fpr"; then
+      _cloud_warn "$sid" "reconcile: re-pushed local → server (was server=${server_status}/${server_epoch}, now ${local_status}/${local_epoch})"
+    else
+      _cloud_warn "$sid" "reconcile: push-up failed local=${local_status}/${local_epoch} server=${server_status}/${server_epoch}"
+    fi
   fi
 
   # Artifact reconcile — if the current stage has a local artifact

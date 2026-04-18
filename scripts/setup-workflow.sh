@@ -267,13 +267,6 @@ if [[ "$MODE" == "cloud" ]]; then
         exit 1
       }
       ;;
-    /*)
-      cp -R "${WORKFLOW_NAME%/}/." "${WORKFLOW_CACHE}/" || {
-        echo "❌ failed to copy workflow from ${WORKFLOW_NAME}" >&2
-        rm -rf "$SCRATCH_DIR"
-        exit 1
-      }
-      ;;
     cloud://*)
       # cloud://author/name — cloud named template
       _cloud_name="${WORKFLOW_NAME#cloud://}"
@@ -283,21 +276,9 @@ if [[ "$MODE" == "cloud" ]]; then
         exit 1
       }
       ;;
-    */*)
-      # relative/home local path (./foo, ../foo, ~/foo)
-      _abs="${WORKFLOW_NAME/#\~/$HOME}"
-      _abs="$(cd "$_abs" 2>/dev/null && pwd || echo "")"
-      if [[ -z "$_abs" ]]; then
-        echo "❌ workflow path not found: ${WORKFLOW_NAME}" >&2
-        echo "   For cloud templates use cloud://author/name." >&2
-        rm -rf "$SCRATCH_DIR"
-        exit 1
-      fi
-      cp -R "${_abs}/." "${WORKFLOW_CACHE}/"
-      ;;
     *)
       echo "❌ Invalid --workflow value: '${WORKFLOW_NAME}'" >&2
-      echo "   Use cloud://author/name for a cloud template, or an absolute/relative path for a local workflow." >&2
+      echo "   In cloud mode use cloud://author/name (e.g. cloud://demo)." >&2
       rm -rf "$SCRATCH_DIR"
       exit 1
       ;;

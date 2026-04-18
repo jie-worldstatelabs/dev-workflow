@@ -175,6 +175,15 @@ Run the [shared Validate step](#validate) with `--workflow="$HOME/.meta-workflow
 
 Skip this step if `MODE=local`.
 
+**Login required**: before calling `publish-workflow.sh`, verify the user is logged in:
+```bash
+P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
+source "$P/scripts/lib.sh"
+cloud_is_logged_in && echo "LOGGED_IN" || echo "NOT_LOGGED_IN"
+```
+If `NOT_LOGGED_IN` → **hard stop**: tell the user to run `/meta-workflow:login` first, then refuse to publish.
+
 Run the [shared Publish step](#publish-to-hub) with `"$HOME/.meta-workflow/workflows/<suffix>"`. On failure, tell the user and continue — the workflow is still usable locally via `--workflow=~/.meta-workflow/workflows/<suffix>`.
 
 ### Step 6 — Report success
@@ -223,9 +232,7 @@ P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
 "$P/scripts/publish-workflow.sh" "<absolute-path-to-workflow-dir>"
 ```
 
-`publish-workflow.sh` handles auth automatically:
-- **Logged in** → workflow is **private** (only you can access it)
-- **Anonymous** → workflow is **public** (anyone with the link can use it)
+`publish-workflow.sh` requires a logged-in account — if not logged in it exits with a clear error. Run `/meta-workflow:login` first if needed. On success the workflow is published under your account.
 
 If the name already exists under your account, the script warns "Updating existing workflow" and proceeds. If the name is taken by another user, it exits with a clear error — pick a different suffix.
 

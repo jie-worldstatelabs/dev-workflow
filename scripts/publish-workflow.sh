@@ -131,6 +131,13 @@ if [[ ! -d "$DIR" ]]; then
 fi
 DIR="$(cd "$DIR" && pwd)"
 
+# ── Gate on login early (before any schema validation) ──
+if [[ -z "$DRY_RUN" ]] && ! cloud_is_logged_in; then
+  echo "❌ Publishing requires a logged-in account." >&2
+  echo "   Run /meta-workflow:login first, then retry." >&2
+  exit 1
+fi
+
 # ── Validate workflow.json ──
 WF_FILE="${DIR}/workflow.json"
 if [[ ! -f "$WF_FILE" ]]; then
@@ -223,12 +230,6 @@ PAYLOAD="$(jq -n --argjson files "$FILES_JSON" --arg desc "$DESCRIPTION" --arg v
 # Server URL is always populated via lib.sh's default; require_env
 # validates it didn't get unset out from under us.
 cloud_require_env || exit 1
-
-if [[ -z "$DRY_RUN" ]] && ! cloud_is_logged_in; then
-  echo "❌ Publishing requires a logged-in account." >&2
-  echo "   Run /meta-workflow:login first, then retry." >&2
-  exit 1
-fi
 URL="${META_WORKFLOW_SERVER}/api/workflows/${NAME}"
 
 # ── Pre-check: does a workflow with this name already exist? ──

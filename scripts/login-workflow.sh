@@ -38,8 +38,8 @@ if [[ "${1:-}" == "--demo" ]]; then
     fi
   fi
   echo "Fetching demo token from ${SERVER}…"
-  resp="$(curl -sS "${SERVER}/api/auth/demo-token")" || {
-    echo "❌ Failed to reach ${SERVER}/api/auth/demo-token" >&2
+  resp="$(curl -sS "${SERVER}/api/auth/demo-token" 2>/dev/null)" || {
+    cloud_explain_curl_exit $? "$SERVER"
     exit 1
   }
   token="$(echo "$resp" | jq -r '.token // empty')"
@@ -77,10 +77,15 @@ if [[ -f "$AUTH_FILE" ]]; then
 fi
 
 echo "Requesting device code from ${SERVER}…"
+curl_rc=0
 resp="$(curl -sS -X POST \
   -H 'Content-Type: application/json' \
   -d "$(jq -n --arg lbl "$LABEL" '{label: $lbl}')" \
-  "${SERVER}/api/auth/device/code")"
+  "${SERVER}/api/auth/device/code" 2>/dev/null)" || curl_rc=$?
+if [[ $curl_rc -ne 0 ]]; then
+  cloud_explain_curl_exit "$curl_rc" "$SERVER"
+  exit 1
+fi
 
 if ! echo "$resp" | jq -e '.device_code' >/dev/null 2>&1; then
   echo "❌ Server rejected device-code request:" >&2
@@ -112,17 +117,31 @@ fi
 echo "Waiting for browser approval (expires in ${expires_in}s)…"
 
 deadline=$(( $(date +%s) + expires_in ))
+network_warned=0
 while :; do
   now=$(date +%s)
   if (( now >= deadline )); then
     echo "❌ Timed out waiting for approval." >&2
+    echo "   The browser approval window may have closed, or the network is unstable." >&2
     exit 1
   fi
 
+  poll_rc=0
   poll="$(curl -sS -X POST \
     -H 'Content-Type: application/json' \
     -d "$(jq -n --arg c "$device_code" '{device_code: $c}')" \
-    "${SERVER}/api/auth/device/token")" || poll='{"error":"network"}'
+    "${SERVER}/api/auth/device/token" 2>/dev/null)" || poll_rc=$?
+  if [[ $poll_rc -ne 0 ]]; then
+    if [[ $network_warned -eq 0 ]]; then
+      cloud_explain_curl_exit "$poll_rc" "$SERVER"
+      echo "   (will keep retrying silently until you approve or the code expires)" >&2
+      network_warned=1
+    fi
+    sleep "$interval"
+    continue
+  fi
+  # Network recovered — allow future outages to warn again.
+  network_warned=0
 
   if echo "$poll" | jq -e '.access_token' >/dev/null 2>&1; then
     token="$(echo "$poll" | jq -r '.access_token')"
@@ -163,7 +182,9 @@ while :; do
       exit 1
       ;;
     *)
-      echo "❌ Unexpected response: $poll" >&2
+      # Unknown server-side error. Show a one-liner the first time; keep
+      # polling in case it's transient (e.g. a server redeploy).
+      echo "⚠️  Server returned unexpected error '${err}' — retrying…" >&2
       sleep "$interval"
       ;;
   esac

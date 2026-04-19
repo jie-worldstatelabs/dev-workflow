@@ -848,6 +848,35 @@ cloud_is_logged_in() {
   [[ -n "$token" ]]
 }
 
+# Translate a curl(1) exit code into a friendly, actionable message on
+# stderr. Called by cloud-facing scripts (login, publish, fetch) when a
+# curl invocation fails so users see guidance instead of raw
+# "curl: (6) Could not resolve host" dumps.
+#
+# Usage: cloud_explain_curl_exit <exit_code> [server_url]
+# Exit code 0 is a no-op; unknown codes fall back to a generic message.
+cloud_explain_curl_exit() {
+  local code="$1" server="${2:-the meta-workflow server}"
+  case "$code" in
+    0)   return 0 ;;
+    6)   echo "❌ Can't resolve ${server} — DNS lookup failed." >&2
+         echo "   Check your internet connection, VPN, or DNS settings." >&2
+         echo "   Try: ping ${server#https://} or switch DNS to 8.8.8.8" >&2 ;;
+    7)   echo "❌ Can't connect to ${server} — connection refused." >&2
+         echo "   The server may be down, or your firewall/VPN is blocking it." >&2 ;;
+    28)  echo "❌ Connection to ${server} timed out." >&2
+         echo "   Network is slow or unreachable. Retry in a moment." >&2 ;;
+    35|56) echo "❌ TLS/connection reset by ${server}." >&2
+         echo "   Often caused by unstable VPN or MTU issues. Retry, or toggle VPN off." >&2 ;;
+    52)  echo "❌ Empty reply from ${server}." >&2
+         echo "   The server accepted the connection but returned nothing. It may be restarting." >&2 ;;
+    60)  echo "❌ TLS certificate verification failed for ${server}." >&2
+         echo "   Check system clock and CA bundle. Corporate proxy may be MITMing." >&2 ;;
+    *)   echo "❌ Network error contacting ${server} (curl exit ${code})." >&2
+         echo "   Check your connection and try again." >&2 ;;
+  esac
+}
+
 _cloud_auth_header() {
   local auth_file="${HOME}/.meta-workflow/auth.json"
   if [[ -f "$auth_file" ]]; then

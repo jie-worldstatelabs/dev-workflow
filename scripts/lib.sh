@@ -1023,10 +1023,19 @@ cloud_fetch_workflow_from_name() {
   mkdir -p "$dest"
   local base="${META_WORKFLOW_SERVER}/api/workflows/${name}"
   local bundle
-  bundle="$(curl -sS -fL -H "$(_cloud_auth_header)" "$base")" || {
-    echo "❌ failed to fetch workflow '${name}' from server" >&2
+  local fetch_rc=0
+  bundle="$(curl -sS -fL -H "$(_cloud_auth_header)" "$base" 2>/dev/null)" || fetch_rc=$?
+  if [[ $fetch_rc -ne 0 ]]; then
+    # curl exit 22 = server returned a 4xx/5xx under -f. Treat as "not found /
+    # not authorized" with a specific hint; other codes are network problems.
+    if [[ $fetch_rc -eq 22 ]]; then
+      echo "❌ Workflow '${name}' not found on the hub (or you don't have access)." >&2
+      echo "   Check the name, or run /meta-workflow:login if it's private." >&2
+    else
+      cloud_explain_curl_exit "$fetch_rc" "$META_WORKFLOW_SERVER"
+    fi
     return 1
-  }
+  fi
   printf '%s' "$bundle" | jq '.workflow' > "${dest}/workflow.json"
   # Write each file directly from the bundle — no secondary HTTP requests needed.
   local fnames

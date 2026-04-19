@@ -237,9 +237,15 @@ URL="${META_WORKFLOW_SERVER}/api/workflows/${NAME}"
 # name is owned by a different user, instead of a raw HTTP error code.
 if [[ -z "$DRY_RUN" ]]; then
   _pre_tmp="$(mktemp -t dw-precheck-XXXXXX)"
+  _pre_rc=0
   _pre_code="$(curl -sS -o "$_pre_tmp" -w "%{http_code}" \
     -H "$(_cloud_auth_header)" \
-    "$URL" 2>/dev/null || echo "000")"
+    "$URL" 2>/dev/null)" || _pre_rc=$?
+  if [[ $_pre_rc -ne 0 ]]; then
+    cloud_explain_curl_exit "$_pre_rc" "$META_WORKFLOW_SERVER"
+    rm -f "$_pre_tmp"
+    exit 1
+  fi
   if [[ "$_pre_code" == "200" ]]; then
     _remote_uid="$(jq -r '.user_id // .workflow.user_id // empty' "$_pre_tmp" 2>/dev/null || echo "")"
     _my_uid="$(jq -r '.user_id // empty' ~/.meta-workflow/auth.json 2>/dev/null || echo "")"
@@ -267,11 +273,17 @@ fi
 tmp_body="$(mktemp -t dw-publish-XXXXXX)"
 trap 'rm -f "$tmp_body"' EXIT
 
+put_rc=0
 http_code=$(curl -sS -o "$tmp_body" -w "%{http_code}" \
     -X PUT "$URL" \
     -H "$(_cloud_auth_header)" \
     -H "Content-Type: application/json" \
-    --data "$PAYLOAD" || echo "000")
+    --data "$PAYLOAD" 2>/dev/null) || put_rc=$?
+
+if [[ $put_rc -ne 0 ]]; then
+  cloud_explain_curl_exit "$put_rc" "$META_WORKFLOW_SERVER"
+  exit 1
+fi
 
 if [[ "$http_code" != "200" ]]; then
   case "$http_code" in

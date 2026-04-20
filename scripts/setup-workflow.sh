@@ -248,9 +248,23 @@ if [[ "$MODE" == "cloud" ]]; then
   SCRATCH_DIR="${HOME}/.cache/meta-workflow/sessions/${SESSION_ID}"
   WORKFLOW_CACHE="${SCRATCH_DIR}/.workflow-cache"
 
-  # --force: wipe the existing shadow so the server session can be replaced.
-  if [[ -n "$FORCE" ]] && [[ -d "$SCRATCH_DIR" ]]; then
-    rm -rf "$SCRATCH_DIR"
+  # --force: mirror what /meta-workflow:cancel does for cloud sessions so
+  # the server side is truly reset before we POST a new setup. Wiping
+  # only the local shadow (as the old behaviour did) is not enough — the
+  # server still holds an active session row, and the next setup POST
+  # gets HTTP 409. All three helpers are idempotent and tolerate the
+  # "nothing to cancel" case (e.g. registry already gone), so we can
+  # call them unconditionally whenever --force is set.
+  if [[ -n "$FORCE" ]]; then
+    # 1. Tell the server to cancel the existing session (no-op if none).
+    cloud_post_cancel "$SESSION_ID" || true
+    # 2. Drop the local cloud-registry pointer so subsequent is_cloud_session
+    #    checks don't see a stale registration.
+    cloud_unregister_session "$SESSION_ID" || true
+    # 3. Wipe the local shadow directory, if any.
+    if [[ -d "$SCRATCH_DIR" ]]; then
+      rm -rf "$SCRATCH_DIR"
+    fi
   fi
 
   mkdir -p "$WORKFLOW_CACHE"

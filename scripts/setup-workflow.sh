@@ -442,6 +442,16 @@ EOF
   echo "   UI:         ${META_WORKFLOW_SERVER}/s/${SESSION_ID}"
   echo "   To pause:  /meta-workflow:interrupt"
   echo "   To cancel: /meta-workflow:cancel"
+  echo ""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "📍 RELAY THIS TO THE USER VERBATIM BEFORE CONTINUING:"
+  echo ""
+  echo "   Live session URL:"
+  echo "   ${META_WORKFLOW_SERVER}/s/${SESSION_ID}"
+  echo ""
+  echo "   (The user needs this link to watch the workflow in a browser."
+  echo "    Do not summarise it away — paste it as-is in your next message.)"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
   # Anonymous-cloud nudge: if the user has no bearer token stored at
   # ~/.meta-workflow/auth.json, they're running as an anonymous capability

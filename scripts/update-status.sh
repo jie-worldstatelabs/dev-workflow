@@ -177,6 +177,28 @@ if is_cloud_session "$RUN_DIR_NAME"; then
   # best-effort — failures never block the transition.
   cloud_post_diff "$RUN_DIR_NAME" || true
   if is_terminal_status "$NEW_STATUS"; then
+    # Terminal artifact: prefer a human-written summary at
+    # <terminal>-report.md, fall back to a machine-generated one so
+    # the webapp always has content when the user clicks the terminal
+    # node. Best-effort — failures must not block the terminal cleanup
+    # below (the state transition itself already succeeded server-side).
+    TERMINAL_REPORT="${TOPIC_DIR}/${NEW_STATUS}-report.md"
+    if [[ ! -f "$TERMINAL_REPORT" ]]; then
+      _started_at=$(_read_fm_field "$STATE_FILE" started_at 2>/dev/null || true)
+      _workflow_url="$(cloud_registry_get "$RUN_DIR_NAME" workflow_url 2>/dev/null || echo "")"
+      synthesize_terminal_report \
+        "$TERMINAL_REPORT" \
+        "$RUN_DIR_NAME" \
+        "${TOPIC:-}" \
+        "$NEW_STATUS" \
+        "$CURRENT_STATUS" \
+        "$NEW_EPOCH" \
+        "${_started_at:-}" \
+        "${_workflow_url:-}" \
+        || true
+    fi
+    cloud_post_artifact "$RUN_DIR_NAME" "$NEW_STATUS" "$TERMINAL_REPORT" 2>/dev/null || true
+
     cloud_post_archive "$RUN_DIR_NAME" || true
     # Terminal status = we're done. Wipe the shadow so nothing stays on
     # this machine; server keeps the audit trail. Same cleanup as cancel.

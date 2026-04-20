@@ -196,7 +196,25 @@ Loop:
          NEXT_STATUS=$(jq -r --arg stage "$CURRENT_STATUS" --arg result "$RESULT" \
            '.stages[$stage].transitions[$result] // empty' \
            "<workflow_dir>/workflow.json")
-     Then run (re-discover $P each Bash-tool call):
+
+  d'. **Terminal summary** — if `NEXT_STATUS` is in `workflow.json` →
+     `terminal_stages`, write a human-friendly run summary to
+     `<run-dir>/<NEXT_STATUS>-report.md` BEFORE calling update-status.sh.
+     This artifact is surfaced on the webapp's terminal-stage node, so
+     users can see the outcome without scrolling stage-by-stage. Good
+     content: topic, round-by-round verdicts, key files changed, any
+     outstanding items to pick up after the run, and the live URL.
+     The file must have frontmatter:
+         ---
+         epoch: <current epoch from state.md>
+         result: <NEXT_STATUS>
+         ---
+     If this file is absent at terminal transition, update-status.sh
+     synthesises a mechanical fallback (metadata + server artifact list
+     + live URL) so the UI is never empty — but a human-written summary
+     is strongly preferred and should be the default behaviour.
+
+  e. Run (re-discover $P each Bash-tool call):
          P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
          [[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
          "$P/scripts/update-status.sh" --status "$NEXT_STATUS"

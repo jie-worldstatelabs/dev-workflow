@@ -1219,6 +1219,85 @@ cloud_post_artifact() {
   return 0
 }
 
+# Write a machine-generated terminal summary to `dest` when the main
+# agent didn't produce one. Data-driven (no LLM): topic, timing, live
+# URL, and the latest artifact per stage as seen on the server. Carries
+# a visible disclaimer so users can tell it apart from a human summary.
+#
+# Usage:
+#   synthesize_terminal_report \
+#     <dest_path> <sid> <topic> <terminal> <outgoing_stage> \
+#     <final_epoch> <started_at> <workflow_url>
+synthesize_terminal_report() {
+  local dest="$1"
+  local sid="$2"
+  local topic="$3"
+  local terminal="$4"
+  local outgoing="$5"
+  local epoch="$6"
+  local started_at="$7"
+  local workflow_url="$8"
+
+  local now server live_url artifacts_list snap
+  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  server="${META_WORKFLOW_SERVER:-}"
+  live_url="-"
+  [[ -n "$server" ]] && live_url="${server}/s/${sid}"
+
+  artifacts_list=""
+  if [[ -n "$server" ]]; then
+    snap="$(curl -sS -m 5 -H "$(_cloud_auth_header)" \
+      "${server}/api/sessions/${sid}" 2>/dev/null || echo '{}')"
+    artifacts_list="$(printf '%s' "$snap" | jq -r '
+      .artifacts[]? |
+      "- **" + .stage + "** — epoch " + (.epoch|tostring) +
+      ", result `" + (.result // "—") + "`, " +
+      ((.content | length) | tostring) + " bytes"' 2>/dev/null)"
+  fi
+  [[ -z "$artifacts_list" ]] && artifacts_list="- _(no artifacts visible on server)_"
+
+  cat > "$dest" <<EOF
+---
+epoch: ${epoch}
+result: ${terminal}
+---
+# ${terminal} — auto-generated run summary
+
+> ⚠️  This summary was **auto-generated** by \`update-status.sh\` because
+> the main agent did not write \`${terminal}-report.md\` before the
+> terminal transition. A richer, human-written summary belongs here
+> whenever possible — the content below is strictly what the state
+> machine itself can observe.
+
+## Run metadata
+
+| Field | Value |
+|---|---|
+| Topic | ${topic:-?} |
+| Workflow | ${workflow_url:-default} |
+| Session | ${sid} |
+| Started | ${started_at:-?} |
+| Ended | ${now} |
+| Final epoch | ${epoch} |
+| Transitioned from | ${outgoing:-?} |
+| Terminal | ${terminal} |
+
+## Latest artifact per stage
+
+${artifacts_list}
+
+## Live view
+
+${live_url}
+
+## Note
+
+The agent did not provide a human-friendly summary for this run.
+Open the live view above and browse each stage's artifact for the
+actual content.
+EOF
+}
+
 cloud_delete_artifact() {
   local sid="$1" stage="$2"
   cloud_require_env || return 1

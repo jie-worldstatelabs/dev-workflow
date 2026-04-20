@@ -1542,17 +1542,35 @@ cloud_post_diff() {
 # 1-second hard timeout so a flaky network can't stall the agent.
 # Returns 0 unconditionally (fire-and-forget; failures are silent).
 cloud_post_activity() {
+  # Args (positional):
+  #   1 sid, 2 stage, 3 epoch, 4 tool, 5 summary,
+  #   6 tool_input_json (raw JSON string — may be empty),
+  #   7 tool_result_json (raw JSON string — may be empty),
+  #   8 is_error ("true" / "false" / empty)
+  #
+  # Extra fields are optional for backward compat; callers that only
+  # pass 1-5 still work (legacy activity recording with summary only).
   local sid="$1" stage="$2" epoch="$3" tool="$4" summary="$5"
+  local tin="${6:-}" tres="${7:-}" ierr="${8:-false}"
   cloud_require_env 2>/dev/null || return 0
   local server; server="$(_cloud_server "$sid")"
   [[ -z "$server" ]] && return 0
+  # Default unset JSON payloads to null (valid JSON); validate each
+  # arg parses so a broken caller can't poison the server row.
+  [[ -z "$tin"  ]] || echo "$tin"  | jq -e . >/dev/null 2>&1 || tin=""
+  [[ -z "$tres" ]] || echo "$tres" | jq -e . >/dev/null 2>&1 || tres=""
+  [[ "$ierr" == "true" || "$ierr" == "false" ]] || ierr="false"
   local payload
   payload="$(jq -n \
-      --arg stage  "$stage" \
-      --arg tool   "$tool" \
+      --arg stage   "$stage" \
+      --arg tool    "$tool" \
       --arg summary "$summary" \
       --argjson epoch "${epoch:-0}" \
-      '{stage: $stage, tool: $tool, summary: $summary, epoch: $epoch}')" || return 0
+      --argjson input  "${tin:-null}" \
+      --argjson result "${tres:-null}" \
+      --argjson is_error "$ierr" \
+      '{stage: $stage, tool: $tool, summary: $summary, epoch: $epoch,
+        tool_input: $input, tool_result: $result, is_error: $is_error}')" || return 0
   curl -sS --max-time 1 \
     -X POST "${server}/api/sessions/${sid}/activity" \
     -H "Content-Type: application/json" \

@@ -86,6 +86,24 @@ case "$TOOL" in
     ;;
 esac
 
-cloud_post_activity "$SID" "$STAGE" "${EPOCH:-0}" "$TOOL" "${SUMMARY:-}"
+# Extract the full tool_input + tool_response (Claude Code passes both
+# in PostToolUse hook input) so the webapp can show a drill-down pane
+# for every event, not just a one-line summary. Also derive a simple
+# is_error flag so failing steps can be visually flagged.
+TOOL_INPUT_JSON=$(echo "$HOOK_INPUT" | jq -c '.tool_input // null' 2>/dev/null || echo "null")
+TOOL_RESULT_JSON=$(echo "$HOOK_INPUT" | jq -c '.tool_response // null' 2>/dev/null || echo "null")
+
+# Error heuristic: prefer the explicit is_error field Claude Code
+# sets on most tool responses; for Bash, also treat a non-zero
+# exit_code as an error since Claude Code doesn't always set is_error
+# for shell commands. Missing fields → not an error.
+IS_ERROR=$(echo "$HOOK_INPUT" | jq -r '
+  if (.tool_response.is_error // false) == true then "true"
+  elif (.tool_name == "Bash" and ((.tool_response.exit_code // 0) != 0)) then "true"
+  else "false" end
+' 2>/dev/null || echo "false")
+
+cloud_post_activity "$SID" "$STAGE" "${EPOCH:-0}" "$TOOL" "${SUMMARY:-}" \
+  "$TOOL_INPUT_JSON" "$TOOL_RESULT_JSON" "$IS_ERROR"
 
 exit 0

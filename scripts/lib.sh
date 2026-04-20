@@ -168,26 +168,45 @@ _session_cache_cwd_key() {
 }
 
 # Echo the cached session_id for the current session, or empty if unknown.
+#
+# Resolution order is PPID-first, cwd-fallback:
+#   1. Walk the PPID chain up to 20 hops. Trust a ppid-<pid> cache entry
+#      only when that PID is still alive AND its comm name looks like a
+#      Claude Code process. This is the only signal that stays unique
+#      across concurrent sessions sharing a working directory.
+#   2. Fall back to the cwd-<sha1(pwd)> cache ONLY when the PPID chain
+#      yielded nothing. This branch misattributes when two Claude Code
+#      sessions share the same cwd (they overwrite each other's cwd
+#      cache), so it's strictly a last-resort guess.
+#
+# The comm-name check on PPID hits defends against PID recycling: after
+# a Claude Code session exits the kernel may hand its PID to an unrelated
+# process, leaving a stale ppid-<old-pid> file behind. Skip those.
 read_cached_session_id() {
   local cache="$_DW_SESSION_CACHE_DIR"
+
+  local pid=$PPID
+  local hops=0
+  while [[ -n "$pid" && "$pid" != "0" && "$pid" != "1" && $hops -lt 20 ]]; do
+    if [[ -f "${cache}/ppid-${pid}" ]]; then
+      local comm
+      comm="$(ps -p "$pid" -o comm= 2>/dev/null | tr -d '[:space:]')"
+      if [[ -n "$comm" && "$comm" == *claude* ]]; then
+        cat "${cache}/ppid-${pid}"
+        return 0
+      fi
+    fi
+    pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d '[:space:]')
+    hops=$((hops + 1))
+  done
+
   local key
-  # Try cwd key first (most reliable when there's no cd-drift)
   key="$(_session_cache_cwd_key)"
   if [[ -f "${cache}/cwd-${key}" ]]; then
     cat "${cache}/cwd-${key}"
     return 0
   fi
-  # Walk up the process tree looking for a matching ppid cache file
-  local pid=$PPID
-  local hops=0
-  while [[ -n "$pid" && "$pid" != "0" && "$pid" != "1" && $hops -lt 8 ]]; do
-    if [[ -f "${cache}/ppid-${pid}" ]]; then
-      cat "${cache}/ppid-${pid}"
-      return 0
-    fi
-    pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d '[:space:]')
-    hops=$((hops + 1))
-  done
+
   echo ""
 }
 

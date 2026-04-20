@@ -72,7 +72,7 @@ build_inputs_section() {
     [[ -z "$key" ]] && continue
     local path
     if [[ "$type" == "run_file" ]]; then
-      path="$(config_run_file_path "$key")"
+      path="$(config_run_file_path "$key" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
     else
       path="$(config_artifact_path "$key" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
     fi

@@ -622,18 +622,24 @@ config_artifact_path() {
 }
 
 # Path for a run_file (created once at setup time, stored in the run dir).
-# Resolution precedence mirrors config_artifact_path.
+# Resolution precedence mirrors config_artifact_path. Takes the same
+# explicit (run_dir_name, project_root) positional args because cloud
+# setup-workflow.sh calls this BEFORE resolve_state has populated the
+# global RUN_DIR_NAME / PROJECT_ROOT — so the function must accept its
+# context from the caller, not read shell globals.
 config_run_file_path() {
   local name="$1"
+  local run_dir_name="$2"
+  local project_root="${3:-}"
   if [[ -n "${DW_RUN_BASE:-}" ]]; then
-    echo "${DW_RUN_BASE}/${RUN_DIR_NAME}/${name}"
+    echo "${DW_RUN_BASE}/${run_dir_name}/${name}"
     return
   fi
   if [[ -n "${TOPIC_DIR:-}" ]]; then
     echo "${TOPIC_DIR}/${name}"
     return
   fi
-  echo "${PROJECT_ROOT}/.meta-workflow/${RUN_DIR_NAME}/${name}"
+  echo "${project_root}/.meta-workflow/${run_dir_name}/${name}"
 }
 
 # Init shell command for a run_file.
@@ -663,7 +669,7 @@ config_show_stage_context() {
     [[ -z "$key" ]] && continue
     local path
     if [[ "$type" == "run_file" ]]; then
-      path="$(config_run_file_path "$key")"
+      path="$(config_run_file_path "$key" "$topic" "$project_root")"
     else
       path="$(config_artifact_path "$key" "$topic" "$project_root")"
     fi
@@ -675,7 +681,7 @@ config_show_stage_context() {
     [[ -z "$key" ]] && continue
     local path
     if [[ "$type" == "run_file" ]]; then
-      path="$(config_run_file_path "$key")"
+      path="$(config_run_file_path "$key" "$topic" "$project_root")"
     else
       path="$(config_artifact_path "$key" "$topic" "$project_root")"
     fi

@@ -89,7 +89,7 @@ if config_is_stage "$NEW_STATUS"; then
     [[ -z "$key" ]] && continue
     input_path=
     if [[ "$type" == "run_file" ]]; then
-      input_path="$(config_run_file_path "$key")"
+      input_path="$(config_run_file_path "$key" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
     else
       input_path="$(config_artifact_path "$key" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
     fi

@@ -1563,14 +1563,18 @@ cloud_post_activity() {
   return 0
 }
 
-# Record the actual prompt string a workflow subagent received for a
-# specific (stage, epoch) run. Fire-and-forget — the webapp surfaces
-# this under "Prompt" in the stage detail panel, but a failure to
-# upload must never slow down the agent loop.
+# Record the prompt context a workflow subagent received for a
+# specific (stage, epoch) run. The webapp surfaces this under the
+# "Runtime prompt" panel.
+#
+# Synchronous by design: the sole caller (subagent-bootstrap.sh)
+# passes a `--data-binary @<tmp_file>` payload and then exits,
+# clearing the tmp file via its EXIT trap. A backgrounded curl
+# would race the trap and lose the file mid-read. A short blocking
+# POST (max-time 3s) is acceptable — this fires at most once per
+# subagent dispatch, not per tool call.
 #
 # Args: sid stage epoch prompt_file
-#   prompt_file is read via --data-binary so multiline content is
-#   preserved verbatim (large prompts are expected).
 cloud_post_stage_prompt() {
   local sid="$1" stage="$2" epoch="$3" prompt_file="$4"
   cloud_require_env 2>/dev/null || return 0
@@ -1583,8 +1587,7 @@ cloud_post_stage_prompt() {
     -H "Content-Type: text/plain" \
     -H "$(_cloud_auth_header)" \
     --data-binary "@${prompt_file}" \
-    >/dev/null 2>&1 &
-  disown 2>/dev/null || true
+    >/dev/null 2>&1 || true
   return 0
 }
 

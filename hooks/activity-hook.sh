@@ -69,25 +69,11 @@ case "$TOOL" in
   Agent)
     SUMMARY=$(echo "$INPUT" | jq -r '.subagent_type // .description // ""' 2>/dev/null \
               | cut -c1-80 || true)
-    # Capture the actual prompt string this Agent tool call passed to
-    # the subagent — only for workflow-subagent runs (don't hoover up
-    # unrelated Agent invocations the user might make mid-workflow).
-    # Fire-and-forget; the webapp surfaces this as the "Prompt" view
-    # for subagent stages.
-    _SUBTYPE=$(echo "$INPUT" | jq -r '.subagent_type // ""' 2>/dev/null || true)
-    if [[ "$_SUBTYPE" == "meta-workflow:workflow-subagent" ]]; then
-      _PROMPT_TMP=$(mktemp -t dw-stage-prompt-XXXXXX)
-      if echo "$INPUT" | jq -r '.prompt // ""' 2>/dev/null > "$_PROMPT_TMP" \
-         && [[ -s "$_PROMPT_TMP" ]]; then
-        cloud_post_stage_prompt "$SID" "$STAGE" "${EPOCH:-0}" "$_PROMPT_TMP"
-      fi
-      # cloud_post_stage_prompt backgrounds its curl; give it a moment
-      # to read the tmp file before we unlink, then let it vanish. Worst
-      # case the curl loses the file mid-read — the next Agent call
-      # will re-record, so best-effort.
-      (sleep 5 && rm -f "$_PROMPT_TMP") &
-      disown 2>/dev/null || true
-    fi
+    # Prompt capture happens in agent-guard.sh (PreToolUse) — posting
+    # it here would be delayed until the subagent returns, which for
+    # long stages can mean the webapp shows "No prompt captured" for
+    # the entire run. Keep this branch to just emit the activity-feed
+    # summary above.
     ;;
   WebSearch)
     SUMMARY=$(echo "$INPUT" | jq -r '.query // ""' 2>/dev/null || true)

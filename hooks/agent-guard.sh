@@ -139,3 +139,26 @@ Then write the body according to the stage instructions file.
 
 ━━━━━━━━━━ END PROMPT TEMPLATE ━━━━━━━━━━
 EOF
+
+# Capture the prompt the main agent is *about to* send to the
+# subagent. Use PreToolUse (this hook) rather than PostToolUse so
+# the webapp sees the prompt immediately when the Agent call starts
+# — PostToolUse for Agent only fires after the subagent returns,
+# which can be many minutes later for long stage runs. Only record
+# workflow-subagent invocations; unrelated Agent calls the user
+# might make mid-workflow are ignored.
+if is_cloud_session "$RUN_DIR_NAME"; then
+  _TOOL_SUBAGENT=$(echo "$HOOK_INPUT" | jq -r '.tool_input.subagent_type // ""' 2>/dev/null || true)
+  if [[ "$_TOOL_SUBAGENT" == "meta-workflow:workflow-subagent" ]]; then
+    _PROMPT_TMP=$(mktemp -t dw-stage-prompt-XXXXXX)
+    if echo "$HOOK_INPUT" | jq -r '.tool_input.prompt // ""' 2>/dev/null > "$_PROMPT_TMP" \
+       && [[ -s "$_PROMPT_TMP" ]]; then
+      cloud_post_stage_prompt "$RUN_DIR_NAME" "$STATUS" "${EPOCH:-0}" "$_PROMPT_TMP"
+    fi
+    # cloud_post_stage_prompt backgrounds its curl; give it a moment
+    # to open the tmp file before we let the OS reclaim it.
+    (sleep 5 && rm -f "$_PROMPT_TMP") &
+    disown 2>/dev/null || true
+  fi
+fi
+exit 0

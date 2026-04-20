@@ -110,6 +110,47 @@ if config_is_stage "$NEW_STATUS"; then
 fi
 
 # ──────────────────────────────────────────────────────────────
+# Validate the outgoing stage's artifact before any state mutation
+# or cloud upload. Two guards, applied to both local and cloud
+# sessions:
+#
+#   1. File exists at the canonical path. Subagents that wrote to a
+#      non-canonical filename (e.g. missing the '-report' suffix)
+#      used to slip past and leave the UI with "no artifact" while
+#      the state machine happily advanced.
+#   2. Artifact's frontmatter `epoch:` matches state.md's `epoch:`.
+#      stop-hook already applies this check before claiming the stage
+#      is done, but stop-hook runs only on the main agent's exit
+#      attempt — any direct call to update-status.sh (scripts, tests,
+#      future callers) would otherwise bypass it. This is the
+#      belt-and-suspenders guard that makes "wrong epoch sneaks
+#      through to advance the state machine" impossible.
+#
+# Skipped for terminal transitions: users cancelling or escalating
+# should not be blocked on artifact integrity — they want out.
+# ──────────────────────────────────────────────────────────────
+CURRENT_STATUS=$(_read_fm_field "$STATE_FILE" status)
+if config_is_stage "$CURRENT_STATUS" && ! is_terminal_status "$NEW_STATUS"; then
+  CURRENT_ARTIFACT="$(config_artifact_path "$CURRENT_STATUS" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
+  if [[ ! -f "$CURRENT_ARTIFACT" ]]; then
+    echo "❌ Cannot transition from '$CURRENT_STATUS' to '$NEW_STATUS': expected artifact missing at canonical path:" >&2
+    echo "   $CURRENT_ARTIFACT" >&2
+    echo "   The current stage's subagent/main agent should have written this file. Check its output — it may have written to a different filename (e.g. missing the '-report' suffix)." >&2
+    exit 1
+  fi
+  _ART_EPOCH=$(_read_fm_field "$CURRENT_ARTIFACT" epoch)
+  if [[ -n "$_ART_EPOCH" && "$_ART_EPOCH" != "$CURRENT_EPOCH" ]]; then
+    echo "❌ Cannot transition: artifact epoch mismatch." >&2
+    echo "   Artifact:        $CURRENT_ARTIFACT" >&2
+    echo "   Artifact epoch:  $_ART_EPOCH" >&2
+    echo "   State epoch:     $CURRENT_EPOCH" >&2
+    echo "   The artifact was written for a different round (stale or future)." >&2
+    echo "   Re-run the stage so its 'epoch:' matches state.md, then retry." >&2
+    exit 1
+  fi
+fi
+
+# ──────────────────────────────────────────────────────────────
 # Sync the *outgoing* stage's artifact to the cloud BEFORE touching
 # local state. This is the authoritative artifact sync point: the
 # postwrite-hook fires opportunistically during writes and may silently
@@ -123,21 +164,12 @@ fi
 # Non-cloud sessions are exempt. Terminal transitions (cancel/escalate/
 # complete) are best-effort: the user wants out, don't block on sync.
 # ──────────────────────────────────────────────────────────────
-CURRENT_STATUS=$(_read_fm_field "$STATE_FILE" status)
 if is_cloud_session "$RUN_DIR_NAME" && config_is_stage "$CURRENT_STATUS"; then
   CURRENT_ARTIFACT="$(config_artifact_path "$CURRENT_STATUS" "$RUN_DIR_NAME" "$PROJECT_ROOT")"
   if is_terminal_status "$NEW_STATUS"; then
     # Terminal transition: best-effort upload, never block shutdown.
     [[ -f "$CURRENT_ARTIFACT" ]] && cloud_post_artifact "$RUN_DIR_NAME" "$CURRENT_STATUS" "$CURRENT_ARTIFACT" || true
   else
-    # Normal transition: artifact is the reason this transition exists.
-    # If it's missing or can't be uploaded, refuse to advance.
-    if [[ ! -f "$CURRENT_ARTIFACT" ]]; then
-      echo "❌ Cannot transition from '$CURRENT_STATUS' to '$NEW_STATUS': expected artifact missing at canonical path:" >&2
-      echo "   $CURRENT_ARTIFACT" >&2
-      echo "   The current stage's subagent/main agent should have written this file. Check its output — it may have written to a different filename (e.g. missing the '-report' suffix)." >&2
-      exit 1
-    fi
     if ! cloud_post_artifact "$RUN_DIR_NAME" "$CURRENT_STATUS" "$CURRENT_ARTIFACT"; then
       echo "❌ Cannot transition: failed to sync '$CURRENT_STATUS' artifact to cloud." >&2
       echo "   Local path: $CURRENT_ARTIFACT" >&2

@@ -1,13 +1,21 @@
 #!/bin/bash
-# PostToolUse hook (Write/Edit/MultiEdit) — cloud mode artifact sync.
+# PostToolUse hook (Write/Edit/MultiEdit) — cloud mode state.md mirror.
 #
-# When cloud mode is active for the current session, this hook mirrors every
-# write under the shadow dir to the server:
-#   * state.md            → POST /api/sessions/<sid>/state
-#   * <stage>-report.md   → POST /api/sessions/<sid>/artifacts/<stage>
+# When cloud mode is active for the current session, this hook mirrors
+# writes to state.md under the shadow dir to the server:
+#   * state.md  → POST /api/sessions/<sid>/state
 #
-# Any other file path is ignored. For local-mode sessions (no cloud registry
-# entry) the hook exits immediately so it's free on the hot path.
+# Artifact sync (<stage>-report.md) is intentionally NOT handled here.
+# update-status.sh is the authoritative sync point for stage artifacts:
+# it reads the outgoing stage's canonical artifact path and uploads it
+# as part of the transition, failing loudly if the file is missing or
+# the upload fails. Relying on this hook for artifact sync silently
+# missed writes that landed on non-canonical paths (e.g. a subagent
+# writing `<stage>.md` instead of `<stage>-report.md`); routing through
+# the transition guarantees every state change carries its artifact.
+#
+# Any other file path is ignored. For local-mode sessions (no cloud
+# registry entry) the hook exits immediately so it's free on the hot path.
 #
 # Session ID is derived from the file path (the first directory component
 # under SCRATCH_ROOT), NOT from the hook input's session_id. This correctly
@@ -53,16 +61,15 @@ is_cloud_session "$PATH_SID" || exit 0
 
 REL_FILE="${REL#*/}"   # strip the <uuid>/ prefix
 
+# Only state.md triggers cloud sync from this hook. Stage artifacts
+# (<stage>-report.md) are handled by update-status.sh at transition
+# time — see the header comment for rationale.
 case "$REL_FILE" in
   state.md)
     ST=$(_read_fm_field "$FILE_PATH" status)
     EP=$(_read_fm_field "$FILE_PATH" epoch)
     RE=$(_read_fm_field "$FILE_PATH" resume_status)
     cloud_post_state "$PATH_SID" "${ST:-}" "${EP:-1}" "${RE:-}" "true" 2>/dev/null || true
-    ;;
-  *-report.md)
-    STAGE="${REL_FILE%-report.md}"
-    cloud_post_artifact "$PATH_SID" "$STAGE" "$FILE_PATH" 2>/dev/null || true
     ;;
 esac
 

@@ -167,6 +167,51 @@ Write `workflow.json` strictly matching the schema (see the Schema constraints s
 
 Write one `<stage>.md` per declared stage — see the [shared Stage file guidelines](#stage-file-guidelines).
 
+Write `readme.md` as the workflow's user-facing documentation. **Always write it**, regardless of `MODE`:
+- **cloud mode**: it's rendered on the hub detail page, and `publish-workflow.sh` auto-derives the hub list `description` from the first non-heading line — so that line doubles as a card blurb.
+- **local mode**: it still serves as in-repo documentation next to the stage files, and travels with the workflow if the user later publishes.
+
+The readme should be grounded in the decomposition you already presented in Step 2 (don't reinvent it). Use this shape:
+
+```markdown
+# <Workflow title — human-readable, not the suffix slug>
+
+<One-line summary of what this workflow does. Kept punchy — this line is lifted verbatim for the hub card description. Avoid starting with "This workflow"; lead with the outcome.>
+
+## Overview
+
+<2–4 sentences describing the topology in prose: what the initial stage does, how the loop progresses, what each transition decides. Name the stages inline with backticks.>
+
+## Stages
+
+| Stage | Execution | Model | Purpose |
+|---|---|---|---|
+| `<name>` | inline / subagent | <omit col if all inline> | <short> |
+| ... | | | |
+
+## Flow
+
+<reproduce the transition graph you showed the user in Step 2, as an ASCII block:>
+
+```
+<initial_stage> --(<result>)--> <next_stage>
+<next_stage>    --(<result>)--> <terminal>
+```
+
+## Usage
+
+```
+/meta-workflow:start --workflow <author>/<suffix> <your task description>
+```
+
+<Optional closing paragraph: when to reach for this workflow vs. others; what kinds of tasks it's NOT a fit for. Keep to 1–3 sentences.>
+```
+
+Rules:
+- The blurb line (below the `# Title`) must be a single non-heading sentence — it's what the hub list shows. No leading hash, no bullet.
+- Stage names in monospace. Terminal stage names in the flow graph are fine in prose (no backticks required).
+- Do NOT embed the full stage instruction protocols — users already see those via the stage files. The readme is an overview, not a reference manual.
+
 ### Step 5 — Validate
 
 Run the [shared Validate step](#validate) with `--workflow="$HOME/.meta-workflow/workflows/<suffix>"`. Do NOT proceed to Step 5.5 (cloud mode) or Step 6 (local mode) until validation passes.
@@ -191,7 +236,7 @@ Run the [shared Publish step](#publish-to-hub) with `"$HOME/.meta-workflow/workf
 Tell the user:
 
 - **Where**: `~/.meta-workflow/workflows/<suffix>/` (absolute path)
-- **What's in it**: `workflow.json` + one `.md` per stage
+- **What's in it**: `workflow.json` + `readme.md` + one `<stage>.md` per stage
 - **Validator summary** from Step 5 (one line, N stages / M terminal)
 - **Hub** (cloud mode only): relay the output from `publish-workflow.sh` verbatim — it already prints the hub URL, pull command, and visibility. If it failed, show the error and note the local path still works.
 - **How to launch**:

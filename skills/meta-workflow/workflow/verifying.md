@@ -35,7 +35,7 @@ Output artifact:
 
 ```markdown
 ---
-epoch: <from state.md>
+epoch: <TICK.epoch from loop-tick.sh — do NOT hand-parse state.md>
 result: PASS | FAIL | SKIPPED
 ---
 # Verify Report

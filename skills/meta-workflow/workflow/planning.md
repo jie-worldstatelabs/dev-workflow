@@ -38,7 +38,7 @@ Architecture, components, data flow, tech stack, error handling. Iterate until a
 
 ## Write the plan into the output artifact
 
-Read `epoch` from `state.md`. Write the output artifact:
+Use the `epoch` value from your `loop-tick.sh` snapshot (`TICK.epoch`). Do NOT hand-parse `state.md` — frontmatter quoting has bitten this loop before. Write the output artifact:
 
 ```markdown
 ---

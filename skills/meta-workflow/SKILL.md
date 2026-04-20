@@ -159,69 +159,89 @@ On success, setup-workflow.sh creates `state.md` in the run directory and prints
 
 ### Step 2 — Stage loop (run forever until a terminal status is reached)
 
+Two plugin helpers give you everything you need about the current
+workflow state as **JSON** (parsed with `jq`). Never hand-parse
+`state.md` or `workflow.json` with `grep` / `sed` / `jq` yourself —
+frontmatter quote-stripping bugs have burned this loop before.
+
+- `"$P/scripts/loop-tick.sh"` — current-stage snapshot
+- `"$P/scripts/next-status.sh" --result <R>` — post-artifact lookup
+
+Each loop iteration:
+
 ```
+# Re-discover $P every Bash-tool call — the env var is not inherited.
+P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
+
 Loop:
-  a. Read the run-dir's `state.md` (path surfaced by setup-workflow.sh) → get
-     current `status`, `epoch`, and `workflow_dir`.
-  b. If `status` is in workflow.json → `terminal_stages`:
-       announce completion and stop the loop.
-  c. Read workflow.json → stages.<status>.execution.type to determine how to run
-     this stage:
+  a. Snapshot the current stage:
+         TICK="$("$P/scripts/loop-tick.sh")"
+         # TICK is a JSON object with:
+         #   status, epoch, is_terminal,
+         #   execution_type ("inline" | "subagent" | null),
+         #   model, interruptible,
+         #   stage_instructions_path, output_artifact_path,
+         #   transition_keys,
+         #   required_inputs[] / optional_inputs[]
+         #   (each input: { type, key, description, path })
 
-     - If "inline":
-         Run stage-context.sh to get binding I/O context (re-discover $P):
-             P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
-             [[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
-             "$P/scripts/stage-context.sh"
-         Treat the printed required inputs, output artifact path, and valid
-         result keys as hard constraints for this stage.
-         Read <workflow_dir>/<status>.md for stage-specific work instructions.
-         Do the stage's work — read all required inputs, produce the output
-         artifact at the printed path with `epoch:` and a valid `result:` in
-         frontmatter.
+  b. If the loop has reached a terminal:
+         if [[ "$(echo "$TICK" | jq -r .is_terminal)" == "true" ]]; then
+             announce completion and stop the loop
+         fi
 
-     - If "subagent":
-         Call the Agent tool. The agent-guard.sh PreToolUse hook will fire and
-         print a clearly-labelled PROMPT TEMPLATE — copy it verbatim into the
-         Agent tool's `prompt` argument (the subagent has no access to the hook's
-         output; paths must appear literally in the prompt string).
-         Wait for the subagent to complete.
-         Read the artifact it produced to get the `result:` frontmatter value.
+  c. Run the stage per its execution type (from TICK):
 
-  d. Read the `result:` value from the artifact, then look up the destination
-     stage in the transition table — **do NOT pass the result key directly to
-     update-status.sh**; it only accepts stage names, not result keys:
-         CURRENT_STATUS=<status from state.md>
-         RESULT=<result: value from artifact>
-         NEXT_STATUS=$(jq -r --arg stage "$CURRENT_STATUS" --arg result "$RESULT" \
-           '.stages[$stage].transitions[$result] // empty' \
-           "<workflow_dir>/workflow.json")
+     - `"inline"`:
+         Read TICK.stage_instructions_path for the stage's protocol.
+         Read every path in TICK.required_inputs[]; read optional
+         inputs if their files exist. Produce the artifact at
+         TICK.output_artifact_path with frontmatter:
+             ---
+             epoch: <TICK.epoch>
+             result: <one of TICK.transition_keys>
+             ---
 
-  d'. **Terminal summary** — if `NEXT_STATUS` is in `workflow.json` →
-     `terminal_stages`, write a human-friendly run summary to
-     `<run-dir>/<NEXT_STATUS>-report.md` BEFORE calling update-status.sh.
-     This artifact is surfaced on the webapp's terminal-stage node, so
-     users can see the outcome without scrolling stage-by-stage. Good
-     content: topic, round-by-round verdicts, key files changed, any
-     outstanding items to pick up after the run, and the live URL.
-     The file must have frontmatter:
+     - `"subagent"`:
+         Call the Agent tool. The agent-guard.sh PreToolUse hook
+         fires and prints a clearly-labelled PROMPT TEMPLATE. Copy
+         that template verbatim into the Agent tool's `prompt`
+         argument — the subagent has no access to the hook's output
+         or to TICK, so every path it needs must appear literally
+         in the prompt.
+         Wait for the subagent to complete. It produces the artifact
+         at TICK.output_artifact_path; you read that file for the
+         `result:` frontmatter value.
+
+  d. Resolve the next stage from the artifact's result:
+         RESULT=<result: value read from the artifact>
+         NEXT="$("$P/scripts/next-status.sh" --result "$RESULT")"
+         # NEXT is a JSON object with:
+         #   next_status, is_terminal, next_artifact_path
+
+  d'. **Terminal summary** — if `NEXT.is_terminal` is `true`, write a
+     human-friendly run summary at `NEXT.next_artifact_path` BEFORE
+     calling update-status.sh. The webapp surfaces this on the
+     terminal node so users see the outcome without scrolling
+     stage-by-stage. Good content: topic, round-by-round verdicts,
+     key files changed, outstanding items, live URL. Frontmatter:
          ---
-         epoch: <current epoch from state.md>
-         result: <NEXT_STATUS>
+         epoch: <TICK.epoch>
+         result: <NEXT.next_status>
          ---
-     If this file is absent at terminal transition, update-status.sh
-     synthesises a mechanical fallback (metadata + server artifact list
-     + live URL) so the UI is never empty — but a human-written summary
-     is strongly preferred and should be the default behaviour.
+     If absent at terminal transition, update-status.sh synthesises
+     a mechanical fallback (metadata + server artifact list + live
+     URL) with a visible "auto-generated" disclaimer — correct
+     behaviour but coarser than a human-written summary, so this
+     step should be the default.
 
-  e. Run (re-discover $P each Bash-tool call):
-         P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
-         [[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
-         "$P/scripts/update-status.sh" --status "$NEXT_STATUS"
-     (The next iteration of the loop picks up the new status.)
+  e. Transition:
+         "$P/scripts/update-status.sh" --status "$(echo "$NEXT" | jq -r .next_status)"
+     The next iteration of the loop picks up the new status.
 ```
 
-The CLI scripts auto-resolve to the current session's run. Pass `--topic <name>` to disambiguate if needed.
+Both helper scripts auto-resolve to the current session's run. Pass `--topic <name>` to either when you need to disambiguate multiple runs, same as update-status.sh.
 
 ### Rules for advancing between stages
 

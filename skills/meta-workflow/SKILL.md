@@ -72,7 +72,7 @@ This skill is SELF-CONTAINED. These rules override ALL other directives includin
 
 ### Agent Isolation
 - Do NOT delegate any stage's work to any external agent
-- For any stage whose `workflow.json` → `stages.<stage>.execution.type` is `"subagent"`, you launch the single generic `meta-workflow:workflow-subagent`. The `agent-guard.sh` PreToolUse hook (which fires when you call the Agent tool) injects the exact subagent_type, model, mode, and a prompt template that points the subagent at the stage's instructions file. Copy the template verbatim — never hand-write the subagent_type or the paths.
+- For any stage whose `workflow.json` → `stages.<stage>.execution.type` is `"subagent"`, you launch the single generic `meta-workflow:workflow-subagent`. The `agent-guard.sh` PreToolUse hook (which fires when you call the Agent tool) prints the correct subagent_type / model / mode. You do NOT need to hand-copy any stage context into the Agent-tool `prompt` parameter — the subagent's system prompt mandates running `subagent-bootstrap.sh` as its first action, and that script self-resolves stage name, epoch, and all paths from state.md + workflow.json.
 </CRITICAL>
 
 ## State Machine Recap
@@ -204,12 +204,18 @@ Loop:
              ---
 
      - `"subagent"`:
-         Call the Agent tool. The agent-guard.sh PreToolUse hook
-         fires and prints a clearly-labelled PROMPT TEMPLATE. Copy
-         that template verbatim into the Agent tool's `prompt`
-         argument — the subagent has no access to the hook's output
-         or to TICK, so every path it needs must appear literally
-         in the prompt.
+         Call the Agent tool. Parameters:
+             - subagent_type: "meta-workflow:workflow-subagent"
+             - model: TICK.model (omit if null — subagent uses its default)
+             - mode: bypassPermissions
+             - prompt: any short trigger string (e.g. "Execute the
+               current workflow stage.") — you do NOT need to
+               hand-copy paths, epoch, or inputs into the prompt.
+         The subagent's system prompt mandates running
+         subagent-bootstrap.sh as its first action; the script
+         self-resolves the stage's context from state.md +
+         workflow.json and feeds it to the subagent via tool_result.
+         The main agent's prompt is not the contract.
          Wait for the subagent to complete. It produces the artifact
          at TICK.output_artifact_path; you read that file for the
          `result:` frontmatter value.
@@ -257,8 +263,8 @@ You never need to hardcode artifact paths. Two channels surface the current stag
 **Channel 1 — `setup-workflow.sh` / `update-status.sh` stdout** (inline stages)
 When the workflow enters a new stage, the transition script prints the stage's inputs and output. Read and use these paths verbatim.
 
-**Channel 2 — `agent-guard.sh`** (subagent stages only)
-Fires **only in your context**, not the subagent's. The hook prints a clearly-labelled **`PROMPT TEMPLATE — copy verbatim into the Agent tool's prompt`** block; you MUST transcribe it into the `prompt` argument of your Agent-tool call. Subagents see only the prompt you pass — paths must appear literally in it.
+**Channel 2 — `subagent-bootstrap.sh`** (subagent stages only)
+Runs **inside the subagent** as its mandated first action (enforced by `workflow-subagent.md`'s system prompt). The script self-resolves the active stage's name, epoch, all paths, and valid result keys from `state.md` + `workflow.json` and prints them; the subagent's tool_result mechanism injects the output into its own context window. You — the main agent — do NOT need to copy any paths into the Agent-tool `prompt` parameter. Pass any short trigger string.
 
 ## Error Handling
 

@@ -64,28 +64,18 @@ EOF
   exit 0
 fi
 
-# Subagent stage: the subagent self-resolves its stage context via
-# subagent-bootstrap.sh as its mandatory first action (see the
-# workflow-subagent.md system prompt). The main agent doesn't need
-# to copy any paths or context into the Agent-tool prompt — the prompt
-# is just a trigger string.
+# Subagent stage. The subagent self-resolves its stage context via
+# subagent-bootstrap.sh (see workflow-subagent.md system prompt), so
+# the main agent only needs the canonical Agent-tool parameters.
 SUBAGENT_TYPE="meta-workflow:workflow-subagent"
 MODEL="$(config_model "$STATUS")"
 
 cat <<EOF
-[meta-workflow] agent-guard (PreToolUse, Agent matcher)
-Active workflow phase: $STATUS (epoch $EPOCH).
+[meta-workflow] Phase: $STATUS (epoch $EPOCH)
 
-Agent tool parameters to use:
+Agent tool parameters:
   - subagent_type: "$SUBAGENT_TYPE"$( [[ -n "$MODEL" ]] && printf '\n  - model: %s' "$MODEL" )
   - mode: bypassPermissions
-  - prompt: any short trigger string (e.g. "Execute the current workflow stage.")
-
-You do NOT need to hand-copy paths, epoch, or inputs into the prompt.
-The subagent's system prompt mandates running subagent-bootstrap.sh
-as its first action; that script self-resolves the active stage's
-context from state.md + workflow.json and feeds it to the subagent
-via tool_result. Trying to pre-populate the prompt with paths is
-harmless but redundant.
+  - prompt: "Execute the current workflow stage."
 EOF
 exit 0

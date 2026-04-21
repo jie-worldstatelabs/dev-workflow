@@ -76,6 +76,24 @@ if [[ -n "${DESIRED_SESSION:-}" ]]; then
     echo "No dev workflow matching the given --session." >&2
     exit 1
   fi
+  # Ensure this Claude session's own id is aliased to the target scratch
+  # dir. Without this, downstream callers in the current session (loop-tick,
+  # hooks, update-status) would resolve to read_cached_session_id — the
+  # CURRENT Claude session's id — which has no registry entry and thus
+  # falls through to "no active workflow". The cross-machine takeover
+  # branch above already does this for first-time pulls; repeat here for
+  # same-machine cross-session continue.
+  if is_cloud_session "$DESIRED_SESSION"; then
+    _LOCAL_SID="$(read_cached_session_id)"
+    if [[ -n "$_LOCAL_SID" ]] && [[ "$_LOCAL_SID" != "$DESIRED_SESSION" ]] && ! is_cloud_session "$_LOCAL_SID"; then
+      _target_scratch="$(cloud_registry_get "$DESIRED_SESSION" scratch_dir)"
+      [[ -z "$_target_scratch" ]] && _target_scratch="$(cloud_scratch_dir)/${DESIRED_SESSION}"
+      _target_server="$(cloud_registry_get "$DESIRED_SESSION" server)"
+      [[ -z "$_target_server" ]] && _target_server="${META_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}"
+      cloud_register_session "$_LOCAL_SID" "$_target_server" "" "$_target_scratch"
+      echo "   Aliased local session ${_LOCAL_SID} → ${_target_scratch}" >&2
+    fi
+  fi
 else
   # Cloud short-circuit: .meta-workflow/ doesn't exist in cloud mode, so
   # resolve_interrupted_state (which walks the filesystem) would always

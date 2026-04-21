@@ -9,7 +9,7 @@
 # quote handling, YAML escapes, and JSON traversal).
 #
 # Usage:
-#   loop-tick.sh [--topic <name>]
+#   loop-tick.sh [--topic <name>] [--session <id>]
 #
 # Output (stable JSON):
 #   {
@@ -35,10 +35,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
 TOPIC_ARG=""
+SESSION_ARG=""
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --topic=*) TOPIC_ARG="${1#--topic=}"; shift ;;
-    --topic)   TOPIC_ARG="$2";            shift 2 ;;
+    --topic=*)   TOPIC_ARG="${1#--topic=}";     shift ;;
+    --topic)     TOPIC_ARG="$2";                shift 2 ;;
+    --session=*) SESSION_ARG="${1#--session=}"; shift ;;
+    --session)   SESSION_ARG="$2";              shift 2 ;;
     *)
       echo "Warning: unknown argument: $1" >&2
       shift
@@ -48,6 +51,9 @@ done
 
 if [[ -n "$TOPIC_ARG" ]]; then
   DESIRED_TOPIC="$TOPIC_ARG"
+fi
+if [[ -n "$SESSION_ARG" ]]; then
+  DESIRED_SESSION="$SESSION_ARG"
 fi
 
 if ! resolve_state; then

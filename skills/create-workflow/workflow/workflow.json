@@ -1,0 +1,46 @@
+{
+  "initial_stage": "planning",
+  "terminal_stages": ["complete", "escalated", "cancelled"],
+  "stages": {
+    "planning": {
+      "interruptible": true,
+      "execution": { "type": "inline" },
+      "transitions": {
+        "approved": "writing"
+      },
+      "inputs": {
+        "required": [],
+        "optional": []
+      }
+    },
+    "writing": {
+      "interruptible": false,
+      "execution": { "type": "subagent" },
+      "transitions": {
+        "done": "validating"
+      },
+      "inputs": {
+        "required": [
+          { "from_stage": "planning", "description": "Approved design: suffix, target dir, stage decomposition, transition graph, inputs per stage" }
+        ],
+        "optional": [
+          { "from_stage": "validating", "description": "Validator report from the previous iteration — every ❌ line must be addressed in this pass" }
+        ]
+      }
+    },
+    "validating": {
+      "interruptible": false,
+      "execution": { "type": "inline" },
+      "transitions": {
+        "PASS": "complete",
+        "FAIL": "writing"
+      },
+      "inputs": {
+        "required": [
+          { "from_stage": "writing", "description": "Writer report — absolute path to the workflow directory and list of files produced" }
+        ],
+        "optional": []
+      }
+    }
+  }
+}

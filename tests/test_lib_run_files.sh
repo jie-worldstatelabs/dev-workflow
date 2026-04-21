@@ -43,16 +43,19 @@ check "config_optional_inputs empty for stage with no optionals" $?
 
 # ── config_run_file_path ─────────────────────────────────────
 
-path="$(config_run_file_path "baseline")"
+# 2nd/3rd args are only used in the DW_RUN_BASE / fallback branches.
+# TOPIC_DIR branch ignores them but they're positionally required.
+path="$(config_run_file_path "baseline" "" "$TMP")"
 [[ "$path" == "$TMP/run/baseline" ]]
 check "config_run_file_path uses TOPIC_DIR" $?
 
 # DW_RUN_BASE override
-export DW_RUN_BASE="/tmp/shadow" RUN_DIR_NAME="sess123"
-path2="$(config_run_file_path "baseline")"
+export DW_RUN_BASE="/tmp/shadow"
+unset TOPIC_DIR
+path2="$(config_run_file_path "baseline" "sess123" "$TMP")"
 [[ "$path2" == "/tmp/shadow/sess123/baseline" ]]
 check "config_run_file_path uses DW_RUN_BASE when set" $?
-unset DW_RUN_BASE RUN_DIR_NAME
+unset DW_RUN_BASE
 
 # ── config_run_file_init ─────────────────────────────────────
 

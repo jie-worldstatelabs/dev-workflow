@@ -113,7 +113,22 @@ Note that **`P` does NOT persist across Bash-tool calls** — every Bash-tool ca
 
 ### Step 0 — Pre-flight validation & announcement
 
-Before deriving a topic or running any script, parse the flags, validate them, then announce the run configuration to the user. **Do not proceed to Step 1 if any error is emitted.**
+**First: detect whether bootstrap is needed.** Another skill (e.g. `meta-workflow:create-workflow`) may have already dispatched a workflow for this session via `setup-workflow.sh`. In that case, flag parsing + a second `setup-workflow.sh` invocation would conflict (it'd hit exit code 2 "existing workflow detected"). Probe first:
+
+```bash
+P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
+if "$P/scripts/loop-tick.sh" >/dev/null 2>&1; then
+  echo ACTIVE
+else
+  echo NONE
+fi
+```
+
+- `ACTIVE` → a workflow is already live in this session. **SKIP Step 0 flag parsing + Step 1 bootstrap entirely.** Jump to [Step 2 — Stage loop](#step-2--stage-loop-run-forever-until-a-terminal-status-is-reached). `$ARGUMENTS` was meant for the dispatcher skill, not for this one.
+- `NONE` → no active workflow; continue below.
+
+If `NONE`, parse the flags, validate them, then announce the run configuration to the user. **Do not proceed to Step 1 if any error is emitted.**
 
 ```bash
 P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"

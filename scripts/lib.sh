@@ -185,20 +185,27 @@ _session_cache_cwd_key() {
 read_cached_session_id() {
   local cache="$_DW_SESSION_CACHE_DIR"
 
-  local pid=$PPID
-  local hops=0
-  while [[ -n "$pid" && "$pid" != "0" && "$pid" != "1" && $hops -lt 20 ]]; do
-    if [[ -f "${cache}/ppid-${pid}" ]]; then
-      local comm
-      comm="$(ps -p "$pid" -o comm= 2>/dev/null | tr -d '[:space:]')"
-      if [[ -n "$comm" && "$comm" == *claude* ]]; then
-        cat "${cache}/ppid-${pid}"
-        return 0
+  # Test-only override: when _DW_FORCE_CWD_CACHE=1, skip the PPID chain
+  # and go straight to cwd-cache. The e2e suite uses this because it
+  # runs under an outer Claude Code session whose ppid-cache entry
+  # would otherwise shadow the per-test cwd-cache the test just wrote.
+  # Never set this in real plugin runs.
+  if [[ "${_DW_FORCE_CWD_CACHE:-}" != "1" ]]; then
+    local pid=$PPID
+    local hops=0
+    while [[ -n "$pid" && "$pid" != "0" && "$pid" != "1" && $hops -lt 20 ]]; do
+      if [[ -f "${cache}/ppid-${pid}" ]]; then
+        local comm
+        comm="$(ps -p "$pid" -o comm= 2>/dev/null | tr -d '[:space:]')"
+        if [[ -n "$comm" && "$comm" == *claude* ]]; then
+          cat "${cache}/ppid-${pid}"
+          return 0
+        fi
       fi
-    fi
-    pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d '[:space:]')
-    hops=$((hops + 1))
-  done
+      pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d '[:space:]')
+      hops=$((hops + 1))
+    done
+  fi
 
   local key
   key="$(_session_cache_cwd_key)"

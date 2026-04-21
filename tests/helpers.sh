@@ -4,6 +4,14 @@
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Force read_cached_session_id to use cwd-cache directly, skipping the
+# PPID walk. The e2e suite writes cwd-cache manually per test; when the
+# suite itself is running inside a parent Claude Code session, the
+# PPID chain would otherwise resolve to the parent session's cached
+# entry and shadow the test's intent. Only effective in tests — real
+# plugin runs never source this file.
+export _DW_FORCE_CWD_CACHE=1
+
 # ── Counters ──────────────────────────────────────────────────
 PASS=0
 FAIL=0

@@ -41,7 +41,7 @@ Re-derive `$P` inside every Bash-tool call — shell vars don't persist across c
 - `"$P/skills/meta-workflow/workflow/qa-ing.md"` — subagent stage, loops back to executing on failure
 - `"$P/skills/meta-workflow/workflow/run_files_catalog.md"` — known run_file patterns and init syntax
 
-Read all seven files once before proposing a stage decomposition. Match their style in the files you generate.
+Read all seven files once before proposing a stage decomposition. **Copy the JSON shape and stage-file structure exactly — the stage names (`planning`, `executing`, etc.) are just examples, your workflow will use whatever names come out of the Step 2 decomposition.** Match the style, not the identities.
 
 ## Schema constraints (enforced by `config_validate`)
 
@@ -58,9 +58,20 @@ You MUST respect these. `setup-workflow.sh --validate-only` will reject anything
 - **`run_files` (optional top-level):** data created once at setup time and available to any stage. Each entry: `{ "description": "...", "init": "<shell command>" }`. The init command runs in `$PROJECT_ROOT`; its stdout becomes the file. Stages consume run_files via `from_run_file` in their inputs. See `run_files_catalog.md` for known patterns (e.g. `baseline` for git SHA). Every `from_run_file` reference must name a key declared in `.run_files` — the validator enforces this.
 - **Subagent stages MUST have `"interruptible": false`.** The main agent blocks on the Agent tool call — the stop hook has no chance to fire during a subagent run, so `interruptible: true` on a subagent stage is a silent lie the validator rejects.
 - `subagent_type` as a per-stage field is **NOT supported**. All subagent stages run under the single generic `meta-workflow:workflow-subagent`, whose system prompt is the stage file the main agent passes in the prompt template. Don't write this field; the validator rejects it.
-- Every declared stage must have a corresponding `<stage>.md` file next to `workflow.json`.
+- Every declared stage must have a corresponding `<stage>.md` file **placed directly next to `workflow.json`** — NOT in a `stages/` subdirectory. The validator looks for `<stage>.md` in the workflow root only.
 - Every transition target must be either another declared stage name OR a terminal stage name.
 - Every `inputs.required[*].from_stage` and `inputs.optional[*].from_stage` must reference a declared stage.
+
+### Common wrong shapes (the validator rejects all of these)
+
+Do NOT invent these — they look plausible but are not the schema:
+
+- Top-level `name`, `version`, `description` fields → not in the schema. Only `initial_stage`, `terminal_stages`, `run_files`, `stages` are top-level.
+- `.stages` as an array (`"stages": [{"id":"a",...}, {"id":"b",...}]`) → must be a keyed object (`"stages": {"a": {...}, "b": {...}}`).
+- Transitions as nested objects (`"done": {"target":"next"}` or `{"id":"done","nextStage":"next"}`) → must be `"done": "next"` (plain string value).
+- Per-stage `id`, `title`, `label`, `resultValues` fields → not in the schema. A stage's keys are exactly `interruptible`, `execution`, `transitions`, `inputs`.
+- camelCase top-level keys (`terminalStages`, `initialStage`, `runFiles`) → schema uses snake_case.
+- Stage `.md` files placed inside `stages/`, `steps/`, or any subdirectory → must be next to `workflow.json`.
 
 ## Stage file guidelines
 
@@ -163,9 +174,20 @@ Create the target directory:
 mkdir -p ~/.meta-workflow/workflows/<suffix>
 ```
 
-Write `workflow.json` strictly matching the schema (see the Schema constraints section + read the default `workflow.json` as reference). Validate locally by eye against the constraints list — don't leak a per-stage `subagent_type` field or set `interruptible: true` on a subagent stage.
+Write `workflow.json` strictly matching the schema (see the Schema constraints section + the default `workflow.json` you read in the Reference material step). Validate locally by eye against the constraints list — don't leak a per-stage `subagent_type` field or set `interruptible: true` on a subagent stage.
 
-Write one `<stage>.md` per declared stage — see the [shared Stage file guidelines](#stage-file-guidelines).
+Write one `<stage>.md` per declared stage — see the [shared Stage file guidelines](#stage-file-guidelines). **Every stage name declared in `workflow.json > .stages` MUST have a matching `<stage>.md` file — the validator rejects any missing file with `❌ missing stage file`.**
+
+**Post-write sanity check** — after writing, list the directory and confirm every declared stage has its `.md` file:
+
+```bash
+DIR="$HOME/.meta-workflow/workflows/<suffix>"
+ls -1 "$DIR"
+echo "--- declared stages ---"
+jq -r '.stages | keys[]' "$DIR/workflow.json"
+```
+
+Every name printed under `--- declared stages ---` must appear above as `<name>.md`. If any is missing, write it before proceeding to Step 5.
 
 Write `readme.md` as the workflow's user-facing documentation. **Always write it**, regardless of `MODE`:
 - **cloud mode**: it's rendered on the hub detail page, and `publish-workflow.sh` auto-derives the hub list `description` from the first non-heading line — so that line doubles as a card blurb.
@@ -212,9 +234,23 @@ Rules:
 - Stage names in monospace. Terminal stage names in the flow graph are fine in prose (no backticks required).
 - Do NOT embed the full stage instruction protocols — users already see those via the stage files. The readme is an overview, not a reference manual.
 
-### Step 5 — Validate
+### Step 5 — Validate (mandatory retry loop)
 
-Run the [shared Validate step](#validate) with `--workflow="$HOME/.meta-workflow/workflows/<suffix>"`. Do NOT proceed to Step 5.5 (cloud mode) or Step 6 (local mode) until validation passes.
+Run the [shared Validate step](#validate) with `--workflow="$HOME/.meta-workflow/workflows/<suffix>"`.
+
+**This is a loop, not a single call.** If the command exits non-zero or prints any `❌` line:
+
+1. Read every `❌` line from the output.
+2. Fix the offending file(s) — common fixes:
+   - `❌ missing stage file: <name>.md` → write the missing stage file per the [Stage file guidelines](#stage-file-guidelines).
+   - `❌ stage '<x>' transition target '<y>' is not a declared stage or terminal` → either add `<y>` to `.stages`, or change the transition, or add it to `.terminal_stages`.
+   - `❌ subagent stage '<x>' has interruptible: true` → flip to `false`.
+   - `❌ unknown field 'subagent_type'` → delete the field.
+   - `❌ from_run_file '<k>' not declared in .run_files` → add the key to top-level `.run_files` or remove the reference.
+3. Re-run the validator.
+4. Repeat until you see `✓ Workflow validated: N stages, M terminal`.
+
+Cap the loop at 5 iterations. If it still fails after 5 attempts, stop and report the remaining errors to the user verbatim — do not claim success, do not proceed to Step 5.5 / Step 6.
 
 ### Step 5.5 — Publish to hub (cloud mode only)
 
@@ -390,9 +426,9 @@ If no changes are needed (user just wanted to view), say so and stop without wri
 
 Write only the files that changed (workflow.json and/or the affected stage `.md` files) back to the working directory. Follow the [shared Stage file guidelines](#stage-file-guidelines).
 
-### Edit Step 6 — Validate
+### Edit Step 6 — Validate (mandatory retry loop)
 
-Run the [shared Validate step](#validate) with the working directory absolute path. Fix any errors and re-run until validation passes.
+Run the [shared Validate step](#validate) with the working directory absolute path. Loop on every `❌` line (fix → re-run) exactly as described in [Step 5](#step-5--validate-mandatory-retry-loop) — cap at 5 iterations, never claim success until `✓ Workflow validated` prints.
 
 ### Edit Step 6.5 — Push back to cloud (cloud source only)
 

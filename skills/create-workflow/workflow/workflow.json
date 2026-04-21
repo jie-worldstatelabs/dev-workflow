@@ -15,7 +15,7 @@
     },
     "writing": {
       "interruptible": false,
-      "execution": { "type": "subagent" },
+      "execution": { "type": "subagent", "model": "sonnet" },
       "transitions": {
         "done": "validating"
       },

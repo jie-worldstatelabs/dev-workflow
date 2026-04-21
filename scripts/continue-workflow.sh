@@ -115,6 +115,36 @@ if is_cloud_session "$RUN_DIR_NAME"; then
 fi
 
 # ──────────────────────────────────────────────────────────────
+# Ownership gate — only 'interrupted' state is a safe pickup.
+#
+# Continuing an actively-running workflow creates two Claude
+# sessions driving the same state machine concurrently: duplicate
+# activity events, racing epoch updates, duplicate subagent
+# dispatches. Refuse unless the owning session has explicitly let
+# go via /meta-workflow:interrupt (or via the SessionEnd hook that
+# auto-interrupts on graceful exit).
+# ──────────────────────────────────────────────────────────────
+if [[ "$STATUS" != "interrupted" ]]; then
+  if is_terminal_status "$STATUS"; then
+    echo "❌ Cannot continue: workflow status is '$STATUS' (terminal — already ended)." >&2
+    echo "   Start a fresh run with: /meta-workflow:start <task>" >&2
+    exit 1
+  fi
+  echo "❌ Cannot continue: workflow status is '$STATUS' — another Claude session owns it." >&2
+  echo "" >&2
+  echo "   Handing off without interrupting first would cause two Claude sessions to" >&2
+  echo "   race on the same state machine (duplicate activity, racing epoch updates," >&2
+  echo "   duplicate subagent dispatches)." >&2
+  echo "" >&2
+  echo "   To hand off cleanly:" >&2
+  echo "     1. Go to the Claude session that owns this workflow." >&2
+  echo "     2. Run /meta-workflow:interrupt (or /exit — the SessionEnd hook will" >&2
+  echo "        auto-interrupt on graceful exit)." >&2
+  echo "     3. Come back here and retry /meta-workflow:continue." >&2
+  exit 1
+fi
+
+# ──────────────────────────────────────────────────────────────
 # Project identity check
 # ──────────────────────────────────────────────────────────────
 # Before touching state, verify the current CWD is in the same git

@@ -1,5 +1,5 @@
 {
-  "description": "Dev workflow hooks — session-start caches session_id for setup/continue; stop-hook prevents exit during active workflow (skips bystander sessions); agent-guard steers subagent launches; postwrite mirrors cloud-mode shadow writes to the server; activity-hook posts tool-use events to the cloud activity feed",
+  "description": "Dev workflow hooks — session-start caches session_id; stop-hook prevents exit during active workflow; session-end auto-interrupts the workflow on graceful exit so another Claude session can continue it; agent-guard steers subagent launches; postwrite mirrors cloud-mode shadow writes; activity-hook posts tool-use events to the cloud activity feed",
   "hooks": {
     "SessionStart": [
       {
@@ -7,6 +7,16 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-end.sh"
           }
         ]
       }

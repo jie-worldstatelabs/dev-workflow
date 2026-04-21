@@ -456,6 +456,22 @@ config_validate() {
     echo "❌ .initial_stage='$init' is not declared under .stages" >&2; errors=$((errors + 1))
   fi
 
+  # max_epoch — optional; when present must be a positive integer
+  local me_type
+  me_type=$(jq -r '.max_epoch | type' "$CONFIG_FILE")
+  if [[ "$me_type" != "null" ]]; then
+    if [[ "$me_type" != "number" ]]; then
+      echo "❌ .max_epoch must be a positive integer (got $me_type)" >&2
+      errors=$((errors + 1))
+    else
+      local me_val; me_val=$(jq -r '.max_epoch' "$CONFIG_FILE")
+      if ! [[ "$me_val" =~ ^[1-9][0-9]*$ ]]; then
+        echo "❌ .max_epoch must be a positive integer ≥ 1 (got $me_val)" >&2
+        errors=$((errors + 1))
+      fi
+    fi
+  fi
+
   # terminal_stages
   local term_count
   term_count=$(jq '.terminal_stages | if type=="array" then length else -1 end' "$CONFIG_FILE")
@@ -563,6 +579,19 @@ config_initial_stage() {
 
 config_terminal_stages() {
   jq -r '.terminal_stages[]' "$CONFIG_FILE"
+}
+
+# Cap on total transitions before update-status.sh auto-escalates.
+# Read from workflow.json `.max_epoch`; falls back to 10 when absent,
+# null, or malformed. Always a positive integer.
+config_max_epoch() {
+  local v
+  v="$(jq -r '.max_epoch // empty' "$CONFIG_FILE" 2>/dev/null)"
+  if [[ -z "$v" ]] || ! [[ "$v" =~ ^[1-9][0-9]*$ ]]; then
+    echo 10
+  else
+    echo "$v"
+  fi
 }
 
 config_all_stages() {

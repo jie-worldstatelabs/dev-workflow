@@ -81,6 +81,26 @@ fi
 NEW_EPOCH=$((CURRENT_EPOCH + 1))
 
 # ──────────────────────────────────────────────────────────────
+# Max-epoch cap. workflow.json may declare `.max_epoch`; when absent we
+# default to 10 (config_max_epoch). Once a transition would take the
+# workflow to that epoch or beyond, short-circuit to the `escalated`
+# terminal — prevents runaway loops (e.g. executing↔verifying) from
+# burning unbounded turns. User-initiated terminal transitions
+# (complete / cancelled / escalated themselves) bypass the cap. If the
+# workflow does not declare `escalated` as a terminal, we log and fall
+# through so the configuration still makes forward progress.
+# ──────────────────────────────────────────────────────────────
+MAX_EPOCH="$(config_max_epoch)"
+if ! is_terminal_status "$NEW_STATUS" && [[ "$NEW_EPOCH" -ge "$MAX_EPOCH" ]]; then
+  if config_is_terminal "escalated"; then
+    echo "⚠️  [meta-workflow] epoch $NEW_EPOCH reached max-epoch $MAX_EPOCH — escalating (was heading to '$NEW_STATUS')" >&2
+    NEW_STATUS="escalated"
+  else
+    echo "⚠️  [meta-workflow] epoch $NEW_EPOCH reached max-epoch $MAX_EPOCH but 'escalated' is not declared under .terminal_stages — proceeding to '$NEW_STATUS' without auto-escalation" >&2
+  fi
+fi
+
+# ──────────────────────────────────────────────────────────────
 # Validate required inputs for the new stage
 # ──────────────────────────────────────────────────────────────
 if config_is_stage "$NEW_STATUS"; then

@@ -1,6 +1,7 @@
 {
   "initial_stage": "planning",
   "terminal_stages": ["complete", "escalated", "cancelled"],
+  "max_epoch": 10,
   "run_files": {
     "baseline": {
       "description": "Git SHA at workflow start (used by the reviewer to diff changes)",

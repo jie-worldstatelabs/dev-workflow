@@ -2,7 +2,7 @@
 
 _Runtime config (canonical): `workflow.json` → `stages.planning`_
 
-**Purpose:** Interview the user, agree on a workflow decomposition, and record it as an approved plan the writer subagent can consume deterministically.
+**Purpose:** Produce an approved plan the writer subagent can consume deterministically. Works for both **create from scratch** and **edit an existing workflow** — the difference is the starting point.
 **Output artifact:** write to the absolute path provided in your I/O context
 **Valid results this stage writes:** `pending` (plan drafted, awaiting user approval), `approved` (user has explicitly confirmed)
 
@@ -13,9 +13,18 @@ Write `result: approved` only after they have said so.
 
 This is an interruptible stage — the stop hook allows natural pauses for Q&A.
 
-## Understand the request
+## Step 1 — Detect mode
 
-Read the session topic and any description the user provided when starting this workflow. If it is empty or too vague to decompose, ask ONE clarifying question at a time (cap at 5 total). Useful axes:
+Read the `setup_context` input at the absolute path shown in your I/O context. It contains JSON:
+
+- `{"mode":"create"}` (or file missing/empty) → **Create mode**: skip to [Step 2 (create)](#step-2-create--understand-the-request).
+- `{"mode":"edit","source_dir":"<absolute-path>"}` → **Edit mode**: skip to [Step 2 (edit)](#step-2-edit--load-existing-workflow).
+
+Log which mode you're in before proceeding.
+
+## Step 2 (create) — Understand the request
+
+Read the session topic and any description the user provided when starting this workflow. If empty or too vague to decompose, ask ONE clarifying question at a time (cap at 5 total). Useful axes:
 
 - What kind of work does this workflow orchestrate? (coding, writing, data analysis, review, research, etc.)
 - What are the rough phases? A 3-line sketch is enough — you'll refine it below.
@@ -24,11 +33,29 @@ Read the session topic and any description the user provided when starting this 
 - Any external validation / test run? → subagent or inline stage that runs a command.
 - What's the success terminal? (usually `complete`.)
 
-Stop asking once you can draft a stage decomposition.
+Stop asking once you can draft a stage decomposition. Skip to [Step 3 — Propose the decomposition](#step-3--propose-the-decomposition).
 
-## Propose the decomposition
+## Step 2 (edit) — Load existing workflow
 
-Present the design as a table followed by the transition graph:
+Read the source directory (`source_dir` from `setup_context`). Run this so the current design flows into your context:
+
+```bash
+SRC="<absolute-path-from-setup_context>"
+echo "===== workflow.json ====="; cat "$SRC/workflow.json"
+for f in "$SRC"/*.md; do
+  echo "===== $(basename "$f") ====="; cat "$f"; echo
+done
+```
+
+Present the **current design** to the user as a table + transition graph (same format as Step 3 below). Call it out as "current design — propose changes against this."
+
+Treat the session topic / description (if non-empty) as the user's change request. If it's empty, ask: **"What changes do you want to make to this workflow?"**
+
+Continue to Step 3 with the current design as the starting point.
+
+## Step 3 — Propose the decomposition
+
+Present the (proposed or updated) design as:
 
 ### Stage table
 
@@ -52,19 +79,20 @@ For each stage, list `required` and `optional` inputs using `from_stage <name>` 
 
 If the workflow needs setup-time constants (e.g. git SHA baseline, current date), list each `run_files` entry: name, description, and the shell init command.
 
-## Pick a workflow suffix
+## Step 4 — Pick / confirm the suffix
 
-Derive a short, kebab-case suffix from the description (e.g. "Python library dev with docs and publish" → `python-lib`, "research paper drafting" → `paper-draft`). Confirm with the user. The local directory will always be `~/.config/meta-workflow/workflows/<suffix>/`.
+- **Create mode**: derive a short, kebab-case suffix from the description (e.g. "Python library dev with docs and publish" → `python-lib`). Confirm with the user. Target directory: `~/.config/meta-workflow/workflows/<suffix>/`. If the directory already exists, ask whether to overwrite or pick a different name.
+- **Edit mode**: suffix = `basename(source_dir)`; target directory = `source_dir` itself (writer will overwrite files in place). Do not ask — this is fixed by the `setup_context`.
 
-**Collision check:** if `~/.config/meta-workflow/workflows/<suffix>/` already exists, tell the user and ask whether to pick a different name or overwrite. Do NOT overwrite silently.
-
-## Iterate until approved
+## Step 5 — Iterate until approved
 
 Ask: **"Does this design look right? Any changes to stages, order, inputs, or naming?"** Iterate until the user explicitly approves.
 
-## Write the plan into the output artifact
+If the user says "no changes" in Edit mode, write the plan anyway with the current design verbatim (writing is idempotent — same files get re-emitted).
 
-Once the user has confirmed the design AND the suffix, write the output artifact (use the current epoch from `state.md`):
+## Step 6 — Write the plan into the output artifact
+
+Once the user has confirmed the design, write the output artifact (use the current epoch from `state.md`):
 
 ```markdown
 ---
@@ -73,6 +101,9 @@ result: pending
 ---
 # Workflow Plan
 
+## Mode
+<create or edit>
+
 ## Description
 <one paragraph — what this workflow orchestrates>
 
@@ -80,8 +111,8 @@ result: pending
 <kebab-case-suffix>
 
 ## Target directory
-`/Users/<user>/.config/meta-workflow/workflows/<suffix>/`
-(absolute path — writer will `mkdir -p` this)
+`/absolute/path/to/dir/`
+(absolute path — writer will `mkdir -p` this and write files. For edit mode, this is the existing source_dir — writer overwrites in place.)
 
 ## Stages
 
@@ -114,13 +145,13 @@ result: pending
 
 `result: pending` signals "plan written but not approved yet."
 
-## Get user approval
+## Step 7 — Get user approval
 
 > "Plan saved. Please review and confirm to start writing, or request changes."
 
 If the user requests changes, iterate on the plan body — keep `result: pending`.
 
-## Finalize
+## Step 8 — Finalize
 
 Once the user explicitly approves, edit the artifact: change `result: pending` → `result: approved`.
 

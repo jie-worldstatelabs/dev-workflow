@@ -1,6 +1,12 @@
 {
   "initial_stage": "planning",
   "terminal_stages": ["complete", "escalated", "cancelled"],
+  "run_files": {
+    "setup_context": {
+      "description": "Caller context: JSON {mode:'create'|'edit', source_dir?}. SKILL.md exports CREATE_WORKFLOW_CONTEXT before invoking setup-workflow.sh.",
+      "init": "echo \"${CREATE_WORKFLOW_CONTEXT:-{\\\"mode\\\":\\\"create\\\"}}\""
+    }
+  },
   "stages": {
     "planning": {
       "interruptible": true,
@@ -10,12 +16,14 @@
       },
       "inputs": {
         "required": [],
-        "optional": []
+        "optional": [
+          { "from_run_file": "setup_context", "description": "Create-vs-edit mode hint (and source dir for edit)" }
+        ]
       }
     },
     "writing": {
       "interruptible": false,
-      "execution": { "type": "subagent", "model": "sonnet" },
+      "execution": { "type": "subagent", "model": "opus" },
       "transitions": {
         "done": "validating"
       },

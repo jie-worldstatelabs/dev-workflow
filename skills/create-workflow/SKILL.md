@@ -154,17 +154,20 @@ Do NOT pass `$DESCRIPTION` as a trailing argument — `setup-workflow.sh` silent
 
 This starts the state machine at `planning`. The next turn will begin the interview.
 
-### Step 5 — Report handoff, then stop
+### Step 5 — Report handoff
 
-Tell the user:
+Print a short dispatch summary and return control. The `commands/create-workflow.md` wrapper will invoke `meta-workflow:meta-workflow` as its next step to drive the state machine loop — do NOT invoke it yourself from this skill (two-skill handoff is coordinated at the command level, not the skill level).
 
-- **Status**: the create-workflow meta-workflow is running (mode: create or edit).
-- **Next**: the next turn begins the `planning` stage — the workflow will interview for design (create) or changes (edit), then hand off to the `writing` subagent, validate, and (if cloud) publish. `FAIL` from validator loops back to writing automatically.
-- **Where files land**: `~/.config/meta-workflow/workflows/<suffix>/` (suffix chosen in planning for Create; reused for Edit). The final path is echoed in the writer report.
+Summary to print:
+
+- **Status**: create-workflow meta-workflow dispatched (mode: create or edit).
+- **Session**: `<session_id from setup-workflow.sh output>`.
+- **Current stage**: `planning` (interruptible inline) — the next skill will start the interview.
+- **Where files land**: `~/.config/meta-workflow/workflows/<suffix>/` (suffix chosen in planning; reused for Edit).
 - **Cloud publish**: for `--mode=cloud`, the `publishing` stage auto-runs `publish-workflow.sh` after the validator passes. If publish fails (token expired, network, name collision), the workflow still terminates at `complete` with a publish-failure note — retry with `/meta-workflow:publish <target-dir>`.
 - **Abort**: `/meta-workflow:cancel` or `/meta-workflow:interrupt` any time.
 
-STOP. Do NOT do anything else in this turn — no file writes, no further tool calls.
+Do NOT call `setup-workflow.sh` again, and do NOT run `loop-tick.sh` here — that's the next skill's job.
 
 ---
 

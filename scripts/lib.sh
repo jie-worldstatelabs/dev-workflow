@@ -316,14 +316,24 @@ resolve_state() {
   # context (so read_cached_session_id returned empty). With two or
   # more candidates we still error out — the error message below will
   # list them so the caller knows what to pass.
-  local _candidates=()
-  local _c
-  for _c in "$dw"/*/state.md; do
-    [[ -f "$_c" ]] && _candidates+=("$_c")
-  done
-  if [[ ${#_candidates[@]} -eq 1 ]]; then
-    _populate_state_vars "${_candidates[0]}" "$project_root"
-    return 0
+  #
+  # GATE: only trigger when we have NO session signal at all. If the
+  # caller named a specific session (DESIRED_SESSION) or we resolved
+  # one from the cache, a missing state.md means "this session has no
+  # workflow" — not "take the neighbor's". Without this gate, a stop-
+  # hook firing in Claude Code session A (cwd=/proj/sub) would adopt
+  # the workflow started by session B (cwd=/proj) because the project's
+  # .meta-workflow/ happens to have exactly one entry.
+  if [[ -z "$session" ]]; then
+    local _candidates=()
+    local _c
+    for _c in "$dw"/*/state.md; do
+      [[ -f "$_c" ]] && _candidates+=("$_c")
+    done
+    if [[ ${#_candidates[@]} -eq 1 ]]; then
+      _populate_state_vars "${_candidates[0]}" "$project_root"
+      return 0
+    fi
   fi
 
   # Legacy: flat .meta-workflow/state.md (pre-v1.11) — single-workflow fallback

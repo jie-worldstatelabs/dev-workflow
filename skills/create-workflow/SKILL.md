@@ -140,10 +140,15 @@ Just a short kebab-case label for THIS meta-workflow run's session (NOT the gene
 P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
 [[ -d $P/scripts ]] || P=~/.claude/plugins/meta-workflow
 "$P/scripts/setup-workflow.sh" \
-  --mode="$MODE" \
+  --mode=local \
   --topic="<slug-from-step-3>" \
   --workflow="$P/skills/create-workflow/workflow"
 ```
+
+**Hardcoded `--mode=local` is deliberate** — do NOT pass `$MODE` here. Two distinct concepts share the word "mode":
+
+- User's `/meta-workflow:create-workflow --mode=<...>` flag = "should the GENERATED workflow be published to the hub?" → captured in `CREATE_WORKFLOW_CONTEXT.publish_intent` (Step 2), consumed by the `publishing` stage.
+- `setup-workflow.sh --mode=<...>` = "should THIS meta-workflow session itself be cloud-tracked (scratch dir + server sync)?" → always local here because we dispatch a plugin-internal filesystem workflow (`$P/skills/create-workflow/workflow/`), and `setup-workflow.sh --mode=cloud` rejects filesystem paths with "In cloud mode use cloud://author/name".
 
 Do NOT pass `$DESCRIPTION` as a trailing argument — `setup-workflow.sh` silently discards unknown positionals. The description travels via `CREATE_WORKFLOW_CONTEXT` (set in Step 2), which the workflow's `setup_context` run_file captures at session setup.
 

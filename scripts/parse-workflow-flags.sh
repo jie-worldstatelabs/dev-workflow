@@ -60,6 +60,10 @@ ERRS=0
 
 if [[ -n "$WORKFLOW_FLAG" ]]; then
   RESOLVED="${WORKFLOW_FLAG/#\~/$HOME}"
+  # Also expand literal $HOME / ${HOME} anywhere in the path — agents
+  # often single-quote args which defeats shell expansion.
+  RESOLVED="${RESOLVED//\$\{HOME\}/$HOME}"
+  RESOLVED="${RESOLVED//\$HOME/$HOME}"
 
   if [[ -f "${RESOLVED}/workflow.json" ]]; then
     WF_TYPE="local"

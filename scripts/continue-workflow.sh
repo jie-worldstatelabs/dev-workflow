@@ -21,7 +21,12 @@ FORCE_MISMATCH=""
 while [[ $# -gt 0 ]]; do
   case $1 in
     --session=*)             SESSION_ARG="${1#--session=}"; shift ;;
-    --session)               SESSION_ARG="$2";              shift 2 ;;
+    --session)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "❌ --session requires a value" >&2
+        exit 1
+      fi
+      SESSION_ARG="$2"; shift 2 ;;
     --force-project-mismatch) FORCE_MISMATCH="yes";         shift ;;
     *)                       shift ;;
   esac

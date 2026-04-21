@@ -17,7 +17,12 @@ source "${SCRIPT_DIR}/lib.sh"
 while [[ $# -gt 0 ]]; do
   case $1 in
     --session=*)  DESIRED_SESSION="${1#--session=}"; shift ;;
-    --session)    DESIRED_SESSION="$2"; shift 2 ;;
+    --session)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "❌ --session requires a value" >&2
+        exit 1
+      fi
+      DESIRED_SESSION="$2"; shift 2 ;;
     *)            shift ;;
   esac
 done

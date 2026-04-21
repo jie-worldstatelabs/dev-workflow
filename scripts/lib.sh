@@ -275,6 +275,35 @@ resolve_state() {
     fi
   fi
 
+  # Cloud-by-cwd fallback: DESIRED_SESSION isn't set and the current
+  # Claude session isn't a cloud owner, but the user may be sitting in a
+  # cloud session's project dir (another Claude Code window owns it, or
+  # the user re-opened the terminal). Scan cloud-registry for sessions
+  # whose state.md project_root matches cwd. Lets /interrupt /cancel run
+  # bare from the right cwd without demanding --session.
+  if [[ -z "${DESIRED_SESSION:-}" ]] && [[ -d "$CLOUD_REGISTRY_DIR" ]]; then
+    local _cwd_p; _cwd_p="$(pwd -P 2>/dev/null || pwd)"
+    local _match_state="" _match_count=0 _reg
+    for _reg in "$CLOUD_REGISTRY_DIR"/*.json; do
+      [[ -f "$_reg" ]] || continue
+      local _s; _s="$(jq -r '.scratch_dir // empty' "$_reg" 2>/dev/null)"
+      [[ -z "$_s" ]] || [[ ! -f "$_s/state.md" ]] && continue
+      local _p; _p="$(_read_fm_field "$_s/state.md" project_root)"
+      if [[ -n "$_p" ]] && [[ "$_p" == "$_cwd_p" ]]; then
+        _match_state="$_s/state.md"
+        _match_count=$((_match_count + 1))
+      fi
+    done
+    if [[ $_match_count -eq 1 ]]; then
+      local _mp; _mp="$(_read_fm_field "$_match_state" project_root)"
+      _populate_state_vars "$_match_state" "$_mp"
+      return 0
+    elif [[ $_match_count -gt 1 ]]; then
+      echo "⚠️  Multiple cloud sessions share project_root $_cwd_p — pass --session <id> to disambiguate." >&2
+      # Fall through; downstream will likely fail with "no active workflow"
+    fi
+  fi
+
   local dw
   dw="$(find_dw_root)" || return 1
   local project_root

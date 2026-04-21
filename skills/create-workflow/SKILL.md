@@ -50,28 +50,36 @@ Relay the banner to the user. If the parser emitted errors, hard stop.
 
 ### Step 1 — Verify preconditions
 
-#### 1a — Cloud login (required for `--mode=cloud`, regardless of create or edit)
+#### 1a — Cloud login (only when `$MODE == cloud`)
 
 ```bash
-P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || P=~/.claude/plugins/meta-workflow
-source "$P/scripts/lib.sh"
-cloud_is_logged_in && echo LOGGED_IN || echo NOT_LOGGED_IN
+if [[ "$MODE" == "cloud" ]]; then
+  P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
+  [[ -d $P/scripts ]] || P=~/.claude/plugins/meta-workflow
+  source "$P/scripts/lib.sh"
+  cloud_is_logged_in && echo LOGGED_IN || echo NOT_LOGGED_IN
+fi
 ```
 
 `NOT_LOGGED_IN` → hard stop: tell the user to run `/meta-workflow:login` first. Do not dispatch.
 
-#### 1b — Edit mode only: resolve the source directory
+For `$MODE == local`, skip this step — no login needed.
 
-For `$WF_TYPE=local`:
+#### 1b — Resolve source directory (only in Edit mode, i.e. `$WORKFLOW_FLAG` is non-empty)
+
+Skip this entire sub-step if `$WORKFLOW_FLAG` is empty (Create mode). Otherwise:
+
+For `$WF_TYPE == local`:
 
 ```bash
-SOURCE_DIR="${WORKFLOW_FLAG/#\~/$HOME}"
-SOURCE_DIR="${SOURCE_DIR//\$HOME/$HOME}"
-[[ -f "$SOURCE_DIR/workflow.json" ]] || { echo "No workflow.json at $SOURCE_DIR"; exit 1; }
+if [[ -n "$WORKFLOW_FLAG" && "$WF_TYPE" == "local" ]]; then
+  SOURCE_DIR="${WORKFLOW_FLAG/#\~/$HOME}"
+  SOURCE_DIR="${SOURCE_DIR//\$HOME/$HOME}"
+  [[ -f "$SOURCE_DIR/workflow.json" ]] || { echo "No workflow.json at $SOURCE_DIR"; exit 1; }
+fi
 ```
 
-For `$WF_TYPE=cloud`: verify ownership, then download.
+For `$WF_TYPE == cloud`: verify ownership, then download.
 
 ```bash
 P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
@@ -105,15 +113,17 @@ fi
 
 ### Step 2 — Build `CREATE_WORKFLOW_CONTEXT`
 
-The meta-workflow has a `setup_context` run_file that captures this env var. It's how the `planning` stage knows whether to interview from scratch or pre-load an existing workflow.
+The meta-workflow has a `setup_context` run_file that captures this env var. It's how the `planning` stage gets (a) whether this is create or edit, (b) the user's original description, and (c) the source dir for edit mode.
+
+**Note:** `setup-workflow.sh` has no positional-argument slot for description — putting it in this env var is the only channel through which the planning stage receives it.
 
 - **Create mode:**
   ```bash
-  export CREATE_WORKFLOW_CONTEXT='{"mode":"create"}'
+  export CREATE_WORKFLOW_CONTEXT="$(jq -nc --arg desc "$DESCRIPTION" '{mode:"create", description:$desc}')"
   ```
 - **Edit mode:**
   ```bash
-  export CREATE_WORKFLOW_CONTEXT="$(jq -nc --arg d "$SOURCE_DIR" '{mode:"edit", source_dir:$d}')"
+  export CREATE_WORKFLOW_CONTEXT="$(jq -nc --arg d "$SOURCE_DIR" --arg desc "$DESCRIPTION" '{mode:"edit", source_dir:$d, description:$desc}')"
   ```
 
 ### Step 3 — Pick a short topic slug
@@ -128,9 +138,10 @@ P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
 "$P/scripts/setup-workflow.sh" \
   --mode="$MODE" \
   --topic="<slug-from-step-3>" \
-  --workflow="$P/skills/create-workflow/workflow" \
-  "$DESCRIPTION"
+  --workflow="$P/skills/create-workflow/workflow"
 ```
+
+Do NOT pass `$DESCRIPTION` as a trailing argument — `setup-workflow.sh` silently discards unknown positionals. The description travels via `CREATE_WORKFLOW_CONTEXT` (set in Step 2), which the workflow's `setup_context` run_file captures at session setup.
 
 This starts the state machine at `planning`. The next turn will begin the interview.
 

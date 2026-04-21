@@ -13,18 +13,22 @@ Write `result: approved` only after they have said so.
 
 This is an interruptible stage — the stop hook allows natural pauses for Q&A.
 
-## Step 1 — Detect mode
+## Step 1 — Detect mode and load context
 
-Read the `setup_context` input at the absolute path shown in your I/O context. It contains JSON:
+Read the `setup_context` input at the absolute path shown in your I/O context. It contains JSON with these fields:
 
-- `{"mode":"create"}` (or file missing/empty) → **Create mode**: skip to [Step 2 (create)](#step-2-create--understand-the-request).
-- `{"mode":"edit","source_dir":"<absolute-path>"}` → **Edit mode**: skip to [Step 2 (edit)](#step-2-edit--load-existing-workflow).
+- `mode`: `"create"` or `"edit"`
+- `description`: the original natural-language description the user passed to `/meta-workflow:create-workflow` (may be empty). **This is the only place the description shows up** — it is NOT in `state.md`'s `topic:` field.
+- `source_dir`: (edit mode only) absolute path to the existing workflow to edit
 
-Log which mode you're in before proceeding.
+Log the parsed `mode` and `description` before proceeding:
+
+- `"mode":"create"` → skip to [Step 2 (create)](#step-2-create--understand-the-request).
+- `"mode":"edit"` → skip to [Step 2 (edit)](#step-2-edit--load-existing-workflow).
 
 ## Step 2 (create) — Understand the request
 
-Read the session topic and any description the user provided when starting this workflow. If empty or too vague to decompose, ask ONE clarifying question at a time (cap at 5 total). Useful axes:
+Use the `description` from `setup_context` as the user's request. If it's empty or too vague to decompose, ask ONE clarifying question at a time (cap at 5 total). Useful axes:
 
 - What kind of work does this workflow orchestrate? (coding, writing, data analysis, review, research, etc.)
 - What are the rough phases? A 3-line sketch is enough — you'll refine it below.
@@ -49,7 +53,7 @@ done
 
 Present the **current design** to the user as a table + transition graph (same format as Step 3 below). Call it out as "current design — propose changes against this."
 
-Treat the session topic / description (if non-empty) as the user's change request. If it's empty, ask: **"What changes do you want to make to this workflow?"**
+Treat the `description` from `setup_context` (if non-empty) as the user's change request. If it's empty, ask: **"What changes do you want to make to this workflow?"**
 
 Continue to Step 3 with the current design as the starting point.
 

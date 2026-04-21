@@ -3,8 +3,8 @@
   "terminal_stages": ["complete", "escalated", "cancelled"],
   "run_files": {
     "setup_context": {
-      "description": "Caller context: JSON {mode:'create'|'edit', source_dir?}. SKILL.md exports CREATE_WORKFLOW_CONTEXT before invoking setup-workflow.sh.",
-      "init": "echo \"${CREATE_WORKFLOW_CONTEXT:-{\\\"mode\\\":\\\"create\\\"}}\""
+      "description": "Caller context JSON: {mode:'create'|'edit', description:string, source_dir?:string}. SKILL.md exports CREATE_WORKFLOW_CONTEXT before invoking setup-workflow.sh; description is the user's original natural-language request (setup-workflow.sh has no positional slot for it).",
+      "init": "echo \"${CREATE_WORKFLOW_CONTEXT:-{\\\"mode\\\":\\\"create\\\",\\\"description\\\":\\\"\\\"}}\""
     }
   },
   "stages": {

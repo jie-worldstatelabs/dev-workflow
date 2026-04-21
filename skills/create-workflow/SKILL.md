@@ -234,23 +234,9 @@ Rules:
 - Stage names in monospace. Terminal stage names in the flow graph are fine in prose (no backticks required).
 - Do NOT embed the full stage instruction protocols — users already see those via the stage files. The readme is an overview, not a reference manual.
 
-### Step 5 — Validate (mandatory retry loop)
+### Step 5 — Validate
 
-Run the [shared Validate step](#validate) with `--workflow="$HOME/.meta-workflow/workflows/<suffix>"`.
-
-**This is a loop, not a single call.** If the command exits non-zero or prints any `❌` line:
-
-1. Read every `❌` line from the output.
-2. Fix the offending file(s) — common fixes:
-   - `❌ missing stage file: <name>.md` → write the missing stage file per the [Stage file guidelines](#stage-file-guidelines).
-   - `❌ stage '<x>' transition target '<y>' is not a declared stage or terminal` → either add `<y>` to `.stages`, or change the transition, or add it to `.terminal_stages`.
-   - `❌ subagent stage '<x>' has interruptible: true` → flip to `false`.
-   - `❌ unknown field 'subagent_type'` → delete the field.
-   - `❌ from_run_file '<k>' not declared in .run_files` → add the key to top-level `.run_files` or remove the reference.
-3. Re-run the validator.
-4. Repeat until you see `✓ Workflow validated: N stages, M terminal`.
-
-Cap the loop at 5 iterations. If it still fails after 5 attempts, stop and report the remaining errors to the user verbatim — do not claim success, do not proceed to Step 5.5 / Step 6.
+Run the [shared Validate step](#validate) with `--workflow="$HOME/.meta-workflow/workflows/<suffix>"`. Do NOT proceed to Step 5.5 (cloud mode) or Step 6 (local mode) until validation passes.
 
 ### Step 5.5 — Publish to hub (cloud mode only)
 
@@ -426,9 +412,9 @@ If no changes are needed (user just wanted to view), say so and stop without wri
 
 Write only the files that changed (workflow.json and/or the affected stage `.md` files) back to the working directory. Follow the [shared Stage file guidelines](#stage-file-guidelines).
 
-### Edit Step 6 — Validate (mandatory retry loop)
+### Edit Step 6 — Validate
 
-Run the [shared Validate step](#validate) with the working directory absolute path. Loop on every `❌` line (fix → re-run) exactly as described in [Step 5](#step-5--validate-mandatory-retry-loop) — cap at 5 iterations, never claim success until `✓ Workflow validated` prints.
+Run the [shared Validate step](#validate) with the working directory absolute path. Fix any errors and re-run until validation passes.
 
 ### Edit Step 6.5 — Push back to cloud (cloud source only)
 

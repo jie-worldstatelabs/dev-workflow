@@ -203,6 +203,14 @@ fi
 set_fm_field "$STATE_FILE" status "$NEW_STATUS"
 set_fm_field "$STATE_FILE" epoch "$NEW_EPOCH"
 
+# Record the git HEAD seen by this workdir at transition time. continue-
+# workflow.sh compares current workdir HEAD against this to detect
+# cross-clone takeovers where the new workdir is missing commits the
+# workflow's subagent already produced.
+if _LSH="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null)"; then
+  [[ -n "$_LSH" ]] && set_fm_field "$STATE_FILE" last_seen_head "$_LSH"
+fi
+
 # Invalidate the artifact the new stage will produce
 NEW_ARTIFACT=""
 if config_is_stage "$NEW_STATUS"; then

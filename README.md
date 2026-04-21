@@ -110,6 +110,18 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the `workflow.json` schema.
 | Cross-machine continue | Not supported | `/meta-workflow:continue --session <id>` with project-fingerprint verification |
 | `.gitignore` entry needed | `echo '/.meta-workflow/' >> .gitignore` | None |
 
+### Cross-machine / cross-clone takeover caveat
+
+`/meta-workflow:continue --session <id>` mirrors the workflow's **state** (`state.md`, stage reports, `baseline`) to the new machine — it does **not** copy the project's source code. Code lives in your git repo, not in the plugin.
+
+`continue-workflow.sh` verifies:
+
+1. The new workdir is the same repo (root-commit fingerprint).
+2. The new workdir's HEAD is not behind / diverged from the HEAD the workflow last saw (`last_seen_head` in `state.md`, updated on every stage transition and on `/interrupt`). A behind / diverged HEAD is a **hard block** unless `--force-project-mismatch` is passed — the resumed stage would otherwise run against stale code and re-do or contradict finished work.
+3. Uncommitted changes in the new workdir emit a soft warning — they may conflict with the next stage's output.
+
+If the original session committed its subagent work before interrupting, `git fetch && git checkout <last_seen_head>` (or merge that branch) on the new machine brings you in sync before `/continue`.
+
 ## Key Design Decisions
 
 - **Config-driven** — stages, transitions, interruptible flags, subagent types/models, and input dependencies all live in `workflow.json`. Adding a stage or changing a transition is a config edit, not a code change.

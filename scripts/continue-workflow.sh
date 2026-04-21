@@ -211,6 +211,66 @@ case $verify_rc in
     ;;
 esac
 
+# ──────────────────────────────────────────────────────────────
+# Workdir health check
+# ──────────────────────────────────────────────────────────────
+# Project fingerprint above only confirms "same repo". This block
+# catches the subtler cross-clone case: the workflow's subagent
+# committed work in the ORIGINAL workdir while this one is still
+# stuck at an older HEAD. Continuing naively means the new stage
+# runs against stale code and re-does (or contradicts) finished
+# work.
+#
+# Three signals:
+#   1. HEAD diverged / behind last_seen_head  → block (risk of redo)
+#   2. HEAD advanced past last_seen_head      → warn only
+#   3. Dirty workdir (uncommitted changes)    → warn only
+#
+# All blocks honor --force-project-mismatch as an override.
+if git -C "$PROJECT_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+  LSH="$(_read_fm_field "$STATE_FILE" last_seen_head)"
+  CUR_HEAD="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo)"
+
+  if [[ -n "$LSH" && -n "$CUR_HEAD" && "$LSH" != "$CUR_HEAD" ]]; then
+    if git -C "$PROJECT_ROOT" merge-base --is-ancestor "$CUR_HEAD" "$LSH" 2>/dev/null; then
+      # current HEAD is an ancestor of last_seen_head → this workdir is BEHIND.
+      echo "❌ Workdir is behind the workflow's last-seen commit." >&2
+      echo "   last_seen_head : $LSH" >&2
+      echo "   current HEAD   : $CUR_HEAD" >&2
+      echo "" >&2
+      echo "   The workflow advanced HEAD on another workdir; this one is missing" >&2
+      echo "   those commits. Fetch / checkout to sync, or pass" >&2
+      echo "   --force-project-mismatch (the resumed stage will run against stale" >&2
+      echo "   code and may duplicate or contradict finished work)." >&2
+      [[ "$FORCE_MISMATCH" != "yes" ]] && exit 1
+      echo "⚠️  --force-project-mismatch set; continuing against stale workdir." >&2
+    elif git -C "$PROJECT_ROOT" merge-base --is-ancestor "$LSH" "$CUR_HEAD" 2>/dev/null; then
+      # current HEAD is a descendant → workdir advanced. Soft warn only.
+      echo "⚠️  Workdir HEAD has advanced since the workflow was last seen." >&2
+      echo "     last_seen_head : $LSH" >&2
+      echo "     current HEAD   : $CUR_HEAD" >&2
+      echo "   Proceeding on the assumption the new commits belong to this workflow." >&2
+    else
+      # Diverged — neither is ancestor of the other.
+      echo "❌ Workdir HEAD diverged from the workflow's last-seen commit." >&2
+      echo "   last_seen_head : $LSH" >&2
+      echo "   current HEAD   : $CUR_HEAD" >&2
+      echo "   Reconcile branches before resuming (merge, rebase, or checkout)," >&2
+      echo "   or pass --force-project-mismatch." >&2
+      [[ "$FORCE_MISMATCH" != "yes" ]] && exit 1
+      echo "⚠️  --force-project-mismatch set; continuing on diverged branch." >&2
+    fi
+  fi
+
+  # Dirty-workdir warning (both equal-head and all diverged-head branches).
+  DIRTY="$(git -C "$PROJECT_ROOT" status --porcelain 2>/dev/null | head -10)"
+  if [[ -n "$DIRTY" ]]; then
+    echo "⚠️  Workdir has uncommitted changes:" >&2
+    echo "$DIRTY" | sed 's/^/     /' >&2
+    echo "   These may conflict with the resumed workflow's next stage output." >&2
+  fi
+fi
+
 # Terminal workflows (including user-cancelled ones) can't be resumed.
 if is_terminal_status "$STATUS" 2>/dev/null; then
   case "$STATUS" in

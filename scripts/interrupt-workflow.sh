@@ -49,6 +49,12 @@ fi
 set_fm_field "$STATE_FILE" resume_status "$STATUS"
 set_fm_field "$STATE_FILE" status interrupted
 
+# Record git HEAD at interrupt time so a cross-clone /continue can detect
+# "this workdir is missing the commits the interrupted session produced".
+if _LSH="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null)"; then
+  [[ -n "$_LSH" ]] && set_fm_field "$STATE_FILE" last_seen_head "$_LSH"
+fi
+
 if is_cloud_session "$RUN_DIR_NAME"; then
   CUR_EPOCH=$(_read_fm_field "$STATE_FILE" epoch)
   cloud_post_state "$RUN_DIR_NAME" "interrupted" "${CUR_EPOCH:-1}" "$STATUS" "true" || {

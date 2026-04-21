@@ -29,7 +29,7 @@ echo "  Mode:     ${MODE}"
 if [[ "$MODE" == "cloud" ]]; then
   echo "  State:    ${_server}/s/<session_id>  (live after setup)"
   cloud_is_logged_in \
-    && echo "  Auth:     $(jq -r '.author // "unknown"' ~/.meta-workflow/auth.json 2>/dev/null)  (logged in)" \
+    && echo "  Auth:     $(jq -r '.author // "unknown"' ~/.config/meta-workflow/auth.json 2>/dev/null)  (logged in)" \
     || echo "  Auth:     anonymous  — run /meta-workflow:login to attach an account"
 else
   echo "  State:    <project>/.meta-workflow/<session_id>/"

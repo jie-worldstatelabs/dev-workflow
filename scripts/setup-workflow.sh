@@ -144,7 +144,7 @@ fi
 # Check order:
 #   1. Cloud shadow  (~/.cache/meta-workflow/sessions/<sid>/state.md)
 #   2. Local run dir (<project>/.meta-workflow/<sid>/state.md)
-#   3. Cloud registry (~/.meta-workflow/cloud-registry/<sid>.json, shadow lost)
+#   3. Cloud registry (~/.cache/meta-workflow/cloud-registry/<sid>.json, shadow lost)
 #   4. Cloud server GET (authoritative cross-machine check; skipped if offline)
 #
 # On active found → exit 2 so SKILL.md's Step 1 can ask the user.
@@ -183,7 +183,7 @@ if [[ -z "$FORCE" ]]; then
   fi
 
   # 3. Cloud registry without shadow (orphaned registration)
-  _cr="${HOME}/.meta-workflow/cloud-registry/${SESSION_ID}.json"
+  _cr="${HOME}/.cache/meta-workflow/cloud-registry/${SESSION_ID}.json"
   if [[ -z "$_active_status" ]] && [[ -f "$_cr" ]]; then
     _active_mode="cloud"
     _active_status="unknown (registry exists, shadow missing)"
@@ -454,7 +454,7 @@ EOF
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
   # Anonymous-cloud nudge: if the user has no bearer token stored at
-  # ~/.meta-workflow/auth.json, they're running as an anonymous capability
+  # ~/.config/meta-workflow/auth.json, they're running as an anonymous capability
   # URL (whoever knows the session_id can read/write it). Surface the
   # benefits of logging in once, right after activation, so they don't
   # miss the browser dashboard / cross-device resume / private sessions

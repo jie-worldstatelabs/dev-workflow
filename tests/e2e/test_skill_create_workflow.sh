@@ -63,9 +63,9 @@ rc1=$?
 [[ $rc1 -eq 0 ]]
 check "E2E-2-1: claude exits 0" $?
 
-WF_DIR1="$HOME/.meta-workflow/workflows/lint-fix-${SUFFIX}"
+WF_DIR1="$HOME/.config/meta-workflow/workflows/lint-fix-${SUFFIX}"
 [[ -d "$WF_DIR1" ]]
-check "E2E-2-1: workflow directory created at ~/.meta-workflow/workflows/" $?
+check "E2E-2-1: workflow directory created at ~/.config/meta-workflow/workflows/" $?
 
 [[ -f "$WF_DIR1/workflow.json" ]]
 check "E2E-2-1: workflow.json written" $?
@@ -111,14 +111,14 @@ check "E2E-2-3: fixing stage has required input from_stage=linting" $?
 source "${PLUGIN_ROOT}/scripts/lib.sh"
 
 FAKE_HOME="$TMP/home"
-mkdir -p "$FAKE_HOME/.meta-workflow/session-cache"
+mkdir -p "$FAKE_HOME/.cache/meta-workflow/session-cache"
 P4="$TMP/project4"
 mkdir -p "$P4"
 git -C "$P4" init -q
 git -C "$P4" -c user.name=t -c user.email=t@t commit --allow-empty -q -m init
 
 key4="$(printf '%s' "$P4" | shasum -a 1 | cut -c1-16)"
-echo "e2e-sess-${SUFFIX}" > "$FAKE_HOME/.meta-workflow/session-cache/cwd-$key4"
+echo "e2e-sess-${SUFFIX}" > "$FAKE_HOME/.cache/meta-workflow/session-cache/cwd-$key4"
 
 (cd "$P4" && HOME="$FAKE_HOME" "$SETUP" \
     --mode=local --topic=e2e-generated-wf \

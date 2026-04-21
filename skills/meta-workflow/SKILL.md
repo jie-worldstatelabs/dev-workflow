@@ -100,10 +100,10 @@ Every stage artifact follows this convention:
 
 Claude Code sets `$CLAUDE_PLUGIN_ROOT` **only for hook subprocesses**. It is NOT present in the main agent's Bash-tool environment. If you copy a `"${CLAUDE_PLUGIN_ROOT}/scripts/..."` snippet literally into a `Bash` tool call, the shell will expand `${CLAUDE_PLUGIN_ROOT}` to an empty string and the command will fail with `no such file or directory: /scripts/setup-workflow.sh`.
 
-To bridge the gap, `hooks/session-start.sh` writes the absolute plugin root path to **`~/.meta-workflow/plugin-root`** on every session start (the hook runs with `$CLAUDE_PLUGIN_ROOT` set). Every Bash-tool call that needs to run a plugin script should read that file:
+To bridge the gap, `hooks/session-start.sh` writes the absolute plugin root path to **`~/.config/meta-workflow/plugin-root`** on every session start (the hook runs with `$CLAUDE_PLUGIN_ROOT` set). Every Bash-tool call that needs to run a plugin script should read that file:
 
 ```bash
-P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
+P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
 [[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
 ```
 
@@ -116,7 +116,7 @@ Note that **`P` does NOT persist across Bash-tool calls** — every Bash-tool ca
 Before deriving a topic or running any script, parse the flags, validate them, then announce the run configuration to the user. **Do not proceed to Step 1 if any error is emitted.**
 
 ```bash
-P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
+P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
 [[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
 eval "$("$P/scripts/parse-workflow-flags.sh" '$ARGUMENTS')" || exit 1
 "$P/scripts/print-start-banner.sh" "$MODE" "$WORKFLOW_FLAG" "$WF_TYPE"
@@ -131,7 +131,7 @@ Relay the banner to the user before continuing. If errors were printed, stop and
 3. Pass `$WORKFLOW_FLAG` from Step 0 to `setup-workflow.sh` if non-empty; omit it otherwise (default workflow applies).
 4. Activate the workflow (discover plugin root → run setup in one Bash-tool call):
    ```bash
-   P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
+   P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
    [[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
    "$P/scripts/setup-workflow.sh" --topic="<topic>" [--workflow="$WORKFLOW_FLAG"] [--mode="$MODE"]
    ```
@@ -141,7 +141,7 @@ Relay the banner to the user before continuing. If errors were printed, stop and
    - Ask: `There's already a workflow in this worktree. Proceeding will archive it and start fresh. Continue? (yes/no)`
    - If the user confirms: re-run with `--force` (re-discover `P`):
      ```bash
-     P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
+     P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
      [[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
      "$P/scripts/setup-workflow.sh" --topic="<topic>" [--workflow="$WORKFLOW_FLAG"] [--mode="$MODE"] --force
      ```
@@ -171,7 +171,7 @@ Each loop iteration:
 
 ```
 # Re-discover $P every Bash-tool call — the env var is not inherited.
-P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
+P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
 [[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
 
 Loop:
@@ -266,7 +266,7 @@ Runs inside the subagent as its mandatory first action. The subagent self-resolv
 - **Stage-specific edge cases** (e.g. what an agent should do when it cannot complete the work) live in the active workflow's `<workflow_dir>/<stage>.md` — consult that file rather than inventing behavior here.
 - **Unrecoverable workflow error** → run:
   ```bash
-  P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
+  P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
   [[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
   "$P/scripts/update-status.sh" --status escalated
   ```

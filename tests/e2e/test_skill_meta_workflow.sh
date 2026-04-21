@@ -61,8 +61,8 @@ seed_state() {
   # which also uses $(pwd) after cd — on macOS /var/ → /private/var/ symlink
   # means printf '%s' "$project" gives a different hash than $(cd && pwd).
   key="$(cd "$project" && printf '%s' "$(pwd)" | shasum -a 1 | cut -c1-16)"
-  mkdir -p "$HOME/.meta-workflow/session-cache"
-  echo "$session_id" > "$HOME/.meta-workflow/session-cache/cwd-$key"
+  mkdir -p "$HOME/.cache/meta-workflow/session-cache"
+  echo "$session_id" > "$HOME/.cache/meta-workflow/session-cache/cwd-$key"
   (cd "$project" && "${PLUGIN_ROOT}/scripts/setup-workflow.sh" \
       --mode=local --topic="$topic" --workflow="$workflow" > /dev/null 2>&1)
 }

@@ -161,7 +161,7 @@ archive_run_dir() {
 # matches, the session_id is unknown and setup-workflow.sh fails fast
 # (it can't create a session-keyed run dir without one).
 
-_DW_SESSION_CACHE_DIR="${HOME}/.meta-workflow/session-cache"
+_DW_SESSION_CACHE_DIR="${HOME}/.cache/meta-workflow/session-cache"
 
 _session_cache_cwd_key() {
   printf '%s' "$(pwd)" | shasum -a 1 | cut -c1-16
@@ -745,11 +745,11 @@ config_show_stage_context() {
 # tools still have real file paths to operate on. Every write is mirrored
 # to the server via curl. The project worktree gets no .meta-workflow/ dir.
 #
-# Registry: ~/.meta-workflow/cloud-registry/<session_id>.json records
+# Registry: ~/.cache/meta-workflow/cloud-registry/<session_id>.json records
 # {mode, session_id, scratch_dir, server, workflow_url}. Its presence is
 # how every script/hook decides "cloud or local" — no env var needed.
 
-CLOUD_REGISTRY_DIR="${HOME}/.meta-workflow/cloud-registry"
+CLOUD_REGISTRY_DIR="${HOME}/.cache/meta-workflow/cloud-registry"
 CLOUD_SCRATCH_BASE="${HOME}/.cache/meta-workflow/sessions"
 
 # Default cloud server for this plugin build. Hard-coded so users only need
@@ -866,7 +866,7 @@ _cloud_server() {
 
 # Auth header for cloud requests. Two modes:
 #
-#   - Authenticated: ~/.meta-workflow/auth.json exists with a `token`
+#   - Authenticated: ~/.config/meta-workflow/auth.json exists with a `token`
 #     field. We emit "Authorization: Bearer <token>" so the server can
 #     attribute the request to the logged-in user and stamp user_id on
 #     any rows it creates.
@@ -879,11 +879,11 @@ _cloud_server() {
 # To log in:  /meta-workflow:login
 # To log out: /meta-workflow:logout
 # Returns 0 if the user has a non-empty bearer token at
-# ~/.meta-workflow/auth.json (written by login-workflow.sh), else 1.
+# ~/.config/meta-workflow/auth.json (written by login-workflow.sh), else 1.
 # Used by setup-workflow.sh to surface a "consider logging in" tip on
 # anonymous cloud runs. Never errors; non-zero just means "not logged in".
 cloud_is_logged_in() {
-  local auth_file="${HOME}/.meta-workflow/auth.json"
+  local auth_file="${HOME}/.config/meta-workflow/auth.json"
   [[ -f "$auth_file" ]] || return 1
   local token
   token="$(jq -r '.token // empty' "$auth_file" 2>/dev/null || true)"
@@ -920,7 +920,7 @@ cloud_explain_curl_exit() {
 }
 
 _cloud_auth_header() {
-  local auth_file="${HOME}/.meta-workflow/auth.json"
+  local auth_file="${HOME}/.config/meta-workflow/auth.json"
   if [[ -f "$auth_file" ]]; then
     local token
     token="$(jq -r '.token // empty' "$auth_file" 2>/dev/null || true)"

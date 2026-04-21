@@ -165,7 +165,7 @@ if [[ ${#STAGE_KEYS[@]} -eq 0 ]]; then
 fi
 
 # ── Full workflow validation (transitions, inputs, stage files) ──
-_PLUGIN_ROOT="$(cat ~/.meta-workflow/plugin-root 2>/dev/null || true)"
+_PLUGIN_ROOT="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null || true)"
 [[ -d "${_PLUGIN_ROOT}/scripts" ]] || _PLUGIN_ROOT=~/.claude/plugins/meta-workflow
 [[ -d "${_PLUGIN_ROOT}/scripts" ]] || _PLUGIN_ROOT="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"
 if [[ -z "$DRY_RUN" ]]; then
@@ -177,7 +177,7 @@ fi
 
 # ── Resolve name (default: author/basename) + validate slug ──
 if [[ -z "$NAME" ]]; then
-  _author_raw="$(jq -r '.author // "anonymous"' "${HOME}/.meta-workflow/auth.json" 2>/dev/null || echo "anonymous")"
+  _author_raw="$(jq -r '.author // "anonymous"' "${HOME}/.config/meta-workflow/auth.json" 2>/dev/null || echo "anonymous")"
   # Slugify: lowercase, spaces→hyphens, strip non-slug chars
   _author="$(echo "$_author_raw" | tr '[:upper:]' '[:lower:]' | sed 's/[[:space:]][[:space:]]*/\-/g; s/[^a-z0-9._-]//g; s/^[^a-z0-9]*//')"
   _author="${_author:-anonymous}"
@@ -248,7 +248,7 @@ if [[ -z "$DRY_RUN" ]]; then
   fi
   if [[ "$_pre_code" == "200" ]]; then
     _remote_uid="$(jq -r '.user_id // .workflow.user_id // empty' "$_pre_tmp" 2>/dev/null || echo "")"
-    _my_uid="$(jq -r '.user_id // empty' ~/.meta-workflow/auth.json 2>/dev/null || echo "")"
+    _my_uid="$(jq -r '.user_id // empty' ~/.config/meta-workflow/auth.json 2>/dev/null || echo "")"
     if [[ -n "$_remote_uid" && -n "$_my_uid" && "$_remote_uid" != "$_my_uid" ]]; then
       echo "❌ Name '${NAME}' is already taken by another user." >&2
       rm -f "$_pre_tmp"

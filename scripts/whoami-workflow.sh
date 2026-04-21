@@ -9,7 +9,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
-AUTH_FILE="${HOME}/.meta-workflow/auth.json"
+AUTH_FILE="${HOME}/.config/meta-workflow/auth.json"
 
 if [[ ! -f "$AUTH_FILE" ]]; then
   echo "Not signed in."

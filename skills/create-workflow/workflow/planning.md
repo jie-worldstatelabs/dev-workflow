@@ -54,9 +54,9 @@ If the workflow needs setup-time constants (e.g. git SHA baseline, current date)
 
 ## Pick a workflow suffix
 
-Derive a short, kebab-case suffix from the description (e.g. "Python library dev with docs and publish" → `python-lib`, "research paper drafting" → `paper-draft`). Confirm with the user. The local directory will always be `~/.meta-workflow/workflows/<suffix>/`.
+Derive a short, kebab-case suffix from the description (e.g. "Python library dev with docs and publish" → `python-lib`, "research paper drafting" → `paper-draft`). Confirm with the user. The local directory will always be `~/.config/meta-workflow/workflows/<suffix>/`.
 
-**Collision check:** if `~/.meta-workflow/workflows/<suffix>/` already exists, tell the user and ask whether to pick a different name or overwrite. Do NOT overwrite silently.
+**Collision check:** if `~/.config/meta-workflow/workflows/<suffix>/` already exists, tell the user and ask whether to pick a different name or overwrite. Do NOT overwrite silently.
 
 ## Iterate until approved
 
@@ -80,7 +80,7 @@ result: pending
 <kebab-case-suffix>
 
 ## Target directory
-`/Users/<user>/.meta-workflow/workflows/<suffix>/`
+`/Users/<user>/.config/meta-workflow/workflows/<suffix>/`
 (absolute path — writer will `mkdir -p` this)
 
 ## Stages

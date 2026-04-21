@@ -22,7 +22,7 @@ Read every input path from your prompt — do NOT construct or hardcode paths.
 Run this Bash call so the canonical schema and stage-file style flow into your context:
 
 ````bash
-P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
+P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
 [[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
 for f in workflow.json planning.md executing.md reviewing.md verifying.md qa-ing.md run_files_catalog.md; do
   echo "===== $f ====="; cat "$P/skills/meta-workflow/workflow/$f"; echo

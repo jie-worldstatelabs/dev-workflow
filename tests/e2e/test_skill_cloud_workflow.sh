@@ -9,7 +9,7 @@
 #   In cloud mode, state lives in a shadow dir at
 #   ~/.cache/meta-workflow/sessions/<UUID>/state.md. On terminal status,
 #   both update-status.sh and stop-hook.sh wipe the shadow + unregister
-#   from ~/.meta-workflow/cloud-registry/. The project worktree never gets
+#   from ~/.cache/meta-workflow/cloud-registry/. The project worktree never gets
 #   a .meta-workflow/ directory in cloud mode.
 #
 # Requirements: claude CLI in PATH, API access, network access to
@@ -54,14 +54,14 @@ trap cleanup EXIT
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 # Read the session UUID from the local session cache for a project directory.
-# The session-start hook writes ~/.meta-workflow/session-cache/cwd-<sha1> each
+# The session-start hook writes ~/.cache/meta-workflow/session-cache/cwd-<sha1> each
 # time a Claude session opens in that project. stop-hook does NOT clean it up,
 # so it persists after the workflow terminates — reliable for post-run lookups.
 read_project_session() {
   local project="$1"
   local key
   key="$(cd "$project" && printf '%s' "$(pwd)" | shasum -a 1 | cut -c1-16)"
-  local cache_file="${HOME}/.meta-workflow/session-cache/cwd-${key}"
+  local cache_file="${HOME}/.cache/meta-workflow/session-cache/cwd-${key}"
   [[ -f "$cache_file" ]] && cat "$cache_file" || echo ""
 }
 
@@ -77,8 +77,8 @@ write_session_cache() {
   local project="$1" session_id="$2"
   local key
   key="$(cd "$project" && printf '%s' "$(pwd)" | shasum -a 1 | cut -c1-16)"
-  mkdir -p "${HOME}/.meta-workflow/session-cache"
-  echo "$session_id" > "${HOME}/.meta-workflow/session-cache/cwd-${key}"
+  mkdir -p "${HOME}/.cache/meta-workflow/session-cache"
+  echo "$session_id" > "${HOME}/.cache/meta-workflow/session-cache/cwd-${key}"
 }
 
 # Seed a cloud workflow state directly (no Claude, no setup-workflow.sh).
@@ -190,7 +190,7 @@ if [[ -n "$SID1" ]]; then
   check "C2E-2-1: shadow wiped after terminal" "$rc_shadow1"
 
   # Cloud registry should be removed after terminal.
-  REG1="${HOME}/.meta-workflow/cloud-registry/${SID1}.json"
+  REG1="${HOME}/.cache/meta-workflow/cloud-registry/${SID1}.json"
   rc_reg1=0; [[ ! -f "$REG1" ]] || rc_reg1=1
   check "C2E-2-1: cloud registry removed after terminal" "$rc_reg1"
 
@@ -224,7 +224,7 @@ SHADOW2="${HOME}/.cache/meta-workflow/sessions/${SID2}"
 rc_shadow2a=0; [[ -f "${SHADOW2}/state.md" ]] || rc_shadow2a=1
 check "C2E-2-2: shadow state.md exists after seed" "$rc_shadow2a"
 
-REG2="${HOME}/.meta-workflow/cloud-registry/${SID2}.json"
+REG2="${HOME}/.cache/meta-workflow/cloud-registry/${SID2}.json"
 rc_reg2a=0; [[ -f "$REG2" ]] || rc_reg2a=1
 check "C2E-2-2: cloud registry exists after seed" "$rc_reg2a"
 
@@ -297,7 +297,7 @@ fi
 rc_shadow3=0; [[ ! -d "$SHADOW3" ]] || rc_shadow3=1
 check "C2E-2-3: shadow wiped after continuation completes" "$rc_shadow3"
 
-REG3="${HOME}/.meta-workflow/cloud-registry/${SID3}.json"
+REG3="${HOME}/.cache/meta-workflow/cloud-registry/${SID3}.json"
 rc_reg3=0; [[ ! -f "$REG3" ]] || rc_reg3=1
 check "C2E-2-3: cloud registry removed after continuation" "$rc_reg3"
 
@@ -324,12 +324,12 @@ check "C2E-2-4: interrupt-workflow.sh exits 0" "$int_rc4"
 
 # Wipe ALL local traces — simulate switching to a different machine.
 rm -rf "${HOME}/.cache/meta-workflow/sessions/${SID4}"
-rm -f "${HOME}/.meta-workflow/cloud-registry/${SID4}.json"
+rm -f "${HOME}/.cache/meta-workflow/cloud-registry/${SID4}.json"
 
 rc_noshadow4=0; [[ ! -d "${HOME}/.cache/meta-workflow/sessions/${SID4}" ]] || rc_noshadow4=1
 check "C2E-2-4: shadow wiped (simulating machine switch)" "$rc_noshadow4"
 
-rc_noreg4=0; [[ ! -f "${HOME}/.meta-workflow/cloud-registry/${SID4}.json" ]] || rc_noreg4=1
+rc_noreg4=0; [[ ! -f "${HOME}/.cache/meta-workflow/cloud-registry/${SID4}.json" ]] || rc_noreg4=1
 check "C2E-2-4: cloud registry wiped (simulating machine switch)" "$rc_noreg4"
 
 # Real Claude: continue with explicit --session from the same project dir.

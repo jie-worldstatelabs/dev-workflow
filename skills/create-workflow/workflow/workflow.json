@@ -3,8 +3,8 @@
   "terminal_stages": ["complete", "escalated", "cancelled"],
   "run_files": {
     "setup_context": {
-      "description": "Caller context JSON: {mode:'create'|'edit', description:string, source_dir?:string}. SKILL.md exports CREATE_WORKFLOW_CONTEXT before invoking setup-workflow.sh; description is the user's original natural-language request (setup-workflow.sh has no positional slot for it).",
-      "init": "echo \"${CREATE_WORKFLOW_CONTEXT:-{\\\"mode\\\":\\\"create\\\",\\\"description\\\":\\\"\\\"}}\""
+      "description": "Caller context JSON: {mode:'create'|'edit', description:string, source_dir?:string, publish_intent:'cloud'|'local'}. SKILL.md exports CREATE_WORKFLOW_CONTEXT before invoking setup-workflow.sh; description is the user's original request (setup-workflow.sh has no positional slot for it); publish_intent mirrors --mode and gates the publishing stage.",
+      "init": "echo \"${CREATE_WORKFLOW_CONTEXT:-{\\\"mode\\\":\\\"create\\\",\\\"description\\\":\\\"\\\",\\\"publish_intent\\\":\\\"local\\\"}}\""
     }
   },
   "stages": {
@@ -17,7 +17,7 @@
       "inputs": {
         "required": [],
         "optional": [
-          { "from_run_file": "setup_context", "description": "Create-vs-edit mode hint (and source dir for edit)" }
+          { "from_run_file": "setup_context", "description": "Create-vs-edit mode hint, description, and source_dir for edit" }
         ]
       }
     },
@@ -40,7 +40,7 @@
       "interruptible": false,
       "execution": { "type": "inline" },
       "transitions": {
-        "PASS": "complete",
+        "PASS": "publishing",
         "FAIL": "writing"
       },
       "inputs": {
@@ -48,6 +48,23 @@
           { "from_stage": "writing", "description": "Writer report — absolute path to the workflow directory and list of files produced" }
         ],
         "optional": []
+      }
+    },
+    "publishing": {
+      "interruptible": false,
+      "execution": { "type": "inline" },
+      "transitions": {
+        "done": "complete",
+        "skipped": "complete"
+      },
+      "inputs": {
+        "required": [
+          { "from_stage": "writing", "description": "Writer report — target directory to publish" },
+          { "from_stage": "validating", "description": "Validator PASS confirmation" }
+        ],
+        "optional": [
+          { "from_run_file": "setup_context", "description": "publish_intent gates cloud vs skip" }
+        ]
       }
     }
   }

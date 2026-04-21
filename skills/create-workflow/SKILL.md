@@ -117,13 +117,17 @@ The meta-workflow has a `setup_context` run_file that captures this env var. It'
 
 **Note:** `setup-workflow.sh` has no positional-argument slot for description — putting it in this env var is the only channel through which the planning stage receives it.
 
+`publish_intent` mirrors `$MODE` and tells the meta-workflow's `publishing` stage whether to push to the hub (`cloud`) or skip (`local`).
+
 - **Create mode:**
   ```bash
-  export CREATE_WORKFLOW_CONTEXT="$(jq -nc --arg desc "$DESCRIPTION" '{mode:"create", description:$desc}')"
+  export CREATE_WORKFLOW_CONTEXT="$(jq -nc --arg desc "$DESCRIPTION" --arg pi "$MODE" \
+    '{mode:"create", description:$desc, publish_intent:$pi}')"
   ```
 - **Edit mode:**
   ```bash
-  export CREATE_WORKFLOW_CONTEXT="$(jq -nc --arg d "$SOURCE_DIR" --arg desc "$DESCRIPTION" '{mode:"edit", source_dir:$d, description:$desc}')"
+  export CREATE_WORKFLOW_CONTEXT="$(jq -nc --arg d "$SOURCE_DIR" --arg desc "$DESCRIPTION" --arg pi "$MODE" \
+    '{mode:"edit", source_dir:$d, description:$desc, publish_intent:$pi}')"
   ```
 
 ### Step 3 — Pick a short topic slug
@@ -150,9 +154,9 @@ This starts the state machine at `planning`. The next turn will begin the interv
 Tell the user:
 
 - **Status**: the create-workflow meta-workflow is running (mode: create or edit).
-- **Next**: the next turn begins the `planning` stage — the workflow will interview for design (create) or changes (edit), then hand off to the `writing` subagent, then validate. `FAIL` from validator loops back to writing automatically.
+- **Next**: the next turn begins the `planning` stage — the workflow will interview for design (create) or changes (edit), then hand off to the `writing` subagent, validate, and (if cloud) publish. `FAIL` from validator loops back to writing automatically.
 - **Where files land**: `~/.config/meta-workflow/workflows/<suffix>/` (suffix chosen in planning for Create; reused for Edit). The final path is echoed in the writer report.
-- **Cloud publish**: for `--mode=cloud`, after the meta-workflow completes, run `/meta-workflow:publish <target-dir>` to push to the hub. This skill does NOT auto-publish — it exits after dispatch.
+- **Cloud publish**: for `--mode=cloud`, the `publishing` stage auto-runs `publish-workflow.sh` after the validator passes. If publish fails (token expired, network, name collision), the workflow still terminates at `complete` with a publish-failure note — retry with `/meta-workflow:publish <target-dir>`.
 - **Abort**: `/meta-workflow:cancel` or `/meta-workflow:interrupt` any time.
 
 STOP. Do NOT do anything else in this turn — no file writes, no further tool calls.
@@ -163,5 +167,5 @@ STOP. Do NOT do anything else in this turn — no file writes, no further tool c
 
 - Both Create and Edit dispatch the SAME meta-workflow; the only difference is `CREATE_WORKFLOW_CONTEXT`.
 - Edit mode must resolve `SOURCE_DIR` (downloading if cloud) BEFORE dispatch — the run_file init runs in the session's setup and reads `$CREATE_WORKFLOW_CONTEXT` from env.
-- Cloud publish after Edit/Create is manual (`/meta-workflow:publish`) — the skill does not wait for meta-workflow completion.
+- Cloud publish is handled by the meta-workflow's `publishing` stage (gated on `publish_intent` in `setup_context`). The skill itself does not wait for or call publish.
 - Do NOT invoke other skills. Do NOT write workflow files. Your job is flag parsing + preconditions + dispatch.

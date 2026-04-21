@@ -68,7 +68,7 @@ scripts/
                            shadow
   publish-workflow.sh    ← uploads a workflow bundle to the hub
   login-workflow.sh      ← browser-based device-code flow; stores token at
-                           ~/.meta-workflow/auth.json
+                           ~/.config/meta-workflow/auth.json
   logout-workflow.sh     ← removes auth.json
   whoami-workflow.sh     ← prints identity + verifies token
   stage-context.sh       ← prints a stage's I/O context (paths) after a
@@ -120,12 +120,35 @@ The authoritative copy is the Postgres `sessions` + `artifacts` rows on the serv
       workflow.json
       <stage>.md files
 
-~/.meta-workflow/cloud-registry/
-  <session_id>.json          ← existence flag; every hook/script uses it
-                               to decide "local or cloud"
+~/.cache/meta-workflow/cloud-registry/
+  <session_id>.json          ← existence flag + {mode, scratch_dir, server,
+                               workflow_url}; every hook/script uses this
+                               file's presence to decide "local or cloud"
 ```
 
 One 2-line helper (`is_cloud_session <sid>`) in `lib.sh` checks file existence. No env var, no state field, no global.
+
+### Global config & cache (XDG split)
+
+User-level state is split by XDG convention so clearing cache never loses user-owned data:
+
+```
+~/.config/meta-workflow/          ← persistent (do not clear)
+  auth.json                       ← hub token + user_id + device label
+  plugin-root                     ← absolute path to current plugin install
+                                    (refreshed by SessionStart hook)
+  workflows/<suffix>/             ← user-authored workflow library
+    workflow.json / <stage>.md / readme.md
+
+~/.cache/meta-workflow/           ← ephemeral (safe to clear; rebuilt on next use)
+  session-cache/                  ← Claude-session-id bridge (PPID + cwd keys)
+    cwd-<sha1>                    ← session_id, primary key
+    ppid-<pid>                    ← session_id, secondary key
+  cloud-registry/<sid>.json       ← per-cloud-session flag (above)
+  sessions/<sid>/                 ← cloud shadow (above)
+```
+
+Per-project state (`<project>/.meta-workflow/<session_id>/`, local mode) is unaffected — still tracked per project.
 
 ---
 
@@ -137,6 +160,7 @@ A workflow is a directory that bundles `workflow.json` + one `<stage>.md` per st
 {
   "initial_stage": "<stage-name>",
   "terminal_stages": ["complete", "escalated", "cancelled"],
+  "max_epoch": 10,
   "run_files": {
     "baseline": {
       "description": "Git SHA at workflow start",
@@ -166,6 +190,7 @@ A workflow is a directory that bundles `workflow.json` + one `<stage>.md` per st
 |---|---|
 | `initial_stage` | Status written into `state.md` at setup |
 | `terminal_stages` | Values that release the stop hook and end the workflow. Don't need to appear in `.stages` — they're just state-machine settling values |
+| `max_epoch` | Optional, integer. Default `10`. `update-status.sh` forces `status=escalated` once a transition would push the epoch to or past this cap — breaks runaway loops (e.g. executing↔verifying). User-initiated terminal transitions bypass the cap. If the workflow doesn't declare `escalated` in `.terminal_stages` the cap is skipped with a warning |
 | `run_files` | Optional. Data created once at setup time, available as input to any stage via `from_run_file`. `init`'s stdout becomes the file content |
 | `stages.*.interruptible` | `true` = stop hook allows session exits during the stage (for user Q&A). Subagent stages MUST be `false` |
 | `stages.*.execution` | `{"type":"inline"}` or `{"type":"subagent","model":"<opus\|sonnet\|haiku>"}`. Model is optional; omit to use the subagent's default (sonnet) |

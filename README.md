@@ -68,7 +68,7 @@ The `execute → verify → review → QA` loop runs **autonomously** after you 
 
 ## Custom Workflows
 
-The plugin is **generic** — any stage shape works as long as it follows the schema. Running `/meta-workflow:create-workflow` (see Quick Start) writes a `workflow.json` + per-stage instruction files to `~/.meta-workflow/workflows/<name>/` and publishes the bundle to the hub. Reuse it with:
+The plugin is **generic** — any stage shape works as long as it follows the schema. Running `/meta-workflow:create-workflow` (see Quick Start) dispatches an internal meta-workflow that interviews you, writes `workflow.json` + per-stage instruction files under `~/.config/meta-workflow/workflows/<name>/`, validates them in a retry loop, and publishes the bundle to the hub (cloud mode only). Reuse it with:
 
 ```
 /meta-workflow:start --workflow=cloud://<you>/<name> <task>

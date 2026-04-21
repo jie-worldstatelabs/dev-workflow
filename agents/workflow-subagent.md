@@ -19,7 +19,7 @@ The main agent's `prompt` message to you is just a trigger — it may be a singl
 Run this Bash command as your very first action, before reading or writing anything else:
 
 ```bash
-P="$(cat ~/.meta-workflow/plugin-root 2>/dev/null)"
+P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
 [[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
 "$P/scripts/subagent-bootstrap.sh"
 ```

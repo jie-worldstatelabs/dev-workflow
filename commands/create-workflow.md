@@ -4,7 +4,7 @@ argument-hint: "[--mode=cloud|local] [--workflow=<local-dir|cloud-url>] <brief d
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 ---
 
-Create or edit a meta-workflow. The `create-workflow` skill will interview the user (if needed), propose a stage decomposition, iterate on the design, write the files under `~/.meta-workflow/workflows/<name>/`, and validate the result.
+Create or edit a meta-workflow. The `create-workflow` skill dispatches an internal meta-workflow (planning → writing → validating → publishing) that interviews the user, produces the files under `~/.config/meta-workflow/workflows/<name>/`, validates them in a retry loop until they pass, and pushes to the hub when in cloud mode. The skill itself does not write workflow files — it hands off to the state machine.
 
 - **No flag** → create a brand-new workflow and publish it to the hub (cloud mode by default).
 - **`--mode=local`** → create locally only, skip hub publishing.

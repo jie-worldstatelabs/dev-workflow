@@ -54,15 +54,11 @@ if [[ -n "${DESIRED_SESSION:-}" ]] && ! is_cloud_session "$DESIRED_SESSION"; the
     exit 1
   fi
   # Primary alias — matches the server-side session_id and the scratch
-  # dir basename, so cloud_post_* helpers POST to the right row.
+  # dir basename, so cloud_post_* helpers POST to the right row. Must
+  # be registered here (before resolve_state) so is_cloud_session finds
+  # the pulled shadow. Local-alias registration happens later, after
+  # the ownership gate confirms this session is actually resumable.
   cloud_register_session "$DESIRED_SESSION" "${META_WORKFLOW_SERVER}" "" "$scratch_path"
-  # Local alias — the current Claude session's id, so resolve_state from
-  # hooks/CLI on this machine (which keys on read_cached_session_id)
-  # finds the same scratch dir.
-  LOCAL_SID="$(read_cached_session_id)"
-  if [[ -n "$LOCAL_SID" ]] && [[ "$LOCAL_SID" != "$DESIRED_SESSION" ]]; then
-    cloud_register_session "$LOCAL_SID" "${META_WORKFLOW_SERVER}" "" "$scratch_path"
-  fi
   echo "   Shadow restored at: $scratch_path" >&2
 fi
 
@@ -75,24 +71,6 @@ if [[ -n "${DESIRED_SESSION:-}" ]]; then
   if ! resolve_state; then
     echo "No dev workflow matching the given --session." >&2
     exit 1
-  fi
-  # Ensure this Claude session's own id is aliased to the target scratch
-  # dir. Without this, downstream callers in the current session (loop-tick,
-  # hooks, update-status) would resolve to read_cached_session_id — the
-  # CURRENT Claude session's id — which has no registry entry and thus
-  # falls through to "no active workflow". The cross-machine takeover
-  # branch above already does this for first-time pulls; repeat here for
-  # same-machine cross-session continue.
-  if is_cloud_session "$DESIRED_SESSION"; then
-    _LOCAL_SID="$(read_cached_session_id)"
-    if [[ -n "$_LOCAL_SID" ]] && [[ "$_LOCAL_SID" != "$DESIRED_SESSION" ]] && ! is_cloud_session "$_LOCAL_SID"; then
-      _target_scratch="$(cloud_registry_get "$DESIRED_SESSION" scratch_dir)"
-      [[ -z "$_target_scratch" ]] && _target_scratch="$(cloud_scratch_dir)/${DESIRED_SESSION}"
-      _target_server="$(cloud_registry_get "$DESIRED_SESSION" server)"
-      [[ -z "$_target_server" ]] && _target_server="${META_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}"
-      cloud_register_session "$_LOCAL_SID" "$_target_server" "" "$_target_scratch"
-      echo "   Aliased local session ${_LOCAL_SID} → ${_target_scratch}" >&2
-    fi
   fi
 else
   # Cloud short-circuit: .meta-workflow/ doesn't exist in cloud mode, so
@@ -160,6 +138,31 @@ if [[ "$STATUS" != "interrupted" ]]; then
   echo "        auto-interrupt on graceful exit)." >&2
   echo "     3. Come back here and retry /meta-workflow:continue." >&2
   exit 1
+fi
+
+# ──────────────────────────────────────────────────────────────
+# Local-alias registration (cloud mode only, post-ownership-gate)
+# ──────────────────────────────────────────────────────────────
+# Register this Claude session's own id as an alias for the target
+# scratch dir. Without it, downstream callers (loop-tick, hooks,
+# update-status) that read_cached_session_id would resolve to the
+# current session's id — which has no registry entry — and fall
+# through to "no active workflow".
+#
+# Placed AFTER the ownership gate so aliases are only written for
+# sessions that actually passed resume checks. Terminal-status
+# sessions exit before reaching this block, keeping the registry
+# clean.
+if [[ "$IS_CLOUD" == "true" ]]; then
+  _LOCAL_SID="$(read_cached_session_id)"
+  if [[ -n "$_LOCAL_SID" ]] && [[ "$_LOCAL_SID" != "$RUN_DIR_NAME" ]] && ! is_cloud_session "$_LOCAL_SID"; then
+    _tgt_scratch="$(cloud_registry_get "$RUN_DIR_NAME" scratch_dir)"
+    [[ -z "$_tgt_scratch" ]] && _tgt_scratch="$(cloud_scratch_dir)/${RUN_DIR_NAME}"
+    _tgt_server="$(cloud_registry_get "$RUN_DIR_NAME" server)"
+    [[ -z "$_tgt_server" ]] && _tgt_server="${META_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}"
+    cloud_register_session "$_LOCAL_SID" "$_tgt_server" "" "$_tgt_scratch"
+    echo "   Aliased local session ${_LOCAL_SID} → ${_tgt_scratch}" >&2
+  fi
 fi
 
 # ──────────────────────────────────────────────────────────────

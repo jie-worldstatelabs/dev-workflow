@@ -145,7 +145,7 @@ Branch on `$MODE` to pick BOTH the right workflow source AND the session-mode fo
   "$P/scripts/setup-workflow.sh" \
     --mode=cloud \
     --topic="<slug-from-step-3>" \
-    --workflow="cloud://anonymous/create-workflow"
+    --workflow="cloud://create-workflow"
   ```
 
 - **`$MODE=local`** — use the plugin-bundled local workflow; runs fully offline, no webapp link:
@@ -163,7 +163,7 @@ Note that **two "mode" concepts** are aligned here:
 - User's `/meta-workflow:create-workflow --mode=<...>` flag = "publish intent" for the GENERATED workflow → captured in `CREATE_WORKFLOW_CONTEXT.publish_intent` (Step 2), consumed by the `publishing` stage.
 - `setup-workflow.sh --mode=<...>` = "is THIS meta-workflow session itself cloud-tracked?" — also follows `$MODE` now (cloud mode pulls from the hub mirror; local uses the bundled directory).
 
-The hub mirror at `cloud://anonymous/create-workflow` is a snapshot of `$P/skills/create-workflow/workflow/` published anonymously (immutable). The maintainer re-seeds it via `workflowUI/scripts/seed-anonymous-create-workflow.ts` whenever the bundled workflow changes.
+The hub mirror at `cloud://create-workflow` is a snapshot of `$P/skills/create-workflow/workflow/` published anonymously (immutable). The maintainer re-seeds it via `workflowUI/scripts/seed-anonymous-create-workflow.ts` whenever the bundled workflow changes.
 
 Do NOT pass `$DESCRIPTION` as a trailing argument — `setup-workflow.sh` silently discards unknown positionals. The description travels via `CREATE_WORKFLOW_CONTEXT` (set in Step 2), which the workflow's `setup_context` run_file captures at session setup.
 

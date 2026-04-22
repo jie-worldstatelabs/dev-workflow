@@ -165,7 +165,7 @@ Do NOT pass `$DESCRIPTION` as a trailing argument — `setup-workflow.sh` silent
 
   Only re-run `setup-workflow.sh ... --force` if the user **explicitly** says to discard the existing run. Default stance: refuse and ask.
 
-- **Exit 1 or other — real error.** Relay stderr to the user verbatim. Common cases mirror what `meta-workflow-setup` SKILL.md handles: workflow.json validation, `session_id is unknown` (need to restart Claude Code session), cloud fetch failure. Do NOT proceed to Step 5; do NOT auto-fix. Wait for user.
+- **Exit 1 or other — real error.** Relay stderr to the user verbatim. Common cases: workflow.json validation errors, `session_id is unknown` (the SessionStart hook cache wasn't populated — tell the user to restart Claude Code), cloud fetch / network failure. Do NOT proceed to Step 5; do NOT auto-fix. Wait for user confirmation before retrying.
 
 On exit 0 only, the state machine is at `planning` and the next turn begins the interview.
 

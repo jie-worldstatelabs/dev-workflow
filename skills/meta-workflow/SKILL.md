@@ -1,6 +1,6 @@
 ---
 name: meta-workflow
-description: "Drive the dev workflow state machine: read state.md, execute the current stage (inline or subagent), transition via update-status.sh, loop until terminal. Precondition: state.md already exists (created by meta-workflow-setup, continue-workflow.sh, or meta-workflow:create-workflow's dispatch). Does NOT bootstrap."
+description: "Drive the dev workflow state machine: read state.md, execute the current stage (inline or subagent), transition via update-status.sh, loop until terminal. Precondition: state.md already exists (some upstream caller bootstrapped it). Does NOT bootstrap."
 ---
 
 # Dev Workflow — Config-Driven State Machine
@@ -113,15 +113,9 @@ Note that **`P` does NOT persist across Bash-tool calls** — every Bash-tool ca
 
 ### Precondition — state.md must already exist
 
-This skill does **not** bootstrap the workflow. It reads `state.md`, runs the stage loop, and drives transitions. Creation of `state.md` is the responsibility of whichever skill / script invoked this one:
+This skill does **not** bootstrap the workflow. It reads `state.md`, runs the stage loop, and drives transitions. Creation of `state.md` is the responsibility of whichever upstream caller invoked this skill — typically a slash-command wrapper that ran a setup step (skill or script) before chaining into this loop.
 
-| Entry point | Bootstraps state.md via |
-|---|---|
-| `/meta-workflow:start` | `meta-workflow-setup` skill (Step 1 in `commands/start.md`) |
-| `/meta-workflow:continue` | `continue-workflow.sh` (Step 1 in `commands/continue.md`) |
-| `/meta-workflow:create-workflow` | `meta-workflow:create-workflow` skill's dispatch (Step 1 in `commands/create-workflow.md`) |
-
-By the time control reaches this skill, `loop-tick.sh` should succeed. If it doesn't, something upstream failed — surface that and stop.
+By the time control reaches this skill, `loop-tick.sh` should succeed. If it doesn't, the upstream contract was violated — surface the error and stop.
 
 ### Step 1 — Precondition check (fail fast if state.md missing)
 

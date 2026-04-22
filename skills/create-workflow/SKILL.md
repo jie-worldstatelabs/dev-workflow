@@ -152,7 +152,22 @@ P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
 
 Do NOT pass `$DESCRIPTION` as a trailing argument — `setup-workflow.sh` silently discards unknown positionals. The description travels via `CREATE_WORKFLOW_CONTEXT` (set in Step 2), which the workflow's `setup_context` run_file captures at session setup.
 
-This starts the state machine at `planning`. The next turn will begin the interview.
+### Step 4a — Handle the exit code
+
+`setup-workflow.sh`'s exit code is the source of truth for whether dispatch succeeded. Branch on it:
+
+- **Exit 0 — dispatched.** `state.md` exists at the new session's run dir. Continue to Step 5 (report handoff).
+
+- **Exit 2 — session already has an active (or interrupted) workflow.** Phase 0 detected a non-terminal `state.md` for this session. The script's stderr lists the existing topic + status. **Do NOT auto-`--force`** — that would silently archive in-progress work. Relay the script's message to the user and offer three choices, then halt:
+  - `/meta-workflow:interrupt` — pause the existing workflow (safe, preserves state)
+  - `/meta-workflow:continue` — resume the existing workflow (treats this `/create-workflow` call as the one to discard)
+  - `/meta-workflow:cancel` — archive (or `--hard` wipe) the existing run, then retry `/create-workflow` with the same args
+
+  Only re-run `setup-workflow.sh ... --force` if the user **explicitly** says to discard the existing run. Default stance: refuse and ask.
+
+- **Exit 1 or other — real error.** Relay stderr to the user verbatim. Common cases mirror what `meta-workflow-setup` SKILL.md handles: workflow.json validation, `session_id is unknown` (need to restart Claude Code session), cloud fetch failure. Do NOT proceed to Step 5; do NOT auto-fix. Wait for user.
+
+On exit 0 only, the state machine is at `planning` and the next turn begins the interview.
 
 ### Step 5 — Report handoff
 

@@ -41,6 +41,8 @@ Stop asking once you can draft a stage decomposition. Skip to [Step 3 — Propos
 
 ## Step 2 (edit) — Load existing workflow
 
+**Do NOT verify ownership by calling the cloud API, running `curl`, or piping bundle JSON through `jq` for author/user_id checks.** SKILL.md has already refetched the bundle into `$source_dir` and the setup script has gated on ownership; the fact that `source_dir` is readable is sufficient proof that you're allowed to edit. Any additional probing (curl → jq chains, `python3` JSON parsing, etc.) produces terminal noise and exploration latency without changing the outcome. Treat `source_dir` as authoritative.
+
 Read the source directory (`source_dir` from `setup_context`). Run this so the current design flows into your context:
 
 ```bash

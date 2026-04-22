@@ -324,7 +324,11 @@ if [[ "$MODE" == "cloud" ]]; then
   # Capture worktree-snapshot tree at workflow start time so cloud_post_diff
   # can render "changes since workflow start" — excluding pre-existing dirty
   # state (e.g. untracked tool output in the user's repo from before /start).
-  _capture_baseline_tree "$SCRATCH_DIR" "$PROJECT_ROOT"
+  # Skip for workflows that opt out of worktree diffs (e.g. create-workflow,
+  # which writes to ~/.config/meta-workflow/ not the project).
+  if [[ "$(config_modifies_worktree)" == "true" ]]; then
+    _capture_baseline_tree "$SCRATCH_DIR" "$PROJECT_ROOT"
+  fi
 
   # Generate run_files declared in workflow.json into the shadow dir.
   generate_run_files "$SCRATCH_DIR" "$PROJECT_ROOT" || { rm -rf "$SCRATCH_DIR"; exit 1; }
@@ -516,7 +520,9 @@ mkdir -p "$TOPIC_DIR"
 # Capture worktree-snapshot tree at workflow start time. Local mode
 # doesn't render diffs today, but keeping symmetry with cloud mode so
 # the same files exist on disk whichever mode the user picks.
-_capture_baseline_tree "$TOPIC_DIR" "$PROJECT_ROOT"
+if [[ "$(config_modifies_worktree)" == "true" ]]; then
+  _capture_baseline_tree "$TOPIC_DIR" "$PROJECT_ROOT"
+fi
 
 INITIAL_STAGE="$(config_initial_stage)"
 LOCAL_FINGERPRINT="$(git_project_fingerprint "$PROJECT_ROOT")"

@@ -2,6 +2,7 @@
   "initial_stage": "planning",
   "terminal_stages": ["complete", "escalated", "cancelled"],
   "max_epoch": 20,
+  "modifies_worktree": false,
   "run_files": {
     "setup_context": {
       "description": "Caller context JSON: {mode:'create'|'edit', description:string, source_dir?:string, publish_intent:'cloud'|'local'}. SKILL.md exports CREATE_WORKFLOW_CONTEXT before invoking setup-workflow.sh; description is the user's original request (setup-workflow.sh has no positional slot for it); publish_intent mirrors --mode and gates the publishing stage.",

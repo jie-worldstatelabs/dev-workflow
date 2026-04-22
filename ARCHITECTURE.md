@@ -161,6 +161,7 @@ A workflow is a directory that bundles `workflow.json` + one `<stage>.md` per st
   "initial_stage": "<stage-name>",
   "terminal_stages": ["complete", "escalated", "cancelled"],
   "max_epoch": 20,
+  "modifies_worktree": true,
   "run_files": {
     "baseline": {
       "description": "Git SHA at workflow start",
@@ -191,7 +192,8 @@ A workflow is a directory that bundles `workflow.json` + one `<stage>.md` per st
 | `initial_stage` | Status written into `state.md` at setup |
 | `terminal_stages` | Values that release the stop hook and end the workflow. Don't need to appear in `.stages` — they're just state-machine settling values |
 | `max_epoch` | Optional, integer. Default `20`. `update-status.sh` forces `status=escalated` once a transition would push the epoch to or past this cap — breaks runaway loops (e.g. executing↔verifying). User-initiated terminal transitions bypass the cap. If the workflow doesn't declare `escalated` in `.terminal_stages` the cap is skipped with a warning |
-| `run_files` | Optional. Data created once at setup time, available as input to any stage via `from_run_file`. `init`'s stdout becomes the file content |
+| `modifies_worktree` | Optional, boolean. Default `true`. When `false` the plugin skips worktree-diff capture (no `baseline-tree` snapshot, no `cloud_post_diff` POST) and the UI hides the Working-tree diff panel in favour of a placeholder. Set `false` for workflows whose output lives outside the project worktree — e.g. `create-workflow` writes to `~/.config/meta-workflow/workflows/`, `publish-workflow` only makes HTTP calls. Leave `true` (or omit) for coding workflows whose subagents edit project source files |
+| `run_files` | Optional. Data created once at setup time, available as input to any stage via `from_run_file`. `init`'s stdout becomes the file content. **Note**: `baseline` is a system-reserved name — the plugin writes it directly when `modifies_worktree: true`. If your workflow declares its own `baseline` run_file the init command must produce a valid commit SHA (or "EMPTY") so diff machinery stays consistent; anything else is graceful-degrade territory |
 | `stages.*.interruptible` | `true` = stop hook allows session exits during the stage (for user Q&A). Subagent stages MUST be `false` |
 | `stages.*.execution` | `{"type":"inline"}` or `{"type":"subagent","model":"<opus\|sonnet\|haiku>"}`. Model is optional; omit to use the subagent's default (sonnet) |
 | `stages.*.transitions` | Map of `result:` values to next status (another stage or a terminal) |

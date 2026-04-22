@@ -594,6 +594,28 @@ config_max_epoch() {
   fi
 }
 
+# Whether this workflow modifies the project worktree. When true (default)
+# the plugin captures a baseline-tree at setup and POSTs a working-tree
+# diff to the server; when false it skips both and the UI hides the diff
+# panel. Set to false for workflows whose output lives outside the
+# project (e.g. create-workflow writes to ~/.config/meta-workflow/).
+#
+# Reads workflow.json `.modifies_worktree`. Accepts true/false; anything
+# else (missing, null, malformed) defaults to true for backward compat
+# with workflows authored before this field existed.
+config_modifies_worktree() {
+  # Note: don't use `// empty` here — jq's `//` treats `false` as an
+  # alternative trigger, so `false // empty` returns empty and we'd
+  # default `false` workflows back to `true`. Raw read + string match
+  # is the safe pattern.
+  local v
+  v="$(jq -r '.modifies_worktree' "$CONFIG_FILE" 2>/dev/null)"
+  case "$v" in
+    false) echo "false" ;;
+    *) echo "true" ;;  # true, null, missing, malformed → default true
+  esac
+}
+
 config_all_stages() {
   jq -r '.stages | keys[]' "$CONFIG_FILE"
 }
@@ -1545,6 +1567,14 @@ cloud_post_diff() {
   local shadow="${CLOUD_SCRATCH_BASE}/${sid}"
   [[ -d "$shadow" ]] || return 0
 
+  # Workflows that don't touch the worktree (e.g. create-workflow, which
+  # writes to ~/.config/meta-workflow/) opt out of the diff pipeline.
+  # The UI renders a placeholder for these sessions instead of a noisy
+  # full-worktree diff.
+  if [[ "$(_session_modifies_worktree "$shadow")" == "false" ]]; then
+    return 0
+  fi
+
   # Try to backfill baseline/fingerprint if the project became git since setup.
   if [[ -f "${shadow}/state.md" ]]; then
     ensure_baseline_and_fingerprint "${shadow}/state.md" || true
@@ -1722,8 +1752,32 @@ cloud_post_stage_prompt() {
 # `git status` / `git log` / `git branch` / `git stash list` are all
 # unaffected.
 #
+# Resolve modifies_worktree for an in-flight session by reading its
+# workflow.json via state.md.workflow_dir. Used by cloud_post_diff and
+# ensure_baseline_and_fingerprint where CONFIG_FILE isn't guaranteed
+# to point at the session's own workflow.
+_session_modifies_worktree() {
+  local shadow="$1"
+  local state_file="${shadow}/state.md"
+  [[ -f "$state_file" ]] || { echo "true"; return 0; }
+  local wf_dir
+  wf_dir="$(_read_fm_field "$state_file" workflow_dir 2>/dev/null)"
+  [[ -z "$wf_dir" ]] && { echo "true"; return 0; }
+  local cfg="${wf_dir}/workflow.json"
+  [[ -f "$cfg" ]] || { echo "true"; return 0; }
+  local v
+  # Raw read (no `//` — see config_modifies_worktree comment).
+  v="$(jq -r '.modifies_worktree' "$cfg" 2>/dev/null)"
+  case "$v" in
+    false) echo "false" ;;
+    *) echo "true" ;;
+  esac
+}
+
 # Idempotent: no-op if $shadow/baseline-tree already exists and is
 # non-empty. Best-effort: bails quietly on missing git / missing HEAD.
+# Callers are responsible for gating on config_modifies_worktree /
+# _session_modifies_worktree — this helper does not read config itself.
 _capture_baseline_tree() {
   local shadow="$1" proot="$2"
   local tree_file="${shadow}/baseline-tree"
@@ -1811,8 +1865,11 @@ ensure_baseline_and_fingerprint() {
 
   # Capture a worktree-snapshot tree too, so diffs precisely reflect
   # "changes since workflow start" (not "changes since the last commit").
-  # Idempotent — does nothing if already captured.
-  _capture_baseline_tree "$shadow" "$proot"
+  # Idempotent — does nothing if already captured. Gated on the
+  # workflow's modifies_worktree flag (default true for back-compat).
+  if [[ "$(_session_modifies_worktree "$shadow")" == "true" ]]; then
+    _capture_baseline_tree "$shadow" "$proot"
+  fi
 
   # Return value isn't currently used by callers, but document intent:
   # 0 = nothing backfilled OR backfill succeeded; non-zero reserved for

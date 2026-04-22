@@ -1782,10 +1782,9 @@ _capture_baseline_tree() {
   local shadow="$1" proot="$2"
   local tree_file="${shadow}/baseline-tree"
   local sid; sid="$(basename "$shadow" 2>/dev/null)"
-  if [[ -s "$tree_file" ]]; then
-    _cloud_warn "$sid" "_capture_baseline_tree: already captured, skip"
-    return 0
-  fi
+  # Idempotent no-op — already captured. No _cloud_warn here; this fires
+  # once per stop-hook and would spam the log.
+  [[ -s "$tree_file" ]] && return 0
   if [[ ! -d "$shadow" ]]; then
     _cloud_warn "$sid" "_capture_baseline_tree: shadow dir missing ($shadow)"
     return 0

@@ -1781,14 +1781,28 @@ _session_modifies_worktree() {
 _capture_baseline_tree() {
   local shadow="$1" proot="$2"
   local tree_file="${shadow}/baseline-tree"
-  [[ -s "$tree_file" ]] && return 0
-  [[ -d "$shadow" ]] || return 0
-  git -C "$proot" rev-parse --git-dir >/dev/null 2>&1 || return 0
-  git -C "$proot" rev-parse HEAD >/dev/null 2>&1 || return 0
+  local sid; sid="$(basename "$shadow" 2>/dev/null)"
+  if [[ -s "$tree_file" ]]; then
+    _cloud_warn "$sid" "_capture_baseline_tree: already captured, skip"
+    return 0
+  fi
+  if [[ ! -d "$shadow" ]]; then
+    _cloud_warn "$sid" "_capture_baseline_tree: shadow dir missing ($shadow)"
+    return 0
+  fi
+  if ! git -C "$proot" rev-parse --git-dir >/dev/null 2>&1; then
+    _cloud_warn "$sid" "_capture_baseline_tree: not a git repo ($proot)"
+    return 0
+  fi
+  if ! git -C "$proot" rev-parse HEAD >/dev/null 2>&1; then
+    _cloud_warn "$sid" "_capture_baseline_tree: no HEAD commit ($proot)"
+    return 0
+  fi
 
   local tmp_index="${shadow}/.baseline-index.tmp"
   # Seed the temp index from HEAD so tracked-file metadata is correct.
   if ! git -C "$proot" read-tree --index-output="$tmp_index" HEAD 2>/dev/null; then
+    _cloud_warn "$sid" "_capture_baseline_tree: read-tree failed"
     rm -f "$tmp_index"
     return 0
   fi
@@ -1796,6 +1810,7 @@ _capture_baseline_tree() {
   # respects .gitignore, so ignored files stay ignored (matches what
   # the user sees in `git status`).
   if ! GIT_INDEX_FILE="$tmp_index" git -C "$proot" add -A 2>/dev/null; then
+    _cloud_warn "$sid" "_capture_baseline_tree: add -A failed"
     rm -f "$tmp_index"
     return 0
   fi
@@ -1804,6 +1819,9 @@ _capture_baseline_tree() {
   rm -f "$tmp_index"
   if [[ "$tree_sha" =~ ^[0-9a-f]{40}$ ]]; then
     echo "$tree_sha" > "$tree_file"
+    _cloud_warn "$sid" "_capture_baseline_tree: captured ${tree_sha:0:10}"
+  else
+    _cloud_warn "$sid" "_capture_baseline_tree: write-tree returned '$tree_sha'"
   fi
 }
 

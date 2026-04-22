@@ -1,6 +1,6 @@
 ---
 name: meta-workflow
-description: "Full development workflow: brainstorm a plan, execute with an agent, verify quick tests, adversarial code review, real user journey tests (QA), and loop until fully approved."
+description: "Drive the dev workflow state machine: read state.md, execute the current stage (inline or subagent), transition via update-status.sh, loop until terminal. Precondition: state.md already exists (created by meta-workflow-setup, continue-workflow.sh, or meta-workflow:create-workflow's dispatch). Does NOT bootstrap."
 ---
 
 # Dev Workflow — Config-Driven State Machine
@@ -111,68 +111,19 @@ Line 1: read the SessionStart-populated cache (the happy path). Line 2: fallback
 
 Note that **`P` does NOT persist across Bash-tool calls** — every Bash-tool call is a fresh shell, so you must repeat the two discovery lines (or an equivalent) at the top of each call that runs a plugin script.
 
-### Step 0 — Pre-flight validation & announcement
+### Precondition — state.md must already exist
 
-**First: detect whether bootstrap is needed.** Another skill (e.g. `meta-workflow:create-workflow`) may have already dispatched a workflow for this session via `setup-workflow.sh`. In that case, flag parsing + a second `setup-workflow.sh` invocation would conflict (it'd hit exit code 2 "existing workflow detected"). Probe first:
+This skill does **not** bootstrap the workflow. It reads `state.md`, runs the stage loop, and drives transitions. Creation of `state.md` is the responsibility of whichever skill / script invoked this one:
 
-```bash
-P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
-if "$P/scripts/loop-tick.sh" >/dev/null 2>&1; then
-  echo ACTIVE
-else
-  echo NONE
-fi
-```
+| Entry point | Bootstraps state.md via |
+|---|---|
+| `/meta-workflow:start` | `meta-workflow-setup` skill (Step 1 in `commands/start.md`) |
+| `/meta-workflow:continue` | `continue-workflow.sh` (Step 1 in `commands/continue.md`) |
+| `/meta-workflow:create-workflow` | `meta-workflow:create-workflow` skill's dispatch (Step 1 in `commands/create-workflow.md`) |
 
-- `ACTIVE` → a workflow is already live in this session. **SKIP Step 0 flag parsing + Step 1 bootstrap entirely.** Jump to [Step 2 — Stage loop](#step-2--stage-loop-run-forever-until-a-terminal-status-is-reached). `$ARGUMENTS` was meant for the dispatcher skill, not for this one.
-- `NONE` → no active workflow; continue below.
+By the time control reaches this skill, `loop-tick.sh` should succeed. If it doesn't, something upstream failed — surface that and stop.
 
-If `NONE`, parse the flags, validate them, then announce the run configuration to the user. **Do not proceed to Step 1 if any error is emitted.**
-
-```bash
-P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
-eval "$("$P/scripts/parse-workflow-flags.sh" '$ARGUMENTS')" || exit 1
-"$P/scripts/print-start-banner.sh" "$MODE" "$WORKFLOW_FLAG" "$WF_TYPE"
-```
-
-Relay the banner to the user before continuing. If errors were printed, stop and wait for the user to correct the arguments.
-
-### Step 1 — Bootstrap (once per workflow, before the state machine exists)
-
-1. Derive a short kebab-case **topic name** from the user's task description (e.g. "add user auth" → `user-auth`; "fix login bug" → `login-bug`). If the task is unclear or empty, ask ONE clarifying question first — just enough to pick a topic.
-2. Briefly tell the user: `I'll use topic \`<topic>\` for this workflow.`
-3. Pass `$WORKFLOW_FLAG` from Step 0 to `setup-workflow.sh` if non-empty; omit it otherwise (default workflow applies).
-4. Activate the workflow (discover plugin root → run setup in one Bash-tool call):
-   ```bash
-   P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-   [[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
-   "$P/scripts/setup-workflow.sh" --topic="<topic>" [--workflow="$WORKFLOW_FLAG"] [--mode="$MODE"]
-   ```
-
-5. **If setup-workflow.sh exits with code 2** (existing workflow detected), it will have printed the existing workflow's topic + status to stderr. Do NOT proceed blindly:
-   - Relay the warning to the user verbatim, including which topic is currently active and its status.
-   - Ask: `There's already a workflow in this worktree. Proceeding will archive it and start fresh. Continue? (yes/no)`
-   - If the user confirms: re-run with `--force` (re-discover `P`):
-     ```bash
-     P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-     [[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
-     "$P/scripts/setup-workflow.sh" --topic="<topic>" [--workflow="$WORKFLOW_FLAG"] [--mode="$MODE"] --force
-     ```
-   - If the user declines: stop. Suggest `/meta-workflow:interrupt` (pause), `/meta-workflow:continue` (resume), or `/meta-workflow:cancel` (remove) to handle the existing workflow first.
-
-6. **If setup-workflow.sh exits with any OTHER non-zero code** (exit 1 — typically config validation failed, session_id cache miss, or cloud fetch failed), the stderr output contains the specific errors. Nothing was written to disk (the failure is atomic), so there's no cleanup to do. Handle it this way:
-   - **Relay the stderr output to the user verbatim.** The `❌` lines from `config_validate` are already written to be actionable (e.g. `stage 'executing': instructions file missing: ...`).
-   - **Do NOT try to auto-fix a custom workflow config.** If the user passed `--workflow=<path-or-name>` pointing at their own workflow, that file belongs to them. Tell them which file has errors and what the errors say, then wait for them to fix it and retry. Do not write to their workflow.json or stage instruction files yourself.
-   - **If the failure is in the plugin's default workflow** (the user did NOT pass `--workflow`), that's a plugin bug — surface it as such, point the user at the config path shown in the warning, and stop. Do not try to patch the default workflow from inside the skill.
-   - **If the error says `session_id is unknown`** (the SessionStart hook cache wasn't populated), tell the user to restart their Claude Code session and retry. That's the only fix.
-   - **If the error is a cloud fetch failure** (`cloud fetch failed`, `could not pull session ... from server`, `META_WORKFLOW_SERVER` issues), relay the error and suggest retrying, checking the network, or opting into local mode for this run (`/meta-workflow:start --mode=local <task>` — cloud is the default, `--mode=local` is the escape hatch).
-   - **Do NOT proceed to Step 2** until the user explicitly confirms a retry. A failed setup means there is no state.md to drive anything.
-
-On success, setup-workflow.sh creates `state.md` in the run directory and prints the initial stage's I/O context (required/optional inputs + output path). Key fields you'll read in the stage loop: `status` (current stage), `epoch` (freshness counter), `workflow_dir` (absolute path to the active workflow).
-
-### Step 2 — Stage loop (run forever until a terminal status is reached)
+### Step 1 — Start the stage loop
 
 Two plugin helpers give you everything you need about the current
 workflow state as **JSON** (parsed with `jq`). Never hand-parse

@@ -39,37 +39,47 @@ esac
 FILE_PATH=$(echo "$HOOK_INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null || true)
 [[ -z "$FILE_PATH" ]] && exit 0
 
-# Fast exit: if the file isn't under the cloud scratch root, it's a local-mode
-# or unrelated write — skip immediately without touching the registry.
 SCRATCH_ROOT="$(cloud_scratch_dir)"
+
 case "$FILE_PATH" in
-  "$SCRATCH_ROOT"/*) ;;
-  *) exit 0 ;;
-esac
+  "$SCRATCH_ROOT"/*)
+    # Shadow write — existing state.md mirror path.
+    #
+    # Extract the session UUID from the file path (first dir under SCRATCH_ROOT).
+    # For a normal start:       ~/.cache/meta-workflow/sessions/<uuid>/<file>
+    # For a cross-machine/--session continue the scratch dir is keyed by the
+    # SERVER uuid (not the current local Claude session uuid), so using the path
+    # is the only reliable way to get the right SID.
+    REL="${FILE_PATH#$SCRATCH_ROOT/}"   # "<uuid>/<rest>"
+    PATH_SID="${REL%%/*}"               # "<uuid>"
 
-# Extract the session UUID from the file path (first dir under SCRATCH_ROOT).
-# For a normal start:       ~/.cache/meta-workflow/sessions/<uuid>/<file>
-# For a cross-machine/--session continue the scratch dir is keyed by the
-# SERVER uuid (not the current local Claude session uuid), so using the path
-# is the only reliable way to get the right SID.
-REL="${FILE_PATH#$SCRATCH_ROOT/}"   # "<uuid>/<rest>"
-PATH_SID="${REL%%/*}"               # "<uuid>"
+    # Guard: verify this SID is actually cloud-registered (avoids acting on
+    # stray files that happen to land under the scratch root).
+    is_cloud_session "$PATH_SID" || exit 0
 
-# Guard: verify this SID is actually cloud-registered (avoids acting on
-# stray files that happen to land under the scratch root).
-is_cloud_session "$PATH_SID" || exit 0
+    REL_FILE="${REL#*/}"   # strip the <uuid>/ prefix
 
-REL_FILE="${REL#*/}"   # strip the <uuid>/ prefix
-
-# Only state.md triggers cloud sync from this hook. Stage artifacts
-# (<stage>-report.md) are handled by update-status.sh at transition
-# time — see the header comment for rationale.
-case "$REL_FILE" in
-  state.md)
-    ST=$(_read_fm_field "$FILE_PATH" status)
-    EP=$(_read_fm_field "$FILE_PATH" epoch)
-    RE=$(_read_fm_field "$FILE_PATH" resume_status)
-    cloud_post_state "$PATH_SID" "${ST:-}" "${EP:-1}" "${RE:-}" "true" 2>/dev/null || true
+    # Only state.md triggers cloud sync from this hook. Stage artifacts
+    # (<stage>-report.md) are handled by update-status.sh at transition
+    # time — see the header comment for rationale.
+    case "$REL_FILE" in
+      state.md)
+        ST=$(_read_fm_field "$FILE_PATH" status)
+        EP=$(_read_fm_field "$FILE_PATH" epoch)
+        RE=$(_read_fm_field "$FILE_PATH" resume_status)
+        cloud_post_state "$PATH_SID" "${ST:-}" "${EP:-1}" "${RE:-}" "true" 2>/dev/null || true
+        ;;
+    esac
+    ;;
+  *)
+    # Project-worktree write (or anywhere outside the shadow). Trigger a
+    # diff refresh so the UI reflects mid-stage subagent writes — not just
+    # the stage-transition snapshot. cloud_post_diff dedups internally
+    # against .last-posted-tree, so no-ops don't hit the network.
+    PLUGIN_SID=$(read_cached_session_id 2>/dev/null || true)
+    if [[ -n "$PLUGIN_SID" ]] && is_cloud_session "$PLUGIN_SID"; then
+      cloud_post_diff "$PLUGIN_SID" >/dev/null 2>&1 || true
+    fi
     ;;
 esac
 

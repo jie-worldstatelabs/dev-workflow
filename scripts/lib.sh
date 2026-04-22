@@ -1630,6 +1630,22 @@ cloud_post_diff() {
             ':(exclude).meta-workflow' 2>/dev/null || echo "")"
   fi
 
+  # Dedup: postwrite-hook fires on every Write/Edit, which would spam the
+  # server with identical diffs if the write didn't actually change anything
+  # relevant (e.g. touched a file but kept the content). Key on
+  # (baseline, current_tree) so any worktree-content shift busts the cache
+  # while no-op turns stay silent. Tracker lives in the shadow; wiped on
+  # terminal along with the rest.
+  local dedup_key="${baseline}:${current_tree:-none}"
+  local dedup_file="${shadow}/.last-posted-tree"
+  if [[ -f "$dedup_file" ]]; then
+    local last_key
+    last_key="$(cat "$dedup_file" 2>/dev/null || true)"
+    if [[ "$last_key" == "$dedup_key" ]]; then
+      return 0
+    fi
+  fi
+
   local payload
   payload="$(jq -n \
       --arg baseline "$baseline" \
@@ -1641,6 +1657,9 @@ cloud_post_diff() {
     _cloud_warn "$sid" "cloud_post_diff failed after retries: baseline=${baseline:0:10} head=${head:0:10}"
     return 1
   fi
+  # Only update the dedup marker AFTER a successful POST, so a failed
+  # POST doesn't lock us out of retrying with the same content.
+  printf '%s' "$dedup_key" > "$dedup_file"
   return 0
 }
 

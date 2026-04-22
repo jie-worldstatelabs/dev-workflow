@@ -20,7 +20,7 @@
 # `--dry-run` prints what would be uploaded without touching the server.
 #
 # After a successful publish, the workflow can be pulled by the plugin via:
-#   /meta-workflow:start --workflow <name> <task>
+#   /meta-workflow:start --workflow cloud://<name> <task>
 
 set -euo pipefail
 
@@ -306,7 +306,7 @@ echo "   Description: ${FINAL_DESC:-<empty>}"
 echo "   Hub URL:     ${META_WORKFLOW_SERVER}/hub/${NAME}"
 echo ""
 echo "   Pull with:"
-echo "     /meta-workflow:start --workflow ${NAME} <task>"
+echo "     /meta-workflow:start --workflow cloud://${NAME} <task>"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📍 RELAY THIS TO THE USER VERBATIM BEFORE CONTINUING:"

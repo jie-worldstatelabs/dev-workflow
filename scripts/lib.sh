@@ -582,13 +582,13 @@ config_terminal_stages() {
 }
 
 # Cap on total transitions before update-status.sh auto-escalates.
-# Read from workflow.json `.max_epoch`; falls back to 10 when absent,
+# Read from workflow.json `.max_epoch`; falls back to 20 when absent,
 # null, or malformed. Always a positive integer.
 config_max_epoch() {
   local v
   v="$(jq -r '.max_epoch // empty' "$CONFIG_FILE" 2>/dev/null)"
   if [[ -z "$v" ]] || ! [[ "$v" =~ ^[1-9][0-9]*$ ]]; then
-    echo 10
+    echo 20
   else
     echo "$v"
   fi

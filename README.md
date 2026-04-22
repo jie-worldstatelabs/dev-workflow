@@ -64,7 +64,7 @@ Both are the same **plan → execute → verify → review → QA → loop** cyc
 4. **Reviewing** — subagent (sonnet) runs adversarial code review against the baseline commit. PASS → QA; FAIL → loop to Execute.
 5. **QA-ing** — subagent runs real user journey tests (Playwright, XcodeBuildMCP, etc.). Distinguishes test bugs from app bugs — only confirmed app bugs block progress. PASS → complete; FAIL → loop to Execute.
 
-The `execute → verify → review → QA` loop runs **autonomously** after you approve the plan. A Stop hook guarantees the loop runs to completion. No round limit — the loop stops only when QA passes, or when you intervene.
+The `execute → verify → review → QA` loop runs **autonomously** after you approve the plan. A Stop hook guarantees the loop runs to completion. The loop stops on one of: QA passes, `max_epoch` is hit (default `20`, configured in `workflow.json` → `.max_epoch`; breaks runaway iteration by forcing `escalated`), or you intervene with `/meta-workflow:interrupt` or `/meta-workflow:cancel`.
 
 ## Custom Workflows
 

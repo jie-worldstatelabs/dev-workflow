@@ -82,7 +82,7 @@ NEW_EPOCH=$((CURRENT_EPOCH + 1))
 
 # ──────────────────────────────────────────────────────────────
 # Max-epoch cap. workflow.json may declare `.max_epoch`; when absent we
-# default to 10 (config_max_epoch). Once a transition would take the
+# default to 20 (config_max_epoch). Once a transition would take the
 # workflow to that epoch or beyond, short-circuit to the `escalated`
 # terminal — prevents runaway loops (e.g. executing↔verifying) from
 # burning unbounded turns. User-initiated terminal transitions

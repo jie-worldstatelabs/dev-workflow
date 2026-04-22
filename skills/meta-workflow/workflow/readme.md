@@ -1,6 +1,6 @@
 # Default meta-workflow
 
-A complete five-stage development cycle for AI-driven engineering: plan the work with the user, have a subagent implement it, run quick tests, run adversarial review, then run real user-journey QA. The loop continues until QA passes or the user intervenes — no round limit.
+A complete five-stage development cycle for AI-driven engineering: plan the work with the user, have a subagent implement it, run quick tests, run adversarial review, then run real user-journey QA. The loop continues until QA passes, the user intervenes, or `max_epoch` (default `20`) is hit — the cap forces `escalated` to break runaway iteration.
 
 This is the workflow the `meta-workflow` plugin ships with. Pick it when you want a rigorous plan → execute → verify → review → QA cycle with tests-as-gates at every step. For lighter-weight flows (just brainstorm+draft, or just a bugfix loop) publish a custom workflow to the hub and select it via `--workflow cloud://author/name`.
 

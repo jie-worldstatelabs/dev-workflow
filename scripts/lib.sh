@@ -1564,10 +1564,41 @@ cloud_post_diff() {
 
   git -C "$proot" rev-parse --git-dir >/dev/null 2>&1 || return 0
 
-  local head diff
+  local head diff diff_ref="$baseline" current_tree=""
   head="$(git -C "$proot" rev-parse HEAD 2>/dev/null || echo "")"
-  diff="$(git -C "$proot" diff --no-color "$baseline" -- \
-          ':(exclude).meta-workflow' 2>/dev/null || echo "")"
+
+  # Prefer the baseline-tree snapshot (captures worktree state at
+  # workflow start, including uncommitted pre-existing files). Falls
+  # back to the commit baseline if the tree was never captured
+  # (legacy sessions) or has been GC'd.
+  if [[ -s "${shadow}/baseline-tree" ]]; then
+    local btree
+    btree="$(cat "${shadow}/baseline-tree" 2>/dev/null || true)"
+    if [[ -n "$btree" ]] && git -C "$proot" cat-file -e "${btree}^{tree}" 2>/dev/null; then
+      diff_ref="$btree"
+      # Compute a matching "current" tree via the same temp-index pattern
+      # so the diff includes untracked-but-unignored files that appeared
+      # since baseline. `git diff <tree>` against the worktree ignores
+      # untracked files, which would hide workflow-created new files.
+      local cur_idx="${shadow}/.current-index.tmp"
+      if git -C "$proot" read-tree --index-output="$cur_idx" HEAD 2>/dev/null \
+         && GIT_INDEX_FILE="$cur_idx" git -C "$proot" add -A 2>/dev/null; then
+        current_tree="$(GIT_INDEX_FILE="$cur_idx" git -C "$proot" write-tree 2>/dev/null || true)"
+      fi
+      rm -f "$cur_idx"
+    fi
+  fi
+
+  if [[ -n "$current_tree" ]] && [[ "$current_tree" =~ ^[0-9a-f]{40}$ ]]; then
+    # Tree-to-tree diff — includes untracked (because they were staged
+    # into the temp index on both sides).
+    diff="$(git -C "$proot" diff --no-color "$diff_ref" "$current_tree" -- \
+            ':(exclude).meta-workflow' 2>/dev/null || echo "")"
+  else
+    # Legacy path: commit-ish baseline vs worktree, misses untracked.
+    diff="$(git -C "$proot" diff --no-color "$diff_ref" -- \
+            ':(exclude).meta-workflow' 2>/dev/null || echo "")"
+  fi
 
   local payload
   payload="$(jq -n \
@@ -1671,6 +1702,57 @@ cloud_post_stage_prompt() {
 # (in cloud mode) pushes the updated fingerprint to the server so
 # verify_project_match works on future resume.
 #
+# Snapshot the project's worktree as a dangling tree object so the
+# diff panel can render "changes since workflow start" precisely,
+# including pre-existing uncommitted state at t=0.
+#
+# Without this, cloud_post_diff runs `git diff $baseline` (baseline is
+# a commit SHA) which also includes uncommitted changes that existed
+# BEFORE the session started — those get mis-attributed to the workflow.
+#
+# Strategy: seed a temporary index from HEAD, stage the entire worktree
+# into it (respecting .gitignore), write-tree to get a tree SHA. The
+# tree is a dangling object — no ref, no branch, no HEAD change. The
+# user's real index / stash / branches are completely untouched. Default
+# `git gc --auto` prunes unreachable objects after gc.pruneExpire (2
+# weeks default), which is slack enough for any sane workflow lifetime.
+#
+# User-visible footprint in their repo: a single tree object + blobs
+# for any new-since-HEAD content. No ref, no branch, no HEAD change.
+# `git status` / `git log` / `git branch` / `git stash list` are all
+# unaffected.
+#
+# Idempotent: no-op if $shadow/baseline-tree already exists and is
+# non-empty. Best-effort: bails quietly on missing git / missing HEAD.
+_capture_baseline_tree() {
+  local shadow="$1" proot="$2"
+  local tree_file="${shadow}/baseline-tree"
+  [[ -s "$tree_file" ]] && return 0
+  [[ -d "$shadow" ]] || return 0
+  git -C "$proot" rev-parse --git-dir >/dev/null 2>&1 || return 0
+  git -C "$proot" rev-parse HEAD >/dev/null 2>&1 || return 0
+
+  local tmp_index="${shadow}/.baseline-index.tmp"
+  # Seed the temp index from HEAD so tracked-file metadata is correct.
+  if ! git -C "$proot" read-tree --index-output="$tmp_index" HEAD 2>/dev/null; then
+    rm -f "$tmp_index"
+    return 0
+  fi
+  # Stage every worktree file into the temp index. `git add -A`
+  # respects .gitignore, so ignored files stay ignored (matches what
+  # the user sees in `git status`).
+  if ! GIT_INDEX_FILE="$tmp_index" git -C "$proot" add -A 2>/dev/null; then
+    rm -f "$tmp_index"
+    return 0
+  fi
+  local tree_sha
+  tree_sha="$(GIT_INDEX_FILE="$tmp_index" git -C "$proot" write-tree 2>/dev/null || true)"
+  rm -f "$tmp_index"
+  if [[ "$tree_sha" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "$tree_sha" > "$tree_file"
+  fi
+}
+
 # Idempotent: a no-op if baseline/fingerprint are already populated, or
 # if the project still has no git. Safe to call from any convergence
 # point (update-status, stop-hook, cloud_post_diff).
@@ -1726,6 +1808,11 @@ ensure_baseline_and_fingerprint() {
       fi
     fi
   fi
+
+  # Capture a worktree-snapshot tree too, so diffs precisely reflect
+  # "changes since workflow start" (not "changes since the last commit").
+  # Idempotent — does nothing if already captured.
+  _capture_baseline_tree "$shadow" "$proot"
 
   # Return value isn't currently used by callers, but document intent:
   # 0 = nothing backfilled OR backfill succeeded; non-zero reserved for

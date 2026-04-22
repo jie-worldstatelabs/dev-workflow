@@ -33,7 +33,11 @@ else
   echo "  Mode:     ${MODE}"
   if [[ "$MODE" == "cloud" ]]; then
     echo "  Will publish as: cloud://${_author}/<suffix>  →  ${_server}/hub/${_author}/<suffix>"
-    echo "  Auth:     ${_author}  ($([ "$_logged_in" = yes ] && echo "logged in" || echo "anonymous — will publish anonymously"))"
+    if [[ "$_logged_in" = yes ]]; then
+      echo "  Auth:     ${_author}  (logged in)"
+    else
+      echo "  Auth:     ❌ not signed in — cloud mode requires /meta-workflow:login first"
+    fi
   else
     echo "  Will save to: ~/.config/meta-workflow/workflows/<suffix>/"
     echo "  No hub publish (local mode)"

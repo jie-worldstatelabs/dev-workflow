@@ -41,7 +41,7 @@ else
   if [[ -n "$WORKFLOW_FLAG" && "$WF_TYPE" != "cloud" ]]; then
     echo "  Tip:      To run on cloud: /meta-workflow:start --workflow=cloud://<name>  (publish your local workflow first)"
   else
-    echo "  Tip:      To run on cloud: /meta-workflow:start  (defaults to cloud mode, pulls cloud://<name>)"
+    echo "  Tip:      To run on cloud: /meta-workflow:start  (defaults to cloud mode, pulls cloud://demo)"
   fi
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

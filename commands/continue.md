@@ -6,36 +6,23 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion
 
 Resume the dev workflow. Two usage modes:
 
-1. **Normal resume** — no arguments. The script picks the single
-   interrupted run on this machine.
-2. **Cross-machine takeover** — pass `--session <server_session_id>` to
-   continue a cloud session that was started on a different machine.
-   The script pulls the full shadow (state + artifacts + workflow
-   config + baseline) from the server before resuming, so nothing
-   needs to be set up ahead of time.
+1. **Normal resume** — no arguments. The script picks the single interrupted run on this machine.
+2. **Cross-machine takeover** — pass `--session <server_session_id>` to continue a cloud session that was started on a different machine. The script pulls the full shadow (state + artifacts + workflow config + baseline) from the server before resuming, so nothing needs to be set up ahead of time.
 
 Arguments from the user: `$ARGUMENTS`
 
-## Step 1: Restore Active Status
+## Step 1 — Restore active status
 
 ```!
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/continue-workflow.sh" $ARGUMENTS
 ```
 
-The output reports the **Topic** and **Phase** (the phase to jump back into).
+The script flips the session's `state.md` from `interrupted` back to its saved `resume_status` (or pulls a cloud shadow + registers a local alias for cross-machine takeover). Output reports the **Topic** and **Phase** (the stage to resume into). On exit code 1, halt — the script's stderr explains (no interrupted run found, project mismatch, workdir behind, etc.).
 
-## Step 2: Load the Workflow Skill
+## Step 2 — Drive the loop
 
-Invoke `Skill("meta-workflow:meta-workflow")` and follow its instructions exactly. The skill is self-contained — do NOT invoke any other skill.
+Invoke `Skill("meta-workflow:meta-workflow")` and follow its instructions exactly. It picks up the now-active `state.md`, reads the resumed stage via `loop-tick.sh`, and continues through transitions until terminal — including the per-stage `inline` vs `subagent` execution dispatch (the loop skill handles all of that internally; this command does NOT need to give per-stage instructions).
 
-## Step 3: Resume From the Detected Phase
+Do NOT invoke any other skill before, during, or after these two.
 
-The script reports the current **Phase** (stage name) and its execution type (`inline` or `subagent`). Jump directly into that stage's work — do NOT restart from the beginning:
-
-- **Interruptible inline stage** (e.g. a planning/design stage): resume the conversation from where it left off. The stop hook shows a `systemMessage` hint with the stage instructions path.
-- **Uninterruptible subagent stage**: the stop hook will block exit and inject the exact Agent-tool parameters and prompt template — copy them verbatim and launch the subagent.
-- **Uninterruptible inline stage**: the stop hook will block exit and show the stage instructions path and artifact path — execute the stage directly per the instructions file.
-
-The actual subagent_type, model, and stage-instructions path are injected by the `agent-guard.sh` PreToolUse hook when you call the Agent tool — copy them verbatim, don't hand-write.
-
-Run the loop without stopping. To interrupt again: `/meta-workflow:interrupt`. To cancel: `/meta-workflow:cancel`.
+To interrupt again: `/meta-workflow:interrupt`. To cancel: `/meta-workflow:cancel`.

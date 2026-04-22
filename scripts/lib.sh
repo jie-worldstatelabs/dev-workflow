@@ -1619,15 +1619,35 @@ cloud_post_diff() {
     fi
   fi
 
+  # Denylist of path patterns that are tool-level state / unrelated
+  # subprojects, not workflow output. Applied to every diff computation
+  # so monorepos and projects that run multiple CC/OMC-family tools
+  # don't pollute the panel. The list is intentionally small and named
+  # — blanket-excluding all `.xxx` would also hide legitimate config
+  # edits like .github/, .eslintrc*, .env.example, .gitignore, etc.
+  # Future work: expose `diff_exclude` in workflow.json for user overrides.
+  local -a DIFF_EXCLUDES=(
+    ':(exclude).meta-workflow' ':(exclude).meta-workflow/**'
+    ':(exclude,glob)**/.meta-workflow' ':(exclude,glob)**/.meta-workflow/**'
+    ':(exclude).omc' ':(exclude).omc/**'
+    ':(exclude,glob)**/.omc' ':(exclude,glob)**/.omc/**'
+    ':(exclude).omx' ':(exclude).omx/**'
+    ':(exclude,glob)**/.omx' ':(exclude,glob)**/.omx/**'
+    ':(exclude).playwright-mcp' ':(exclude).playwright-mcp/**'
+    ':(exclude,glob)**/.playwright-mcp' ':(exclude,glob)**/.playwright-mcp/**'
+  )
+
   if [[ -n "$current_tree" ]] && [[ "$current_tree" =~ ^[0-9a-f]{40}$ ]]; then
     # Tree-to-tree diff — includes untracked (because they were staged
-    # into the temp index on both sides).
-    diff="$(git -C "$proot" diff --no-color "$diff_ref" "$current_tree" -- \
-            ':(exclude).meta-workflow' 2>/dev/null || echo "")"
+    # into the temp index on both sides). `--ignore-submodules=all`
+    # drops submodule pointer changes, which are almost always noise
+    # from unrelated activity in another repo.
+    diff="$(git -C "$proot" diff --no-color --ignore-submodules=all \
+            "$diff_ref" "$current_tree" -- "${DIFF_EXCLUDES[@]}" 2>/dev/null || echo "")"
   else
     # Legacy path: commit-ish baseline vs worktree, misses untracked.
-    diff="$(git -C "$proot" diff --no-color "$diff_ref" -- \
-            ':(exclude).meta-workflow' 2>/dev/null || echo "")"
+    diff="$(git -C "$proot" diff --no-color --ignore-submodules=all \
+            "$diff_ref" -- "${DIFF_EXCLUDES[@]}" 2>/dev/null || echo "")"
   fi
 
   # Dedup: postwrite-hook fires on every Write/Edit, which would spam the

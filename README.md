@@ -76,6 +76,8 @@ The plugin is **generic** — any stage shape works as long as it follows the sc
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the `workflow.json` schema.
 
+Need ideas for what to turn into a workflow? See the [cookbook](./docs/claude-code-cookbook.md) — seven common Claude Code misbehaviors (no-research coding, self-approved done, scope creep, symptom-only bug fixes, ignored TDD, skipped visual QA, forgotten constraints) with ready-to-run `create-workflow` prompts for each.
+
 ## Commands
 
 | Command | Purpose |

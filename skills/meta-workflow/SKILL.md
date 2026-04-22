@@ -123,7 +123,26 @@ This skill does **not** bootstrap the workflow. It reads `state.md`, runs the st
 
 By the time control reaches this skill, `loop-tick.sh` should succeed. If it doesn't, something upstream failed — surface that and stop.
 
-### Step 1 — Start the stage loop
+### Step 1 — Precondition check (fail fast if state.md missing)
+
+Before touching the loop, verify this session actually has a state.md to drive. Run this as your FIRST Bash call:
+
+```bash
+P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
+if ! "$P/scripts/loop-tick.sh" >/dev/null 2>&1; then
+  echo "❌ No active workflow in this session." >&2
+  echo "   meta-workflow:meta-workflow drives an existing workflow's stage loop. Routes that bootstrap a workflow:" >&2
+  echo "     /meta-workflow:start <task>           — start a fresh workflow" >&2
+  echo "     /meta-workflow:continue [--session X] — resume an interrupted/cloud workflow" >&2
+  echo "     /meta-workflow:create-workflow <desc> — author a new workflow definition" >&2
+  exit 1
+fi
+```
+
+If this exits non-zero, halt the skill and relay the stderr to the user verbatim. Do NOT try to bootstrap from here — that's the caller's job (see the Precondition section above).
+
+### Step 2 — Stage loop
 
 Two plugin helpers give you everything you need about the current
 workflow state as **JSON** (parsed with `jq`). Never hand-parse

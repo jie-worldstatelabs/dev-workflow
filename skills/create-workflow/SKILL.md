@@ -136,19 +136,34 @@ Just a short kebab-case label for THIS meta-workflow run's session (NOT the gene
 
 ### Step 4 — Dispatch the meta-workflow
 
-```bash
-P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || P=~/.claude/plugins/meta-workflow
-"$P/scripts/setup-workflow.sh" \
-  --mode=local \
-  --topic="<slug-from-step-3>" \
-  --workflow="$P/skills/create-workflow/workflow"
-```
+Branch on `$MODE` to pick BOTH the right workflow source AND the session-mode for `setup-workflow.sh`:
 
-**Hardcoded `--mode=local` is deliberate** — do NOT pass `$MODE` here. Two distinct concepts share the word "mode":
+- **`$MODE=cloud`(default)** — use the hub-published anonymous mirror so this meta-workflow session is cloud-tracked (gives the user a live `https://workflows.worldstatelabs.com/s/<sid>` link):
+  ```bash
+  P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
+  [[ -d $P/scripts ]] || P=~/.claude/plugins/meta-workflow
+  "$P/scripts/setup-workflow.sh" \
+    --mode=cloud \
+    --topic="<slug-from-step-3>" \
+    --workflow="cloud://anonymous/create-workflow"
+  ```
 
-- User's `/meta-workflow:create-workflow --mode=<...>` flag = "should the GENERATED workflow be published to the hub?" → captured in `CREATE_WORKFLOW_CONTEXT.publish_intent` (Step 2), consumed by the `publishing` stage.
-- `setup-workflow.sh --mode=<...>` = "should THIS meta-workflow session itself be cloud-tracked (scratch dir + server sync)?" → always local here because we dispatch a plugin-internal filesystem workflow (`$P/skills/create-workflow/workflow/`), and `setup-workflow.sh --mode=cloud` rejects filesystem paths with "In cloud mode use cloud://author/name".
+- **`$MODE=local`** — use the plugin-bundled local workflow; runs fully offline, no webapp link:
+  ```bash
+  P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
+  [[ -d $P/scripts ]] || P=~/.claude/plugins/meta-workflow
+  "$P/scripts/setup-workflow.sh" \
+    --mode=local \
+    --topic="<slug-from-step-3>" \
+    --workflow="$P/skills/create-workflow/workflow"
+  ```
+
+Note that **two "mode" concepts** are aligned here:
+
+- User's `/meta-workflow:create-workflow --mode=<...>` flag = "publish intent" for the GENERATED workflow → captured in `CREATE_WORKFLOW_CONTEXT.publish_intent` (Step 2), consumed by the `publishing` stage.
+- `setup-workflow.sh --mode=<...>` = "is THIS meta-workflow session itself cloud-tracked?" — also follows `$MODE` now (cloud mode pulls from the hub mirror; local uses the bundled directory).
+
+The hub mirror at `cloud://anonymous/create-workflow` is a snapshot of `$P/skills/create-workflow/workflow/` published anonymously (immutable). The maintainer re-seeds it via `workflowUI/scripts/seed-anonymous-create-workflow.ts` whenever the bundled workflow changes.
 
 Do NOT pass `$DESCRIPTION` as a trailing argument — `setup-workflow.sh` silently discards unknown positionals. The description travels via `CREATE_WORKFLOW_CONTEXT` (set in Step 2), which the workflow's `setup_context` run_file captures at session setup.
 

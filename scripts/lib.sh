@@ -1626,15 +1626,21 @@ cloud_post_diff() {
   # — blanket-excluding all `.xxx` would also hide legitimate config
   # edits like .github/, .eslintrc*, .env.example, .gitignore, etc.
   # Future work: expose `diff_exclude` in workflow.json for user overrides.
+  # CRITICAL: `:(top)` magic anchors the pathspec to the repo root, not the
+  # $proot passed to `git -C`. When project_root is a monorepo subdir (e.g.
+  # /Users/jie/code/snake2 within /Users/jie/code/.git), plain `:(exclude).omc`
+  # would only match `snake2/.omc/`, missing the root-level `.omc/` that's
+  # actually producing the noise. `:(top)` + `:(top,glob)` together cover
+  # both the repo root and any nested occurrence.
   local -a DIFF_EXCLUDES=(
-    ':(exclude).meta-workflow' ':(exclude).meta-workflow/**'
-    ':(exclude,glob)**/.meta-workflow' ':(exclude,glob)**/.meta-workflow/**'
-    ':(exclude).omc' ':(exclude).omc/**'
-    ':(exclude,glob)**/.omc' ':(exclude,glob)**/.omc/**'
-    ':(exclude).omx' ':(exclude).omx/**'
-    ':(exclude,glob)**/.omx' ':(exclude,glob)**/.omx/**'
-    ':(exclude).playwright-mcp' ':(exclude).playwright-mcp/**'
-    ':(exclude,glob)**/.playwright-mcp' ':(exclude,glob)**/.playwright-mcp/**'
+    ':(top,exclude).meta-workflow' ':(top,exclude).meta-workflow/**'
+    ':(top,exclude,glob)**/.meta-workflow/**'
+    ':(top,exclude).omc' ':(top,exclude).omc/**'
+    ':(top,exclude,glob)**/.omc/**'
+    ':(top,exclude).omx' ':(top,exclude).omx/**'
+    ':(top,exclude,glob)**/.omx/**'
+    ':(top,exclude).playwright-mcp' ':(top,exclude).playwright-mcp/**'
+    ':(top,exclude,glob)**/.playwright-mcp/**'
   )
 
   if [[ -n "$current_tree" ]] && [[ "$current_tree" =~ ^[0-9a-f]{40}$ ]]; then

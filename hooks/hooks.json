@@ -1,5 +1,5 @@
 {
-  "description": "Dev workflow hooks — session-start caches session_id; stop-hook prevents exit during active workflow; session-end auto-interrupts the workflow on graceful exit so another Claude session can continue it; agent-guard steers subagent launches; postwrite mirrors cloud-mode shadow writes; activity-hook posts tool-use events to the cloud activity feed",
+  "description": "Dev workflow hooks — session-start caches session_id; stop-hook prevents exit during active workflow; session-end auto-interrupts the workflow on graceful exit so another Claude session can continue it; agent-guard steers subagent launches; postwrite mirrors cloud-mode shadow writes; activity-hook posts tool-use events to the cloud activity feed; plugin-path-rewrite expands $P-discovery preambles to literal absolute paths so CC's permission classifier stops prompting on every plugin-script invocation (soft-degrades to today's behavior when disabled — set STAGENT_NO_PATH_REWRITE=1 to opt out)",
   "hooks": {
     "SessionStart": [
       {
@@ -38,6 +38,15 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/agent-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/plugin-path-rewrite.sh"
           }
         ]
       }

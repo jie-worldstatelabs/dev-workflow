@@ -143,6 +143,30 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for:
 - Stop-hook behavior
 - End-to-end cycle walkthrough
 
+## Troubleshooting
+
+### Claude Code prompts for permission on every plugin-script call
+
+Stagent ships a `PreToolUse:Bash` hook (`hooks/plugin-path-rewrite.sh`)
+that rewrites skill-emitted `"$P/scripts/..."` invocations into
+absolute paths before Claude Code's permission classifier sees them.
+With the hook active, the user only needs to accept the classifier
+prompt once (with "Don't ask again") for the fixed plugin path, and
+all further script calls run silently.
+
+If prompts return on every transition, the hook isn't active. Check:
+- `/reload-plugins` inside the Claude Code session after an install
+  or update
+- `hooks/hooks.json` lists a `PreToolUse` entry with `"matcher": "Bash"`
+  pointing at `plugin-path-rewrite.sh`
+- `hooks/plugin-path-rewrite.sh` is present and executable
+  (`chmod +x`)
+- `STAGENT_NO_PATH_REWRITE` is unset (`1` disables the hook by design)
+
+When the hook is inactive the plugin still works — the skill's
+`$P`-discovery preamble takes over — you just get the old prompt
+behavior back until you restore the hook.
+
 ## License
 
 MIT

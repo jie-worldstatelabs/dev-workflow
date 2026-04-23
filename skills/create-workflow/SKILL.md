@@ -1,5 +1,5 @@
 ---
-name: create-workflow
+name: create
 description: "Create a new workflow suite from a natural-language description, or edit an existing one when --flow=<path> is passed. Dispatches the create-workflow stagent (plan → write → validate loop) — does not write files directly."
 ---
 

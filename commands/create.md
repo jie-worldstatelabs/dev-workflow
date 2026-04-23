@@ -6,7 +6,7 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion
 
 Create or edit a stagent. Runs as two-step orchestration:
 
-- **Step 1** — `stagent:create-workflow` skill handles flag parsing, login/ownership preconditions, and dispatches the internal stagent via `setup-workflow.sh`. The stagent (planning → writing → validating → publishing) does the actual file writes and validation loop.
+- **Step 1** — `stagent:create` skill handles flag parsing, login/ownership preconditions, and dispatches the internal stagent via `setup-workflow.sh`. The stagent (planning → writing → validating → publishing) does the actual file writes and validation loop.
 - **Step 2** — `stagent:stagent` skill then drives the state machine loop: reads `loop-tick.sh`, starts the `planning` interview with the user, hands off to the `writing` subagent, validates in a retry loop, and (cloud mode) pushes to the hub.
 
 Modes:
@@ -19,7 +19,7 @@ Task from user: `$ARGUMENTS`
 
 ## Step 1 — Dispatch
 
-Invoke `Skill("stagent:create-workflow")` and follow its instructions exactly. It sets up `CREATE_WORKFLOW_CONTEXT` and calls `setup-workflow.sh`; when it finishes the active workflow is running at the `planning` stage.
+Invoke `Skill("stagent:create")` and follow its instructions exactly. It sets up `CREATE_WORKFLOW_CONTEXT` and calls `setup-workflow.sh`; when it finishes the active workflow is running at the `planning` stage.
 
 ## Step 2 — Drive the loop
 

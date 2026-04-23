@@ -84,22 +84,10 @@ For `$WF_TYPE == cloud`: verify ownership, then download.
 ```bash
 P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
 [[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
-source "$P/scripts/lib.sh"
-
-_WF_NAME="${WORKFLOW_FLAG#cloud://}"
-CLOUD_URL="${STAGENT_SERVER:-https://stagent.worldstatelabs.com}/api/workflows/${_WF_NAME}"
-MY_UID="$(jq -r '.user_id // empty' ~/.config/stagent/auth.json 2>/dev/null)"
-AUTH="$(_cloud_auth_header)"
-BUNDLE="$(curl -sf -H "$AUTH" "$CLOUD_URL" 2>/dev/null || echo '')"
-
-if [[ -z "$BUNDLE" ]]; then
-  echo NOT_FOUND
-elif [[ "$(echo "$BUNDLE" | jq -r '.user_id // empty')" == "$MY_UID" && -n "$MY_UID" ]]; then
-  echo AUTHORIZED
-else
-  echo "NOT_OWNER owner=$(echo "$BUNDLE" | jq -r '.user_id // unknown') me=$MY_UID"
-fi
+"$P/scripts/check-workflow-ownership.sh" "$WORKFLOW_FLAG"
 ```
+
+Exit code is always 0; branch on the stdout token.
 
 - `NOT_FOUND` → hard stop: the cloud name does not exist.
 - `NOT_OWNER` → hard stop: the workflow belongs to another account; refuse to edit.

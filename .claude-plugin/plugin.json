@@ -1,7 +1,7 @@
 {
   "name": "stagent",
   "description": "Plan-Execute-Review development workflow with brainstorming, executor agent, and adversarial code review loop",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "author": {
     "name": "jie"
   }

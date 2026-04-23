@@ -93,8 +93,8 @@ cat > "$WF/workflow.json" <<'EOF'
 EOF
 touch "$WF/planning.md" "$WF/reviewing.md"
 
-mkdir -p "$PROJ/.meta-workflow/$SID"
-cat > "$PROJ/.meta-workflow/$SID/state.md" <<EOF
+mkdir -p "$PROJ/.stagent/$SID"
+cat > "$PROJ/.stagent/$SID/state.md" <<EOF
 ---
 topic: cap-test
 status: planning
@@ -120,7 +120,7 @@ rc=$?
 [[ $rc -eq 0 ]]
 check "A4: update-status.sh exits 0 at cap (escalated path)" $?
 
-new_status="$(grep '^status:' "$PROJ/.meta-workflow/$SID/state.md" | awk '{print $2}')"
+new_status="$(grep '^status:' "$PROJ/.stagent/$SID/state.md" | awk '{print $2}')"
 [[ "$new_status" == "escalated" ]]
 check "A4: state.md status flipped to escalated (was heading to reviewing)" $?
 
@@ -129,7 +129,7 @@ check "A4: stderr mentions 'reached max-epoch'" $?
 
 # ── A5: user-initiated terminal transition bypasses cap ──────────────────────
 # Reset state.md to epoch 2 again.
-cat > "$PROJ/.meta-workflow/$SID/state.md" <<EOF
+cat > "$PROJ/.stagent/$SID/state.md" <<EOF
 ---
 topic: cap-test
 status: planning
@@ -147,7 +147,7 @@ rc5=$?
 [[ $rc5 -eq 0 ]]
 check "A5: user --status cancelled at cap-1 epoch → exits 0" $?
 
-s5="$(grep '^status:' "$PROJ/.meta-workflow/$SID/state.md" | awk '{print $2}')"
+s5="$(grep '^status:' "$PROJ/.stagent/$SID/state.md" | awk '{print $2}')"
 [[ "$s5" == "cancelled" ]]
 check "A5: user-requested terminal honored (status=cancelled, not escalated)" $?
 
@@ -179,8 +179,8 @@ touch "$WF6/planning.md" "$WF6/reviewing.md"
 
 PROJ6="$TMP/proj-no-escalated"
 SID6="fake-session-6"
-mkdir -p "$PROJ6/.meta-workflow/$SID6"
-cat > "$PROJ6/.meta-workflow/$SID6/state.md" <<EOF
+mkdir -p "$PROJ6/.stagent/$SID6"
+cat > "$PROJ6/.stagent/$SID6/state.md" <<EOF
 ---
 topic: cap-no-escalated
 status: planning
@@ -195,7 +195,7 @@ EOF
 # update-status.sh validates the current stage's artifact exists with a
 # matching epoch + result before transitioning — supply one so the A6 path
 # tests only the cap/warn behavior, not the artifact check.
-cat > "$PROJ6/.meta-workflow/$SID6/planning-report.md" <<EOF
+cat > "$PROJ6/.stagent/$SID6/planning-report.md" <<EOF
 ---
 epoch: 2
 result: done
@@ -209,7 +209,7 @@ echo "$out6" | grep -q "'escalated' is not declared"
 check "A6: no 'escalated' terminal → warn, proceed to reviewing" $?
 
 # status should be "reviewing" (not escalated — proceeded)
-s6="$(grep '^status:' "$PROJ6/.meta-workflow/$SID6/state.md" | awk '{print $2}')"
+s6="$(grep '^status:' "$PROJ6/.stagent/$SID6/state.md" | awk '{print $2}')"
 [[ "$s6" == "reviewing" ]]
 check "A6: state.md status proceeds to reviewing (cap skipped without 'escalated')" $?
 

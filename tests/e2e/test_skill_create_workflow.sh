@@ -35,7 +35,7 @@ SUFFIX="e2eci$(date +%s)"
 # ── E2E-2-1: Create a 2-stage workflow from a complete description ─────────────
 # Provide the full spec so Claude skips the design interview and writes files.
 PROMPT1="$(cat <<EOF
-/meta-workflow:create-workflow --mode=local
+/stagent:create-workflow --mode=local
 Build a simple 2-stage code-linting workflow. Here is the complete design — please proceed directly to writing files without asking for confirmation:
 
 Stage 1: linting
@@ -63,9 +63,9 @@ rc1=$?
 [[ $rc1 -eq 0 ]]
 check "E2E-2-1: claude exits 0" $?
 
-WF_DIR1="$HOME/.config/meta-workflow/workflows/lint-fix-${SUFFIX}"
+WF_DIR1="$HOME/.config/stagent/workflows/lint-fix-${SUFFIX}"
 [[ -d "$WF_DIR1" ]]
-check "E2E-2-1: workflow directory created at ~/.config/meta-workflow/workflows/" $?
+check "E2E-2-1: workflow directory created at ~/.config/stagent/workflows/" $?
 
 [[ -f "$WF_DIR1/workflow.json" ]]
 check "E2E-2-1: workflow.json written" $?
@@ -111,21 +111,21 @@ check "E2E-2-3: fixing stage has required input from_stage=linting" $?
 source "${PLUGIN_ROOT}/scripts/lib.sh"
 
 FAKE_HOME="$TMP/home"
-mkdir -p "$FAKE_HOME/.cache/meta-workflow/session-cache"
+mkdir -p "$FAKE_HOME/.cache/stagent/session-cache"
 P4="$TMP/project4"
 mkdir -p "$P4"
 git -C "$P4" init -q
 git -C "$P4" -c user.name=t -c user.email=t@t commit --allow-empty -q -m init
 
 key4="$(printf '%s' "$P4" | shasum -a 1 | cut -c1-16)"
-echo "e2e-sess-${SUFFIX}" > "$FAKE_HOME/.cache/meta-workflow/session-cache/cwd-$key4"
+echo "e2e-sess-${SUFFIX}" > "$FAKE_HOME/.cache/stagent/session-cache/cwd-$key4"
 
 (cd "$P4" && HOME="$FAKE_HOME" "$SETUP" \
     --mode=local --topic=e2e-generated-wf \
     --workflow="$WF_DIR1" > /dev/null 2>&1)
 check "E2E-2-4: setup-workflow.sh starts a session from generated workflow" $?
 
-STATE4="$P4/.meta-workflow/e2e-sess-${SUFFIX}/state.md"
+STATE4="$P4/.stagent/e2e-sess-${SUFFIX}/state.md"
 [[ -f "$STATE4" ]]
 check "E2E-2-4: state.md created from generated workflow" $?
 
@@ -135,7 +135,7 @@ check "E2E-2-4: initial status matches initial_stage from generated workflow" $?
 
 # ── E2E-2-5: Edit mode — Claude can add a stage to an existing workflow ────────
 PROMPT5="$(cat <<EOF
-/meta-workflow:create-workflow --mode=local --workflow=${WF_DIR1}
+/stagent:create-workflow --mode=local --workflow=${WF_DIR1}
 Add a new stage called reporting after fixing. It should be inline, uninterruptible, result: done → complete. Required input: from_stage fixing. The change is approved. Please update the files now.
 EOF
 )"

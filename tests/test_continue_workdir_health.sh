@@ -60,7 +60,7 @@ EOF
 touch "$WF/planning.md"
 
 SID="fake-session-health"
-RUN="$PROJ/.meta-workflow/$SID"
+RUN="$PROJ/.stagent/$SID"
 mkdir -p "$RUN"
 
 # Helper: rewrite state.md with fresh epoch + given current HEAD.

@@ -34,7 +34,7 @@ git -c user.email=t@t -c user.name=t add tracked.txt
 git -c user.email=t@t -c user.name=t commit -q -m "initial"
 
 # Simulate the scenario from the bug report: user's worktree already
-# dirty BEFORE `/meta-workflow:start` fires.
+# dirty BEFORE `/stagent:start` fires.
 echo "dirty before workflow started" > pre-existing-dirty.txt   # untracked, unignored
 echo "tracked at baseline — modified" > tracked.txt              # modified tracked
 

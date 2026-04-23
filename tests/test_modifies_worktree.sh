@@ -2,7 +2,7 @@
 # T20 — modifies_worktree flag
 #
 # Workflows whose output lives outside the project worktree (create-workflow
-# writes to ~/.config/meta-workflow/, publish-workflow doesn't touch files
+# writes to ~/.config/stagent/, publish-workflow doesn't touch files
 # at all) set `"modifies_worktree": false` in workflow.json. The plugin:
 #   - skips _capture_baseline_tree at setup (no wasted tree object)
 #   - short-circuits cloud_post_diff (no noisy diff POST)
@@ -148,7 +148,7 @@ awk '/^cloud_post_diff\(\)/,/^}/' "$PLUGIN_ROOT/scripts/lib.sh" \
 check "C2: cloud_post_diff contains an early return" $?
 
 # ── D1: bundled workflows declare the flag correctly ────────────────────────
-DEV_CFG="$PLUGIN_ROOT/skills/meta-workflow/workflow/workflow.json"
+DEV_CFG="$PLUGIN_ROOT/skills/stagent/workflow/workflow.json"
 [[ "$(jq -r '.modifies_worktree' "$DEV_CFG")" == "true" ]]
 check "D1: bundled dev workflow declares modifies_worktree=true" $?
 

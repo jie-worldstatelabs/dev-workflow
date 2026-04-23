@@ -13,15 +13,15 @@ WHOAMI="${PLUGIN_ROOT}/scripts/whoami-workflow.sh"
 TMP="$(make_tmpdir)"
 trap 'rm -rf "$TMP"' EXIT
 
-# We override HOME so the script reads from our fake ~/.config/meta-workflow/auth.json
-# rather than the real user's. META_WORKFLOW_SERVER is set to an unreachable
+# We override HOME so the script reads from our fake ~/.config/stagent/auth.json
+# rather than the real user's. STAGENT_SERVER is set to an unreachable
 # address so curl falls back to the offline branch without hitting production.
 FAKE_HOME="$TMP/home"
 DEAD_SERVER="http://127.0.0.1:19753"   # nothing listens here
 
 # ── T11-1: No auth.json → "Not signed in.", exits 0 ─────────────────────────
 mkdir -p "$FAKE_HOME"
-out1="$(HOME="$FAKE_HOME" META_WORKFLOW_SERVER="$DEAD_SERVER" "$WHOAMI" 2>&1)"
+out1="$(HOME="$FAKE_HOME" STAGENT_SERVER="$DEAD_SERVER" "$WHOAMI" 2>&1)"
 check "no auth.json → exits 0" $?
 
 echo "$out1" | grep -qi "not signed in"
@@ -33,8 +33,8 @@ echo "$out1" | grep -qi "signed in:" && found=1 || found=0
 check "no auth.json → output does NOT say 'Signed in:'" $?
 
 # ── T11-3: auth.json present + server unreachable → exits 0 (offline) ────────
-mkdir -p "$FAKE_HOME/.config/meta-workflow"
-cat > "$FAKE_HOME/.config/meta-workflow/auth.json" <<'EOF'
+mkdir -p "$FAKE_HOME/.config/stagent"
+cat > "$FAKE_HOME/.config/stagent/auth.json" <<'EOF'
 {
   "label": "my-laptop",
   "author": "alice",
@@ -42,7 +42,7 @@ cat > "$FAKE_HOME/.config/meta-workflow/auth.json" <<'EOF'
   "created_at": "2025-01-15T10:00:00Z"
 }
 EOF
-out3="$(HOME="$FAKE_HOME" META_WORKFLOW_SERVER="$DEAD_SERVER" "$WHOAMI" 2>&1)"
+out3="$(HOME="$FAKE_HOME" STAGENT_SERVER="$DEAD_SERVER" "$WHOAMI" 2>&1)"
 check "auth.json + unreachable server → exits 0" $?
 
 # ── T11-4: Offline output shows author from auth.json ────────────────────────

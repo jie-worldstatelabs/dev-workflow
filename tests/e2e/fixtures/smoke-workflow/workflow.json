@@ -1,0 +1,14 @@
+{
+  "initial_stage": "smoke",
+  "terminal_stages": ["complete", "escalated", "cancelled"],
+  "max_epoch": 5,
+  "modifies_worktree": false,
+  "stages": {
+    "smoke": {
+      "interruptible": false,
+      "execution": { "type": "inline" },
+      "transitions": { "passed": "complete", "failed": "escalated" },
+      "inputs": { "required": [], "optional": [] }
+    }
+  }
+}

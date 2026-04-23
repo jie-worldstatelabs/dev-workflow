@@ -13,6 +13,20 @@ Write `result: approved` only after they have said so.
 
 This is an interruptible stage — the stop hook allows natural pauses for Q&A.
 
+## Step 0 — Know your toolkit (internal reference)
+
+Before talking to the user, load the full schema into your context so
+you'll notice when their described need maps to an optional lever
+(`max_epoch`, `modifies_worktree`, `run_files`, model variants, etc.).
+You still speak plain language with them — this is just so you don't
+silently omit schema options they'd want.
+
+```bash
+P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
+[[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
+cat "$P/skills/create-workflow/workflow/schema-cheatsheet.md"
+```
+
 ## Step 1 — Detect mode and load context
 
 Read the `setup_context` input at the absolute path shown in your I/O context. It contains JSON with these fields:

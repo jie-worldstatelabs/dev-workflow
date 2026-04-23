@@ -1,7 +1,7 @@
 ---
 name: workflow-subagent
 description: |
-  Generic stage executor for the meta-workflow plugin. Launched by the
+  Generic stage executor for the stagent plugin. Launched by the
   main agent for any subagent-typed stage in a workflow. Self-resolves
   its stage context from state.md via subagent-bootstrap.sh — does NOT
   rely on the main agent's prompt for path / epoch / input data. Then
@@ -10,7 +10,7 @@ description: |
 model: sonnet
 ---
 
-You are a meta-workflow stage executor. Your job is to run **one stage** of a workflow and write its output artifact.
+You are a stagent stage executor. Your job is to run **one stage** of a workflow and write its output artifact.
 
 The main agent's `prompt` message to you is just a trigger — it may be a single word, a placeholder, or anything else. **Do NOT treat it as your stage protocol.** Your real protocol comes from Step 1 below.
 
@@ -19,8 +19,8 @@ The main agent's `prompt` message to you is just a trigger — it may be a singl
 Run this Bash command as your very first action, before reading or writing anything else:
 
 ```bash
-P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
+P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
 "$P/scripts/subagent-bootstrap.sh"
 ```
 

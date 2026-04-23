@@ -1,4 +1,4 @@
-# meta-workflow Architecture
+# stagent Architecture
 
 Internal reference for contributors, workflow authors, and anyone debugging the plugin.
 
@@ -8,7 +8,7 @@ Internal reference for contributors, workflow authors, and anyone debugging the 
 
 ```
 commands/
-  start.md               ← /meta-workflow:start — kick off a run
+  start.md               ← /stagent:start — kick off a run
   interrupt.md           ← pause at the current stage (state preserved)
   continue.md            ← resume from interrupt
   cancel.md              ← abort + archive (or wipe with --hard)
@@ -23,7 +23,7 @@ agents/
                            stage's instructions file at runtime
 
 skills/
-  meta-workflow/
+  stagent/
     SKILL.md             ← meta-protocol: how to drive the state machine
                            (workflow-agnostic)
     workflow/            ← bundled workflow package (local-mode fallback
@@ -68,7 +68,7 @@ scripts/
                            shadow
   publish-workflow.sh    ← uploads a workflow bundle to the hub
   login-workflow.sh      ← browser-based device-code flow; stores token at
-                           ~/.config/meta-workflow/auth.json
+                           ~/.config/stagent/auth.json
   logout-workflow.sh     ← removes auth.json
   whoami-workflow.sh     ← prints identity + verifies token
   stage-context.sh       ← prints a stage's I/O context (paths) after a
@@ -87,7 +87,7 @@ scripts/
 ### Local mode
 
 ```
-<project>/.meta-workflow/
+<project>/.stagent/
   <session_id>/
     state.md                ← status, epoch, topic, session_id, workflow_dir
     baseline                ← git SHA at workflow start
@@ -107,7 +107,7 @@ scripts/
 The authoritative copy is the Postgres `sessions` + `artifacts` rows on the server. The local shadow is a write-through mirror — wiped on any terminal status.
 
 ```
-~/.cache/meta-workflow/sessions/
+~/.cache/stagent/sessions/
   <session_id>/              ← shadow
     state.md                 ← local mirror
     baseline
@@ -120,7 +120,7 @@ The authoritative copy is the Postgres `sessions` + `artifacts` rows on the serv
       workflow.json
       <stage>.md files
 
-~/.cache/meta-workflow/cloud-registry/
+~/.cache/stagent/cloud-registry/
   <session_id>.json          ← existence flag + {mode, scratch_dir, server,
                                workflow_url}; every hook/script uses this
                                file's presence to decide "local or cloud"
@@ -133,14 +133,14 @@ One 2-line helper (`is_cloud_session <sid>`) in `lib.sh` checks file existence. 
 User-level state is split by XDG convention so clearing cache never loses user-owned data:
 
 ```
-~/.config/meta-workflow/          ← persistent (do not clear)
+~/.config/stagent/          ← persistent (do not clear)
   auth.json                       ← hub token + user_id + device label
   plugin-root                     ← absolute path to current plugin install
                                     (refreshed by SessionStart hook)
   workflows/<suffix>/             ← user-authored workflow library
     workflow.json / <stage>.md / readme.md
 
-~/.cache/meta-workflow/           ← ephemeral (safe to clear; rebuilt on next use)
+~/.cache/stagent/           ← ephemeral (safe to clear; rebuilt on next use)
   session-cache/                  ← Claude-session-id bridge (PPID + cwd keys)
     cwd-<sha1>                    ← session_id, primary key
     ppid-<pid>                    ← session_id, secondary key
@@ -148,7 +148,7 @@ User-level state is split by XDG convention so clearing cache never loses user-o
   sessions/<sid>/                 ← cloud shadow (above)
 ```
 
-Per-project state (`<project>/.meta-workflow/<session_id>/`, local mode) is unaffected — still tracked per project.
+Per-project state (`<project>/.stagent/<session_id>/`, local mode) is unaffected — still tracked per project.
 
 ---
 
@@ -192,14 +192,14 @@ A workflow is a directory that bundles `workflow.json` + one `<stage>.md` per st
 | `initial_stage` | Status written into `state.md` at setup |
 | `terminal_stages` | Values that release the stop hook and end the workflow. Don't need to appear in `.stages` — they're just state-machine settling values |
 | `max_epoch` | Optional, integer. Default `20`. `update-status.sh` forces `status=escalated` once a transition would push the epoch to or past this cap — breaks runaway loops (e.g. executing↔verifying). User-initiated terminal transitions bypass the cap. If the workflow doesn't declare `escalated` in `.terminal_stages` the cap is skipped with a warning |
-| `modifies_worktree` | Optional, boolean. Default `true`. When `false` the plugin skips worktree-diff capture (no `baseline-tree` snapshot, no `cloud_post_diff` POST) and the UI hides the Working-tree diff panel in favour of a placeholder. Set `false` for workflows whose output lives outside the project worktree — e.g. `create-workflow` writes to `~/.config/meta-workflow/workflows/`, `publish-workflow` only makes HTTP calls. Leave `true` (or omit) for coding workflows whose subagents edit project source files |
+| `modifies_worktree` | Optional, boolean. Default `true`. When `false` the plugin skips worktree-diff capture (no `baseline-tree` snapshot, no `cloud_post_diff` POST) and the UI hides the Working-tree diff panel in favour of a placeholder. Set `false` for workflows whose output lives outside the project worktree — e.g. `create-workflow` writes to `~/.config/stagent/workflows/`, `publish-workflow` only makes HTTP calls. Leave `true` (or omit) for coding workflows whose subagents edit project source files |
 | `run_files` | Optional. Data created once at setup time, available as input to any stage via `from_run_file`. `init`'s stdout becomes the file content. **Note**: `baseline` is a system-reserved name — the plugin writes it directly when `modifies_worktree: true`. If your workflow declares its own `baseline` run_file the init command must produce a valid commit SHA (or "EMPTY") so diff machinery stays consistent; anything else is graceful-degrade territory |
 | `stages.*.interruptible` | `true` = stop hook allows session exits during the stage (for user Q&A). Subagent stages MUST be `false` |
 | `stages.*.execution` | `{"type":"inline"}` or `{"type":"subagent","model":"<opus\|sonnet\|haiku>"}`. Model is optional; omit to use the subagent's default (sonnet) |
 | `stages.*.transitions` | Map of `result:` values to next status (another stage or a terminal) |
 | `stages.*.inputs.required` / `optional` | Declares which other stages' artifacts (or run_files) this stage reads. Required artifacts are enforced by `update-status.sh` |
 
-Per-stage `subagent_type` is **NOT supported** — all subagent stages run under the single generic `meta-workflow:workflow-subagent`. The validator rejects it.
+Per-stage `subagent_type` is **NOT supported** — all subagent stages run under the single generic `stagent:workflow-subagent`. The validator rejects it.
 
 ---
 
@@ -243,7 +243,7 @@ The stop hook fires at every Claude turn-end. It reads `state.md` and the curren
 | Uninterruptible stage, artifact `result:` unrecognised | **Blocks exit** — asks for manual inspection |
 | Interruptible stage | **Never blocks** — emits a `systemMessage` status hint |
 | Status is terminal (`complete` / `escalated` / `cancelled`) | Deletes `state.md`, allows exit |
-| Status is `interrupted` | Allows exit; keeps `state.md` for `/meta-workflow:continue` |
+| Status is `interrupted` | Allows exit; keeps `state.md` for `/stagent:continue` |
 
 ---
 
@@ -254,7 +254,7 @@ Example task: **"Build a note-taking app"** → topic `note-app`.
 ### Bootstrap
 
 ```
-USER  ► /meta-workflow:start Build a note-taking app
+USER  ► /stagent:start Build a note-taking app
 MAIN  ► reads SKILL.md (meta-protocol)
 MAIN  ► derives topic `note-app`
 MAIN  ▶ scripts/setup-workflow.sh --topic note-app
@@ -361,7 +361,7 @@ Cloud mode mirrors every workflow file to the hosted webapp so you can watch pro
 
 ### Cross-machine continue
 
-`/meta-workflow:continue --session <id>` on a machine that has never seen this cloud session:
+`/stagent:continue --session <id>` on a machine that has never seen this cloud session:
 
 1. Pulls the full snapshot (state + artifacts + workflow config + baseline) from the server
 2. Verifies the current `pwd` is the same git project via **root-commit fingerprint** (`git rev-list --max-parents=0 HEAD`)

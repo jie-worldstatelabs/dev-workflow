@@ -39,7 +39,7 @@ When the user describes what they want, listen for these signals:
 |---|---|
 | "pause for input" / "ask user" / "review before next" | `interruptible: true` + `inline` execution |
 | "hard thinking" / "generate code" / "analyze design" | `subagent` + `model: opus` |
-| "quick classification" / "fan-out simple task" | `subagent` + `model: haiku` |
+| "quick classification" / "fan-out simple task" | `subagent` + `model: sonnet` |
 | "run a test" / "check syntax" / "call a script" | `inline` (cheap, no subagent needed) |
 | "keep retrying until X" | loop transition + consider `max_epoch` lower bound |
 | "don't touch my project files" | `modifies_worktree: false` |

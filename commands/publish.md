@@ -20,8 +20,8 @@ Arguments from the user: `$ARGUMENTS`
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/publish-workflow.sh" $ARGUMENTS
 ```
 
-The script prints the resulting Hub URL on success, plus the one-line
-pull command a teammate can use from their own plugin:
+The script prints the resulting template URL on success, plus the
+one-line pull command a teammate can use from their own plugin:
 
 ```
 /stagent:start --flow=cloud://<name> <task>
@@ -29,6 +29,6 @@ pull command a teammate can use from their own plugin:
 
 ## Step 2 (optional): confirm in the browser
 
-Open the Hub URL printed above to verify the README renders, the
+Open the template URL printed above to verify the README renders, the
 state-machine graph looks right, and each stage's markdown shows up
 when you click its node.

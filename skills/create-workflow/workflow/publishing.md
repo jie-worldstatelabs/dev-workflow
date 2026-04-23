@@ -57,7 +57,7 @@ echo "=== EXIT CODE: $RC ==="
 ```
 
 Classify:
-- Exit 0 → published successfully. Write artifact with `result: done` and copy the script's output (it already prints the hub URL, pull command, visibility).
+- Exit 0 → published successfully. Write artifact with `result: done` and copy the script's output (it already prints the template URL, pull command, visibility).
 - Non-zero → publish failed. **Still write `result: done`** (the workflow files are valid locally — the failure is at push time, not fatal to the run). Include the full `OUTPUT` verbatim so the user can diagnose and retry with `/stagent:publish <target-dir>`.
 
 Artifact shape:
@@ -86,7 +86,7 @@ cloud
 
 ## Summary
 
-- On success (exit 0): copy the hub URL and pull command from the output; note "Published".
+- On success (exit 0): copy the template URL and pull command from the output; note "Published".
 - On failure (non-zero): "Publish failed — files are valid locally at `<target-dir>`. Retry with `/stagent:publish <target-dir>` after resolving the issue. Common causes: expired token (`/stagent:login` again), network, or name collision with another user."
 ````
 

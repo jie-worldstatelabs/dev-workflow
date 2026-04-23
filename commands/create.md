@@ -27,4 +27,4 @@ Invoke `Skill("stagent:stagent")` and follow its instructions exactly. It picks 
 
 Do NOT invoke any other skill before, during, or after these two.
 
-When the workflow completes, you'll see the target directory path in the writer report (default `~/.config/stagent/workflows/<suffix>/`) and — if `--mode=cloud` — a hub URL from the publish stage.
+When the workflow completes, you'll see the target directory path in the writer report (default `~/.config/stagent/workflows/<suffix>/`) and — if `--mode=cloud` — a template URL from the publish stage.

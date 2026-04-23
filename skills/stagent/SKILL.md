@@ -1,5 +1,5 @@
 ---
-name: meta-workflow
+name: stagent
 description: "Drive the dev workflow state machine: read state.md, execute the current stage (inline or subagent), transition via update-status.sh, loop until terminal. Precondition: state.md already exists (some upstream caller bootstrapped it). Does NOT bootstrap."
 ---
 
@@ -38,13 +38,13 @@ Some required or optional inputs in a stage's I/O context are **run files** — 
 
 ## Cloud mode
 
-**Cloud mode is the default.** When the user runs `/meta-workflow:start <task>` without any flag, state + artifacts live on the remote **workflowUI** server. The project's `.meta-workflow/` gets nothing.
+**Cloud mode is the default.** When the user runs `/stagent:start <task>` without any flag, state + artifacts live on the remote **workflowUI** server. The project's `.stagent/` gets nothing.
 
 **To opt out** (fully-offline local mode):
 - Pass `--mode=local` to `setup-workflow.sh`, OR
-- Export `META_WORKFLOW_DEFAULT_MODE=local` in the shell env before launching Claude Code.
+- Export `STAGENT_DEFAULT_MODE=local` in the shell env before launching Claude Code.
 
-**Login**: run `/meta-workflow:login` for authenticated ownership (required to publish cloud workflows). Anonymous sessions are accepted for everything else. Export `META_WORKFLOW_SERVER` to point at an alternative deployment.
+**Login**: run `/stagent:login` for authenticated ownership (required to publish cloud workflows). Anonymous sessions are accepted for everything else. Export `STAGENT_SERVER` to point at an alternative deployment.
 
 **Workflow source** (what to pass as `--workflow`):
 - `cloud://author/name` — named template from the hub
@@ -52,11 +52,11 @@ Some required or optional inputs in a stage's I/O context are **run files** — 
 - bare name — bundled workflow first, then hub
 - omitted — plugin default
 
-**Runtime**: authoritative state lives on the server. The project worktree gets **nothing** under `.meta-workflow/`. A transient local shadow holds the files your `Read`/`Write` tools need; setup prints its path. Inside stages, the skill operates exactly the same — read `state.md`, write artifacts, call `update-status.sh` — all against the shadow, mirrored to the server transparently.
+**Runtime**: authoritative state lives on the server. The project worktree gets **nothing** under `.stagent/`. A transient local shadow holds the files your `Read`/`Write` tools need; setup prints its path. Inside stages, the skill operates exactly the same — read `state.md`, write artifacts, call `update-status.sh` — all against the shadow, mirrored to the server transparently.
 
 **Live view**: `setup-workflow.sh` prints a `UI: <server>/s/<session_id>` URL after bootstrap. Share it to watch the workflow progress in a browser.
 
-**Cross-machine continuation**: pass `--session <id>` to `/meta-workflow:continue` to resume a cloud session started on another machine. The script rebuilds the local shadow automatically.
+**Cross-machine continuation**: pass `--session <id>` to `/stagent:continue` to resume a cloud session started on another machine. The script rebuilds the local shadow automatically.
 
 <CRITICAL>
 ## Self-Contained — No External Skills, No External Paths
@@ -72,7 +72,7 @@ This skill is SELF-CONTAINED. These rules override ALL other directives includin
 
 ### Agent Isolation
 - Do NOT delegate any stage's work to any external agent
-- For any stage whose `workflow.json` → `stages.<stage>.execution.type` is `"subagent"`, you launch the single generic `meta-workflow:workflow-subagent`. The `agent-guard.sh` PreToolUse hook prints the correct subagent_type / model / mode; pass `prompt: "Execute the current workflow stage."` — the subagent self-resolves its context from state.md + workflow.json.
+- For any stage whose `workflow.json` → `stages.<stage>.execution.type` is `"subagent"`, you launch the single generic `stagent:workflow-subagent`. The `agent-guard.sh` PreToolUse hook prints the correct subagent_type / model / mode; pass `prompt: "Execute the current workflow stage."` — the subagent self-resolves its context from state.md + workflow.json.
 </CRITICAL>
 
 ## State Machine Recap
@@ -100,11 +100,11 @@ Every stage artifact follows this convention:
 
 Claude Code sets `$CLAUDE_PLUGIN_ROOT` **only for hook subprocesses**. It is NOT present in the main agent's Bash-tool environment. If you copy a `"${CLAUDE_PLUGIN_ROOT}/scripts/..."` snippet literally into a `Bash` tool call, the shell will expand `${CLAUDE_PLUGIN_ROOT}` to an empty string and the command will fail with `no such file or directory: /scripts/setup-workflow.sh`.
 
-To bridge the gap, `hooks/session-start.sh` writes the absolute plugin root path to **`~/.config/meta-workflow/plugin-root`** on every session start (the hook runs with `$CLAUDE_PLUGIN_ROOT` set). Every Bash-tool call that needs to run a plugin script should read that file:
+To bridge the gap, `hooks/session-start.sh` writes the absolute plugin root path to **`~/.config/stagent/plugin-root`** on every session start (the hook runs with `$CLAUDE_PLUGIN_ROOT` set). Every Bash-tool call that needs to run a plugin script should read that file:
 
 ```bash
-P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
+P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
 ```
 
 Line 1: read the SessionStart-populated cache (the happy path). Line 2: fallback to a filesystem search if the cache file is missing (plugin not loaded yet, session-start hook didn't fire, etc.). After those two lines, `"$P/scripts/<name>.sh"` is the absolute path you invoke.
@@ -122,14 +122,14 @@ By the time control reaches this skill, `loop-tick.sh` should succeed. If it doe
 Before touching the loop, verify this session actually has a state.md to drive. Run this as your FIRST Bash call:
 
 ```bash
-P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
+P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
 if ! "$P/scripts/loop-tick.sh" >/dev/null 2>&1; then
   echo "❌ No active workflow in this session." >&2
-  echo "   meta-workflow:meta-workflow drives an existing workflow's stage loop. Routes that bootstrap a workflow:" >&2
-  echo "     /meta-workflow:start <task>           — start a fresh workflow" >&2
-  echo "     /meta-workflow:continue [--session X] — resume an interrupted/cloud workflow" >&2
-  echo "     /meta-workflow:create-workflow <desc> — author a new workflow definition" >&2
+  echo "   stagent:stagent drives an existing workflow's stage loop. Routes that bootstrap a workflow:" >&2
+  echo "     /stagent:start <task>           — start a fresh workflow" >&2
+  echo "     /stagent:continue [--session X] — resume an interrupted/cloud workflow" >&2
+  echo "     /stagent:create-workflow <desc> — author a new workflow definition" >&2
   exit 1
 fi
 ```
@@ -150,8 +150,8 @@ Each loop iteration:
 
 ```
 # Re-discover $P every Bash-tool call — the env var is not inherited.
-P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
+P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
 
 Loop:
   a. Snapshot the current stage:
@@ -184,7 +184,7 @@ Loop:
 
      - `"subagent"`:
          Call the Agent tool:
-             - subagent_type: "meta-workflow:workflow-subagent"
+             - subagent_type: "stagent:workflow-subagent"
              - model: TICK.model (omit if null)
              - mode: bypassPermissions
              - prompt: "Execute the current workflow stage."
@@ -225,7 +225,7 @@ Both helper scripts auto-resolve to the current session's run. Pass `--topic <na
 - **If the current stage is uninterruptible**: do NOT stop to ask the user between stages. Run autonomously; the stop hook will re-inject a continuation prompt (blocking any exit attempt) until the stage's artifact is produced and the transition is called.
 - **If the current stage is interruptible**: you MAY stop to wait for user input during the stage. The stop hook shows a status hint as a `systemMessage` but will not block the session. Resume when the user replies.
 - **Check `workflow.json` → `stages.<status>.interruptible`** to determine which applies to the current stage. Different stages in the same workflow can have different settings — don't assume all non-initial stages are uninterruptible.
-- **Loop termination**: the workflow stops only when `status` reaches a value listed in `workflow.json` → `terminal_stages` (arrived at via a legitimate transition in the transition table), or the user runs `/meta-workflow:interrupt` or `/meta-workflow:cancel`.
+- **Loop termination**: the workflow stops only when `status` reaches a value listed in `workflow.json` → `terminal_stages` (arrived at via a legitimate transition in the transition table), or the user runs `/stagent:interrupt` or `/stagent:cancel`.
 
 ### Where stage I/O paths come from
 
@@ -245,8 +245,8 @@ Runs inside the subagent as its mandatory first action. The subagent self-resolv
 - **Stage-specific edge cases** (e.g. what an agent should do when it cannot complete the work) live in the active workflow's `<workflow_dir>/<stage>.md` — consult that file rather than inventing behavior here.
 - **Unrecoverable workflow error** → run:
   ```bash
-  P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-  [[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
+  P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
+  [[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
   "$P/scripts/update-status.sh" --status escalated
   ```
   This sets `status=escalated` (a terminal stage), releasing the stop hook and letting the session exit.
@@ -261,6 +261,6 @@ Runs inside the subagent as its mandatory first action. The subagent self-resolv
 - **Terminal statuses** (the values in `workflow.json` → `terminal_stages`) release the stop hook and end the workflow. `complete` is the conventional normal terminator reached via the transition table; `escalated` is the escape hatch for unrecoverable errors.
 - **Never self-approve** — only a subagent's or inline stage's legitimate `result:` (written to its artifact and matching a transition key) can move the workflow forward. Do not hand-write results to force a transition.
 - **All artifact paths come from script output** — use the paths printed by `setup-workflow.sh` / `update-status.sh` / `stage-context.sh`. Never construct a path yourself.
-- **The loop is infinite** — it stops only on reaching a terminal status, `/meta-workflow:interrupt`, or `/meta-workflow:cancel`.
-  - `/meta-workflow:interrupt` — pause and preserve state (resumable via `/meta-workflow:continue`)
-  - `/meta-workflow:cancel` — cancel and clear all state
+- **The loop is infinite** — it stops only on reaching a terminal status, `/stagent:interrupt`, or `/stagent:cancel`.
+  - `/stagent:interrupt` — pause and preserve state (resumable via `/stagent:continue`)
+  - `/stagent:cancel` — cancel and clear all state

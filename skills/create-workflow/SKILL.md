@@ -1,16 +1,16 @@
 ---
 name: create-workflow
-description: "Create a new workflow suite from a natural-language description, or edit an existing one when --workflow=<path> is passed. Dispatches the create-workflow meta-workflow (plan → write → validate loop) — does not write files directly."
+description: "Create a new workflow suite from a natural-language description, or edit an existing one when --workflow=<path> is passed. Dispatches the create-workflow stagent (plan → write → validate loop) — does not write files directly."
 ---
 
 # Create / Edit Workflow
 
-This skill **dispatches a meta-workflow** that creates or edits a meta-workflow definition. It does NOT write workflow files itself — the meta-workflow's state machine (`planning → writing → validating`) does that, with validator-driven retry until `✓ Workflow validated` prints.
+This skill **dispatches a stagent** that creates or edits a stagent definition. It does NOT write workflow files itself — the stagent's state machine (`planning → writing → validating`) does that, with validator-driven retry until `✓ Workflow validated` prints.
 
-- **Create mode** (no `--workflow` flag): the meta-workflow's `planning` stage interviews the user from scratch.
+- **Create mode** (no `--workflow` flag): the stagent's `planning` stage interviews the user from scratch.
 - **Edit mode** (`--workflow=<path>` or `--workflow=cloud://author/name`): `planning` pre-loads the existing workflow as the starting point, then asks for changes.
 
-Both modes dispatch the same meta-workflow at `$P/skills/create-workflow/workflow`. The difference is a single env var (`CREATE_WORKFLOW_CONTEXT`) passed at dispatch time.
+Both modes dispatch the same stagent at `$P/skills/create-workflow/workflow`. The difference is a single env var (`CREATE_WORKFLOW_CONTEXT`) passed at dispatch time.
 
 <CRITICAL>
 - Do NOT write any workflow files yourself. Parse flags, verify preconditions, set `CREATE_WORKFLOW_CONTEXT`, call `setup-workflow.sh`, stop.
@@ -23,8 +23,8 @@ Both modes dispatch the same meta-workflow at `$P/skills/create-workflow/workflo
 `$CLAUDE_PLUGIN_ROOT` is NOT set in agent Bash-tool env. Use the session-cached path:
 
 ```bash
-P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
+P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
 ```
 
 Re-derive `$P` inside every Bash-tool call — shell vars don't persist across calls.
@@ -34,8 +34,8 @@ Re-derive `$P` inside every Bash-tool call — shell vars don't persist across c
 ### Step 0 — Parse flags & announce
 
 ```bash
-P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
+P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
 eval "$("$P/scripts/parse-workflow-flags.sh" '$ARGUMENTS')" || exit 1
 "$P/scripts/print-create-banner.sh" "$MODE" "$WORKFLOW_FLAG" "$WF_TYPE"
 ```
@@ -54,14 +54,14 @@ Relay the banner to the user. If the parser emitted errors, hard stop.
 
 ```bash
 if [[ "$MODE" == "cloud" ]]; then
-  P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-  [[ -d $P/scripts ]] || P=~/.claude/plugins/meta-workflow
+  P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
+  [[ -d $P/scripts ]] || P=~/.claude/plugins/stagent
   source "$P/scripts/lib.sh"
   cloud_is_logged_in && echo LOGGED_IN || echo NOT_LOGGED_IN
 fi
 ```
 
-`NOT_LOGGED_IN` → hard stop: tell the user to run `/meta-workflow:login` first. Do not dispatch.
+`NOT_LOGGED_IN` → hard stop: tell the user to run `/stagent:login` first. Do not dispatch.
 
 For `$MODE == local`, skip this step — no login needed.
 
@@ -82,13 +82,13 @@ fi
 For `$WF_TYPE == cloud`: verify ownership, then download.
 
 ```bash
-P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || P=~/.claude/plugins/meta-workflow
+P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || P=~/.claude/plugins/stagent
 source "$P/scripts/lib.sh"
 
 _WF_NAME="${WORKFLOW_FLAG#cloud://}"
-CLOUD_URL="${META_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}/api/workflows/${_WF_NAME}"
-MY_UID="$(jq -r '.user_id // empty' ~/.config/meta-workflow/auth.json 2>/dev/null)"
+CLOUD_URL="${STAGENT_SERVER:-https://workflows.worldstatelabs.com}/api/workflows/${_WF_NAME}"
+MY_UID="$(jq -r '.user_id // empty' ~/.config/stagent/auth.json 2>/dev/null)"
 AUTH="$(_cloud_auth_header)"
 BUNDLE="$(curl -sf -H "$AUTH" "$CLOUD_URL" 2>/dev/null || echo '')"
 
@@ -106,18 +106,18 @@ fi
 - `AUTHORIZED` → download to a local working dir:
 
   ```bash
-  SOURCE_DIR="${HOME}/.config/meta-workflow/workflows/${_WF_NAME}"
+  SOURCE_DIR="${HOME}/.config/stagent/workflows/${_WF_NAME}"
   mkdir -p "$SOURCE_DIR"
   cloud_fetch_workflow_from_name "$_WF_NAME" "$SOURCE_DIR"
   ```
 
 ### Step 2 — Build `CREATE_WORKFLOW_CONTEXT`
 
-The meta-workflow has a `setup_context` run_file that captures this env var. It's how the `planning` stage gets (a) whether this is create or edit, (b) the user's original description, and (c) the source dir for edit mode.
+The stagent has a `setup_context` run_file that captures this env var. It's how the `planning` stage gets (a) whether this is create or edit, (b) the user's original description, and (c) the source dir for edit mode.
 
 **Note:** `setup-workflow.sh` has no positional-argument slot for description — putting it in this env var is the only channel through which the planning stage receives it.
 
-`publish_intent` mirrors `$MODE` and tells the meta-workflow's `publishing` stage whether to push to the hub (`cloud`) or skip (`local`).
+`publish_intent` mirrors `$MODE` and tells the stagent's `publishing` stage whether to push to the hub (`cloud`) or skip (`local`).
 
 - **Create mode:**
   ```bash
@@ -132,16 +132,16 @@ The meta-workflow has a `setup_context` run_file that captures this env var. It'
 
 ### Step 3 — Pick a short topic slug
 
-Just a short kebab-case label for THIS meta-workflow run's session (NOT the generated workflow's suffix — planning chooses that). Derive something from `$DESCRIPTION` (first few words kebabed), e.g. `create-lint-wf`, `edit-python-lib`.
+Just a short kebab-case label for THIS stagent run's session (NOT the generated workflow's suffix — planning chooses that). Derive something from `$DESCRIPTION` (first few words kebabed), e.g. `create-lint-wf`, `edit-python-lib`.
 
-### Step 4 — Dispatch the meta-workflow
+### Step 4 — Dispatch the stagent
 
 Branch on `$MODE` to pick BOTH the right workflow source AND the session-mode for `setup-workflow.sh`:
 
-- **`$MODE=cloud`(default)** — use the hub-published anonymous mirror so this meta-workflow session is cloud-tracked (gives the user a live `https://workflows.worldstatelabs.com/s/<sid>` link):
+- **`$MODE=cloud`(default)** — use the hub-published anonymous mirror so this stagent session is cloud-tracked (gives the user a live `https://workflows.worldstatelabs.com/s/<sid>` link):
   ```bash
-  P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-  [[ -d $P/scripts ]] || P=~/.claude/plugins/meta-workflow
+  P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
+  [[ -d $P/scripts ]] || P=~/.claude/plugins/stagent
   "$P/scripts/setup-workflow.sh" \
     --mode=cloud \
     --topic="<slug-from-step-3>" \
@@ -150,8 +150,8 @@ Branch on `$MODE` to pick BOTH the right workflow source AND the session-mode fo
 
 - **`$MODE=local`** — use the plugin-bundled local workflow; runs fully offline, no webapp link:
   ```bash
-  P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-  [[ -d $P/scripts ]] || P=~/.claude/plugins/meta-workflow
+  P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
+  [[ -d $P/scripts ]] || P=~/.claude/plugins/stagent
   "$P/scripts/setup-workflow.sh" \
     --mode=local \
     --topic="<slug-from-step-3>" \
@@ -168,9 +168,9 @@ Do NOT pass `$DESCRIPTION` as a trailing argument — `setup-workflow.sh` silent
 - **Exit 0 — dispatched.** `state.md` exists at the new session's run dir. Continue to Step 5 (report handoff).
 
 - **Exit 2 — session already has an active (or interrupted) workflow.** Phase 0 detected a non-terminal `state.md` for this session. The script's stderr lists the existing topic + status. **Do NOT auto-`--force`** — that would silently archive in-progress work. Relay the script's message to the user and offer three choices, then halt:
-  - `/meta-workflow:interrupt` — pause the existing workflow (safe, preserves state)
-  - `/meta-workflow:continue` — resume the existing workflow (treats this `/create-workflow` call as the one to discard)
-  - `/meta-workflow:cancel` — archive (or `--hard` wipe) the existing run, then retry `/create-workflow` with the same args
+  - `/stagent:interrupt` — pause the existing workflow (safe, preserves state)
+  - `/stagent:continue` — resume the existing workflow (treats this `/create-workflow` call as the one to discard)
+  - `/stagent:cancel` — archive (or `--hard` wipe) the existing run, then retry `/create-workflow` with the same args
 
   Only re-run `setup-workflow.sh ... --force` if the user **explicitly** says to discard the existing run. Default stance: refuse and ask.
 
@@ -180,16 +180,16 @@ On exit 0 only, the state machine is at `planning` and the next turn begins the 
 
 ### Step 5 — Report handoff
 
-Print a short dispatch summary and return control. The `commands/create-workflow.md` wrapper will invoke `meta-workflow:meta-workflow` as its next step to drive the state machine loop — do NOT invoke it yourself from this skill (two-skill handoff is coordinated at the command level, not the skill level).
+Print a short dispatch summary and return control. The `commands/create-workflow.md` wrapper will invoke `stagent:stagent` as its next step to drive the state machine loop — do NOT invoke it yourself from this skill (two-skill handoff is coordinated at the command level, not the skill level).
 
 Summary to print:
 
-- **Status**: create-workflow meta-workflow dispatched (mode: create or edit).
+- **Status**: create-workflow stagent dispatched (mode: create or edit).
 - **Session**: `<session_id from setup-workflow.sh output>`.
 - **Current stage**: `planning` (interruptible inline) — the next skill will start the interview.
-- **Where files land**: `~/.config/meta-workflow/workflows/<suffix>/` (suffix chosen in planning; reused for Edit).
-- **Cloud publish**: for `--mode=cloud`, the `publishing` stage auto-runs `publish-workflow.sh` after the validator passes. If publish fails (token expired, network, name collision), the workflow still terminates at `complete` with a publish-failure note — retry with `/meta-workflow:publish <target-dir>`.
-- **Abort**: `/meta-workflow:cancel` or `/meta-workflow:interrupt` any time.
+- **Where files land**: `~/.config/stagent/workflows/<suffix>/` (suffix chosen in planning; reused for Edit).
+- **Cloud publish**: for `--mode=cloud`, the `publishing` stage auto-runs `publish-workflow.sh` after the validator passes. If publish fails (token expired, network, name collision), the workflow still terminates at `complete` with a publish-failure note — retry with `/stagent:publish <target-dir>`.
+- **Abort**: `/stagent:cancel` or `/stagent:interrupt` any time.
 
 Do NOT call `setup-workflow.sh` again, and do NOT run `loop-tick.sh` here — that's the next skill's job.
 
@@ -197,7 +197,7 @@ Do NOT call `setup-workflow.sh` again, and do NOT run `loop-tick.sh` here — th
 
 ## Rules
 
-- Both Create and Edit dispatch the SAME meta-workflow; the only difference is `CREATE_WORKFLOW_CONTEXT`.
+- Both Create and Edit dispatch the SAME stagent; the only difference is `CREATE_WORKFLOW_CONTEXT`.
 - Edit mode must resolve `SOURCE_DIR` (downloading if cloud) BEFORE dispatch — the run_file init runs in the session's setup and reads `$CREATE_WORKFLOW_CONTEXT` from env.
-- Cloud publish is handled by the meta-workflow's `publishing` stage (gated on `publish_intent` in `setup_context`). The skill itself does not wait for or call publish.
+- Cloud publish is handled by the stagent's `publishing` stage (gated on `publish_intent` in `setup_context`). The skill itself does not wait for or call publish.
 - Do NOT invoke other skills. Do NOT write workflow files. Your job is flag parsing + preconditions + dispatch.

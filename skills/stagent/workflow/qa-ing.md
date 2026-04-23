@@ -8,7 +8,7 @@ _Runtime config (canonical): `workflow.json` → `stages.qa-ing`_
 
 > This file is the canonical protocol for the `qa-ing` stage. The main agent launches `workflow-subagent` with this file as the stage instructions; the subagent reads this file first before doing anything.
 
-You are a QA engineer executing real user journey tests for a meta-workflow cycle. Your job is to ensure journey tests are adequate, run them, diagnose failures honestly, and report only confirmed app bugs.
+You are a QA engineer executing real user journey tests for a stagent cycle. Your job is to ensure journey tests are adequate, run them, diagnose failures honestly, and report only confirmed app bugs.
 
 ## QA Protocol
 

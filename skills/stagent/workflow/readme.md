@@ -1,8 +1,8 @@
-# Default meta-workflow
+# Default stagent
 
 A complete five-stage development cycle for AI-driven engineering: plan the work with the user, have a subagent implement it, run quick tests, run adversarial review, then run real user-journey QA. The loop continues until QA passes, the user intervenes, or `max_epoch` (default `20`) is hit — the cap forces `escalated` to break runaway iteration.
 
-This is the workflow the `meta-workflow` plugin ships with. Pick it when you want a rigorous plan → execute → verify → review → QA cycle with tests-as-gates at every step. For lighter-weight flows (just brainstorm+draft, or just a bugfix loop) publish a custom workflow to the hub and select it via `--workflow cloud://author/name`.
+This is the workflow the `stagent` plugin ships with. Pick it when you want a rigorous plan → execute → verify → review → QA cycle with tests-as-gates at every step. For lighter-weight flows (just brainstorm+draft, or just a bugfix loop) publish a custom workflow to the hub and select it via `--workflow cloud://author/name`.
 
 ## Stages
 
@@ -28,7 +28,7 @@ Interruptible: the stop hook allows natural session pauses so you can take your 
 
 ### 2 · executing (uninterruptible, subagent — Opus)
 
-The generic `meta-workflow:workflow-subagent` is launched with `executing.md` as its stage instructions file. It reads the plan and any optional feedback from prior iterations (reviewer feedback, QA feedback, verify failures), then implements the changes: tests-first when specified in the plan, minimal focused edits, incremental commits. Writes `executing-report.md` with `result: done`.
+The generic `stagent:workflow-subagent` is launched with `executing.md` as its stage instructions file. It reads the plan and any optional feedback from prior iterations (reviewer feedback, QA feedback, verify failures), then implements the changes: tests-first when specified in the plan, minimal focused edits, incremental commits. Writes `executing-report.md` with `result: done`.
 
 Opus is used here because the code-change step benefits most from the deepest reasoning.
 
@@ -42,14 +42,14 @@ The main agent runs the project's quick-test command (unit/integration tests, ty
 
 ### 4 · reviewing (uninterruptible, subagent)
 
-The generic `meta-workflow:workflow-subagent` is launched with `reviewing.md` as its stage instructions file. It runs an adversarial code review: diffs HEAD against the baseline commit recorded at setup, checks for correctness, completeness, design quality, edge cases, and security issues. Only reports code-level issues (not bugs the executor can reproduce at runtime — those are QA's job).
+The generic `stagent:workflow-subagent` is launched with `reviewing.md` as its stage instructions file. It runs an adversarial code review: diffs HEAD against the baseline commit recorded at setup, checks for correctness, completeness, design quality, edge cases, and security issues. Only reports code-level issues (not bugs the executor can reproduce at runtime — those are QA's job).
 
 - `PASS` → move to `qa-ing`
 - `FAIL` → loop back to `executing` with the reviewer feedback as optional input
 
 ### 5 · qa-ing (uninterruptible, subagent)
 
-The generic `meta-workflow:workflow-subagent` is launched with `qa-ing.md` as its stage instructions file. It runs real user-journey tests (Playwright, XcodeBuildMCP, etc.), maintains a persistent journey-test state file across iterations, and distinguishes test bugs from app bugs. Only confirmed app bugs block progress — flaky tests or test-harness issues get auto-corrected.
+The generic `stagent:workflow-subagent` is launched with `qa-ing.md` as its stage instructions file. It runs real user-journey tests (Playwright, XcodeBuildMCP, etc.), maintains a persistent journey-test state file across iterations, and distinguishes test bugs from app bugs. Only confirmed app bugs block progress — flaky tests or test-harness issues get auto-corrected.
 
 - `PASS` → `complete` (terminal)
 - `FAIL` → loop back to `executing` with only the confirmed app bugs as optional feedback
@@ -58,7 +58,7 @@ The generic `meta-workflow:workflow-subagent` is launched with `qa-ing.md` as it
 
 - `complete` — QA passed, all changes reviewed and journey-tested
 - `escalated` — unrecoverable error; workflow was promoted out of the loop for human intervention
-- `cancelled` — user ran `/meta-workflow:cancel`
+- `cancelled` — user ran `/stagent:cancel`
 
 ## Required and optional inputs per stage
 
@@ -79,7 +79,7 @@ The optional inputs are what make the loop converge: if the reviewer rejects the
 To change stage names, add/remove stages, swap models, or tweak transitions, copy this directory, edit `workflow.json`, update the stage `.md` files to match, and either point `--workflow /abs/path` at it or publish it to the hub with:
 
 ```sh
-~/.claude/plugins/meta-workflow/scripts/publish-workflow.sh /path/to/your/workflow
+~/.claude/plugins/stagent/scripts/publish-workflow.sh /path/to/your/workflow
 ```
 
 The state-machine protocol (`SKILL.md`) is fully config-driven — it doesn't know or care about the specific stage names, so anything that parses as a valid `workflow.json` runs end to end.

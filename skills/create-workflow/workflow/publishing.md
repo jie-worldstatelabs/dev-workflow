@@ -2,7 +2,7 @@
 
 _Runtime config (canonical): `workflow.json` → `stages.publishing`_
 
-**Purpose:** After the validator confirms the workflow files are correct, push the workflow to the hub if the user invoked `/meta-workflow:create-workflow` with `--mode=cloud`. For `--mode=local` this stage is a no-op pass-through.
+**Purpose:** After the validator confirms the workflow files are correct, push the workflow to the hub if the user invoked `/stagent:create-workflow` with `--mode=cloud`. For `--mode=local` this stage is a no-op pass-through.
 **Output artifact:** write to the absolute path provided in your I/O context
 **Valid results this stage writes:** `done` (published, or gracefully noted failure), `skipped` (local mode — nothing to publish)
 
@@ -46,8 +46,8 @@ Done.
 Run `publish-workflow.sh` on the target directory and capture output + exit code:
 
 ```bash
-P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || P=~/.claude/plugins/meta-workflow
+P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || P=~/.claude/plugins/stagent
 TARGET="<absolute-path-from-writer-report>"
 OUTPUT="$("$P/scripts/publish-workflow.sh" "$TARGET" 2>&1)"
 RC=$?
@@ -58,7 +58,7 @@ echo "=== EXIT CODE: $RC ==="
 
 Classify:
 - Exit 0 → published successfully. Write artifact with `result: done` and copy the script's output (it already prints the hub URL, pull command, visibility).
-- Non-zero → publish failed. **Still write `result: done`** (the workflow files are valid locally — the failure is at push time, not fatal to the run). Include the full `OUTPUT` verbatim so the user can diagnose and retry with `/meta-workflow:publish <target-dir>`.
+- Non-zero → publish failed. **Still write `result: done`** (the workflow files are valid locally — the failure is at push time, not fatal to the run). Include the full `OUTPUT` verbatim so the user can diagnose and retry with `/stagent:publish <target-dir>`.
 
 Artifact shape:
 
@@ -87,7 +87,7 @@ cloud
 ## Summary
 
 - On success (exit 0): copy the hub URL and pull command from the output; note "Published".
-- On failure (non-zero): "Publish failed — files are valid locally at `<target-dir>`. Retry with `/meta-workflow:publish <target-dir>` after resolving the issue. Common causes: expired token (`/meta-workflow:login` again), network, or name collision with another user."
+- On failure (non-zero): "Publish failed — files are valid locally at `<target-dir>`. Retry with `/stagent:publish <target-dir>` after resolving the issue. Common causes: expired token (`/stagent:login` again), network, or name collision with another user."
 ````
 
 ## Rules

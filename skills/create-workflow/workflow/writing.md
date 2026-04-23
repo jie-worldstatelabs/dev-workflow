@@ -22,10 +22,10 @@ Read every input path from your prompt — do NOT construct or hardcode paths.
 Run this Bash call so the canonical schema and stage-file style flow into your context:
 
 ````bash
-P="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/meta-workflow; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"; }
+P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
+[[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
 for f in workflow.json planning.md executing.md reviewing.md verifying.md qa-ing.md run_files_catalog.md; do
-  echo "===== $f ====="; cat "$P/skills/meta-workflow/workflow/$f"; echo
+  echo "===== $f ====="; cat "$P/skills/stagent/workflow/$f"; echo
 done
 ````
 
@@ -40,7 +40,7 @@ Copy the JSON **shape** and the stage-file **style** — NOT the specific stage 
 - `transitions` values are plain strings (`"done": "next-stage"`) — NEVER nested objects like `{"target":"next"}` or `{"id":"done","nextStage":"next"}`.
 - `inputs.required[]` / `inputs.optional[]` entries are `{from_stage, description}` or `{from_run_file, description}` — nothing else.
 - **Subagent stages MUST have `"interruptible": false`** (the main agent blocks on the Agent tool, so the stop hook can't fire during a subagent run).
-- NO `subagent_type` field — validator rejects it. All subagent stages run under the generic `meta-workflow:workflow-subagent`.
+- NO `subagent_type` field — validator rejects it. All subagent stages run under the generic `stagent:workflow-subagent`.
 - Every declared stage MUST have a corresponding `<stage>.md` file placed **directly next to `workflow.json`** — NOT in a `stages/` subdirectory.
 - Every transition target must be another declared stage name OR a terminal stage name (`complete`, `escalated`, `cancelled` are conventional).
 - Every `from_stage` reference must name a declared stage; every `from_run_file` reference must name a key in top-level `.run_files`.
@@ -123,7 +123,7 @@ Use this template (adapt to the workflow's actual domain):
 ## Usage
 
 ```
-/meta-workflow:start --workflow <author>/<suffix> <your task description>
+/stagent:start --workflow <author>/<suffix> <your task description>
 ```
 ````
 

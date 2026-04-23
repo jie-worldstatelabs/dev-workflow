@@ -18,7 +18,7 @@ This is an interruptible stage — the stop hook allows natural pauses for Q&A.
 Read the `setup_context` input at the absolute path shown in your I/O context. It contains JSON with these fields:
 
 - `mode`: `"create"` or `"edit"`
-- `description`: the original natural-language description the user passed to `/meta-workflow:create-workflow` (may be empty). **This is the only place the description shows up** — it is NOT in `state.md`'s `topic:` field.
+- `description`: the original natural-language description the user passed to `/stagent:create-workflow` (may be empty). **This is the only place the description shows up** — it is NOT in `state.md`'s `topic:` field.
 - `source_dir`: (edit mode only) absolute path to the existing workflow to edit
 
 Log the parsed `mode` and `description` before proceeding:
@@ -87,7 +87,7 @@ If the workflow needs setup-time constants (e.g. git SHA baseline, current date)
 
 ## Step 4 — Pick / confirm the suffix
 
-- **Create mode**: derive a short, kebab-case suffix from the description (e.g. "Python library dev with docs and publish" → `python-lib`). Confirm with the user. Target directory: `~/.config/meta-workflow/workflows/<suffix>/`. If the directory already exists, ask whether to overwrite or pick a different name.
+- **Create mode**: derive a short, kebab-case suffix from the description (e.g. "Python library dev with docs and publish" → `python-lib`). Confirm with the user. Target directory: `~/.config/stagent/workflows/<suffix>/`. If the directory already exists, ask whether to overwrite or pick a different name.
 - **Edit mode**: suffix = `basename(source_dir)`; target directory = `source_dir` itself (writer will overwrite files in place). Do not ask — this is fixed by the `setup_context`.
 
 ## Step 5 — Iterate until approved

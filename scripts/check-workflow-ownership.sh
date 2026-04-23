@@ -35,11 +35,21 @@ if [[ -z "$BUNDLE" ]]; then
   exit 0
 fi
 
-OWNER_UID="$(echo "$BUNDLE" | jq -r '.user_id // empty')"
+# Trust the server's own ownership computation. The webapp API resolves
+# the caller's identity from the Bearer auth header against plugin_tokens
+# and emits `is_owner: boolean`. We used to re-derive this client-side by
+# reading `.user_id` off the bundle, but the API doesn't return `.user_id`
+# on the detail payload (by design — it exposes `is_owner` instead), so
+# the old check always saw owner=unknown and refused every edit.
+IS_OWNER="$(echo "$BUNDLE" | jq -r '.is_owner // false')"
 
-if [[ -n "$MY_UID" && "$OWNER_UID" == "$MY_UID" ]]; then
+if [[ "$IS_OWNER" == "true" ]]; then
   echo AUTHORIZED
 else
   echo NOT_OWNER
-  echo "owner=${OWNER_UID:-unknown} me=${MY_UID:-unauthenticated}" >&2
+  # Diagnostic: show the caller's provider-scoped id and the workflow's
+  # public author slug, so a confused user can at least see whether
+  # they're logged in as the wrong account.
+  AUTHOR_SLUG="$(echo "$BUNDLE" | jq -r '.author // "unknown"')"
+  echo "is_owner=false  author=${AUTHOR_SLUG}  me=${MY_UID:-unauthenticated}" >&2
 fi

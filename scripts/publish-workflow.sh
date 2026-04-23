@@ -247,10 +247,15 @@ if [[ -z "$DRY_RUN" ]]; then
     exit 1
   fi
   if [[ "$_pre_code" == "200" ]]; then
-    _remote_uid="$(jq -r '.user_id // .workflow.user_id // empty' "$_pre_tmp" 2>/dev/null || echo "")"
-    _my_uid="$(jq -r '.user_id // empty' ~/.config/stagent/auth.json 2>/dev/null || echo "")"
-    if [[ -n "$_remote_uid" && -n "$_my_uid" && "$_remote_uid" != "$_my_uid" ]]; then
-      echo "❌ Name '${NAME}' is already taken by another user." >&2
+    # API doesn't return the raw user_id — it returns `is_owner`
+    # (server-side-computed against the Bearer token). Use that to
+    # decide whether this publish is an update-my-own or a collision
+    # with someone else's name. Falls back to `false` if the field is
+    # missing (older server, or workflow is anonymous with user_id=null
+    # in the DB — both are immutable from the plugin's perspective).
+    _is_owner="$(jq -r '.is_owner // false' "$_pre_tmp" 2>/dev/null || echo "false")"
+    if [[ "$_is_owner" != "true" ]]; then
+      echo "❌ Name '${NAME}' is already taken (or is an immutable anonymous workflow)." >&2
       rm -f "$_pre_tmp"
       exit 1
     fi

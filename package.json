@@ -1,5 +1,5 @@
 {
-  "name": "meta-workflow",
-  "version": "1.16.0",
+  "name": "stagent",
+  "version": "2.0.0",
   "description": "Plan-Execute-Review development workflow with brainstorming, executor agent, and adversarial code review loop"
 }

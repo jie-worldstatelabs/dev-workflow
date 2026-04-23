@@ -36,10 +36,10 @@ else
 fi
 echo "  Workflow: ${_wf}"
 if [[ "$MODE" == "cloud" ]]; then
-  echo "  Tip:      To run locally: /stagent:start --mode=local [--workflow=<path>]"
+  echo "  Tip:      To run locally: /stagent:start --mode=local [--flow=<path>]"
 else
   if [[ -n "$WORKFLOW_FLAG" && "$WF_TYPE" != "cloud" ]]; then
-    echo "  Tip:      To run on cloud: /stagent:start --workflow=cloud://<name>  (publish your local workflow first)"
+    echo "  Tip:      To run on cloud: /stagent:start --flow=cloud://<name>  (publish your local workflow first)"
   else
     echo "  Tip:      To run on cloud: /stagent:start  (defaults to cloud mode, pulls cloud://demo)"
   fi

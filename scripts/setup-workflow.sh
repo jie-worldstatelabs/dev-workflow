@@ -14,11 +14,11 @@
 #
 # Usage:
 #   setup-workflow.sh --topic <topic>
-#                     [--workflow <name-or-path-or-url>]
+#                     [--flow <name-or-path-or-url>]
 #                     [--mode local|cloud]
-#   setup-workflow.sh --validate-only [--workflow <name-or-path>]
+#   setup-workflow.sh --validate-only [--flow <name-or-path>]
 #
-# --workflow accepts:
+# --flow accepts:
 #   (omitted)          default:  ${PLUGIN_ROOT}/skills/stagent/workflow/
 #   cloud://author/name cloud:   named template on $STAGENT_SERVER
 #   /abs/path          local:    absolute local path
@@ -44,8 +44,8 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     --topic=*)      TOPIC="${1#--topic=}";                 shift ;;
     --topic)        TOPIC="$2";                            shift 2 ;;
-    --workflow=*)   WORKFLOW_NAME="${1#--workflow=}";      shift ;;
-    --workflow)     WORKFLOW_NAME="$2";                    shift 2 ;;
+    --flow=*)   WORKFLOW_NAME="${1#--flow=}";      shift ;;
+    --flow)     WORKFLOW_NAME="$2";                    shift 2 ;;
     --mode=*)       MODE="${1#--mode=}";                   shift ;;
     --mode)         MODE="$2";                             shift 2 ;;
     --validate-only) VALIDATE_ONLY="yes";                  shift ;;
@@ -58,8 +58,8 @@ done
 # gets written in that mode).
 if [[ -z "$VALIDATE_ONLY" ]] && [[ -z "$TOPIC" ]]; then
   echo "❌ Error: --topic is required" >&2
-  echo "Usage: setup-workflow.sh --topic <topic> [--workflow <name-or-path-or-url>] [--mode local|cloud]" >&2
-  echo "       setup-workflow.sh --validate-only [--workflow <name-or-path>]" >&2
+  echo "Usage: setup-workflow.sh --topic <topic> [--flow <name-or-path-or-url>] [--mode local|cloud]" >&2
+  echo "       setup-workflow.sh --validate-only [--flow <name-or-path>]" >&2
   exit 1
 fi
 
@@ -90,7 +90,7 @@ if [[ "$MODE" == "local" ]]; then
   elif [[ "$WORKFLOW_NAME" == */* ]]; then
     WORKFLOW_DIR="$(cd "$WORKFLOW_NAME" 2>/dev/null && pwd || echo "$WORKFLOW_NAME")"
   else
-    echo "❌ Invalid --workflow value: '${WORKFLOW_NAME}'" >&2
+    echo "❌ Invalid --flow value: '${WORKFLOW_NAME}'" >&2
     echo "   In local mode use an absolute or relative path (e.g. /path/to/workflow or ./my-workflow)." >&2
     exit 1
   fi
@@ -273,7 +273,7 @@ if [[ "$MODE" == "cloud" ]]; then
   WORKFLOW_URL=""
   case "$WORKFLOW_NAME" in
     "")
-      # Cloud mode + no --workflow flag → use hub demo workflow
+      # Cloud mode + no --flow flag → use hub demo workflow
       _cloud_name="demo"
       WORKFLOW_URL="cloud://demo"
       cloud_fetch_workflow_from_name "$_cloud_name" "$WORKFLOW_CACHE" || {
@@ -291,7 +291,7 @@ if [[ "$MODE" == "cloud" ]]; then
       }
       ;;
     *)
-      echo "❌ Invalid --workflow value: '${WORKFLOW_NAME}'" >&2
+      echo "❌ Invalid --flow value: '${WORKFLOW_NAME}'" >&2
       echo "   In cloud mode use cloud://author/name (e.g. cloud://demo)." >&2
       rm -rf "$SCRATCH_DIR"
       exit 1

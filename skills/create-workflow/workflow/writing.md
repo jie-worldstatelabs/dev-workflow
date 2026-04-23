@@ -123,7 +123,7 @@ Use this template (adapt to the workflow's actual domain):
 ## Usage
 
 ```
-/stagent:start --workflow <author>/<suffix> <your task description>
+/stagent:start --flow <author>/<suffix> <your task description>
 ```
 ````
 

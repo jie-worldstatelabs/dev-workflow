@@ -2,7 +2,7 @@
 
 A complete five-stage development cycle for AI-driven engineering: plan the work with the user, have a subagent implement it, run quick tests, run adversarial review, then run real user-journey QA. The loop continues until QA passes, the user intervenes, or `max_epoch` (default `20`) is hit — the cap forces `escalated` to break runaway iteration.
 
-This is the workflow the `stagent` plugin ships with. Pick it when you want a rigorous plan → execute → verify → review → QA cycle with tests-as-gates at every step. For lighter-weight flows (just brainstorm+draft, or just a bugfix loop) publish a custom workflow to the hub and select it via `--workflow cloud://author/name`.
+This is the workflow the `stagent` plugin ships with. Pick it when you want a rigorous plan → execute → verify → review → QA cycle with tests-as-gates at every step. For lighter-weight flows (just brainstorm+draft, or just a bugfix loop) publish a custom workflow to the hub and select it via `--flow cloud://author/name`.
 
 ## Stages
 
@@ -76,7 +76,7 @@ The optional inputs are what make the loop converge: if the reviewer rejects the
 
 ## Customising
 
-To change stage names, add/remove stages, swap models, or tweak transitions, copy this directory, edit `workflow.json`, update the stage `.md` files to match, and either point `--workflow /abs/path` at it or publish it to the hub with:
+To change stage names, add/remove stages, swap models, or tweak transitions, copy this directory, edit `workflow.json`, update the stage `.md` files to match, and either point `--flow /abs/path` at it or publish it to the hub with:
 
 ```sh
 ~/.claude/plugins/stagent/scripts/publish-workflow.sh /path/to/your/workflow

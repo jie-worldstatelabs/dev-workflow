@@ -1,6 +1,6 @@
 ---
-description: "Create a new workflow suite (published to hub by default), or edit an existing one with --workflow=<path>"
-argument-hint: "[--mode=cloud|local] [--workflow=<local-dir|cloud-url>] <brief description of the workflow / changes you want>"
+description: "Create a new workflow suite (published to hub by default), or edit an existing one with --flow=<path>"
+argument-hint: "[--mode=cloud|local] [--flow=<local-dir|cloud-url>] <brief description of the workflow / changes you want>"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion
 ---
 
@@ -13,7 +13,7 @@ Modes:
 - **No `--mode`** → cloud (default) — publish-intent flows through to the `publishing` stage.
 - **`--mode=local`** → local-only, skip hub publish.
 - **`--mode=cloud`** → explicit cloud mode.
-- **`--workflow=<path>`** → edit existing (local dir or `cloud://author/name`). Cloud edits require login and ownership.
+- **`--flow=<path>`** → edit existing (local dir or `cloud://author/name`). Cloud edits require login and ownership.
 
 Task from user: `$ARGUMENTS`
 

@@ -78,7 +78,7 @@ check "E2E-2-1: linting.md stage file written" $?
 check "E2E-2-1: fixing.md stage file written" $?
 
 # ── E2E-2-2: Generated workflow.json is valid (passes --validate-only) ─────────
-validate_out="$("$SETUP" --validate-only --workflow="$WF_DIR1" 2>&1)"
+validate_out="$("$SETUP" --validate-only --flow="$WF_DIR1" 2>&1)"
 rc2=$?
 [[ $rc2 -eq 0 ]]
 check "E2E-2-2: generated workflow.json passes --validate-only" $?
@@ -122,7 +122,7 @@ echo "e2e-sess-${SUFFIX}" > "$FAKE_HOME/.cache/stagent/session-cache/cwd-$key4"
 
 (cd "$P4" && HOME="$FAKE_HOME" "$SETUP" \
     --mode=local --topic=e2e-generated-wf \
-    --workflow="$WF_DIR1" > /dev/null 2>&1)
+    --flow="$WF_DIR1" > /dev/null 2>&1)
 check "E2E-2-4: setup-workflow.sh starts a session from generated workflow" $?
 
 STATE4="$P4/.stagent/e2e-sess-${SUFFIX}/state.md"
@@ -135,7 +135,7 @@ check "E2E-2-4: initial status matches initial_stage from generated workflow" $?
 
 # ── E2E-2-5: Edit mode — Claude can add a stage to an existing workflow ────────
 PROMPT5="$(cat <<EOF
-/stagent:create --mode=local --workflow=${WF_DIR1}
+/stagent:create --mode=local --flow=${WF_DIR1}
 Add a new stage called reporting after fixing. It should be inline, uninterruptible, result: done → complete. Required input: from_stage fixing. The change is approved. Please update the files now.
 EOF
 )"
@@ -148,7 +148,7 @@ rc5=$?
 check "E2E-2-5: edit mode claude exits 0" $?
 
 # After edit: validate again
-validate5="$("$SETUP" --validate-only --workflow="$WF_DIR1" 2>&1)"
+validate5="$("$SETUP" --validate-only --flow="$WF_DIR1" 2>&1)"
 rc5v=$?
 [[ $rc5v -eq 0 ]]
 check "E2E-2-5: edited workflow still passes --validate-only" $?

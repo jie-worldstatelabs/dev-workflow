@@ -1,6 +1,6 @@
 ---
 description: "Start the dev workflow — inline planning, then autonomous execute→verify→review→QA loop"
-argument-hint: "[--mode=cloud|local] [--workflow=<local-dir|cloud-url>] <task description>"
+argument-hint: "[--mode=cloud|local] [--flow=<local-dir|cloud-url>] <task description>"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion
 ---
 

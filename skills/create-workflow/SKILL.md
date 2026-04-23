@@ -1,14 +1,14 @@
 ---
 name: create-workflow
-description: "Create a new workflow suite from a natural-language description, or edit an existing one when --workflow=<path> is passed. Dispatches the create-workflow stagent (plan → write → validate loop) — does not write files directly."
+description: "Create a new workflow suite from a natural-language description, or edit an existing one when --flow=<path> is passed. Dispatches the create-workflow stagent (plan → write → validate loop) — does not write files directly."
 ---
 
 # Create / Edit Workflow
 
 This skill **dispatches a stagent** that creates or edits a stagent definition. It does NOT write workflow files itself — the stagent's state machine (`planning → writing → validating`) does that, with validator-driven retry until `✓ Workflow validated` prints.
 
-- **Create mode** (no `--workflow` flag): the stagent's `planning` stage interviews the user from scratch.
-- **Edit mode** (`--workflow=<path>` or `--workflow=cloud://author/name`): `planning` pre-loads the existing workflow as the starting point, then asks for changes.
+- **Create mode** (no `--flow` flag): the stagent's `planning` stage interviews the user from scratch.
+- **Edit mode** (`--flow=<path>` or `--flow=cloud://author/name`): `planning` pre-loads the existing workflow as the starting point, then asks for changes.
 
 Both modes dispatch the same stagent at `$P/skills/create-workflow/workflow`. The difference is a single env var (`CREATE_WORKFLOW_CONTEXT`) passed at dispatch time.
 
@@ -42,7 +42,7 @@ eval "$("$P/scripts/parse-workflow-flags.sh" '$ARGUMENTS')" || exit 1
 
 Values set by the parser:
 - `$MODE` — `cloud` (default) or `local`
-- `$WORKFLOW_FLAG` — empty for Create, else the `--workflow=` value for Edit
+- `$WORKFLOW_FLAG` — empty for Create, else the `--flow=` value for Edit
 - `$WF_TYPE` — for Edit only: `local` (filesystem path) or `cloud` (`cloud://author/name`)
 - `$DESCRIPTION` — everything after the flags
 
@@ -145,7 +145,7 @@ Branch on `$MODE` to pick BOTH the right workflow source AND the session-mode fo
   "$P/scripts/setup-workflow.sh" \
     --mode=cloud \
     --topic="<slug-from-step-3>" \
-    --workflow="cloud://create-workflow"
+    --flow="cloud://create-workflow"
   ```
 
 - **`$MODE=local`** — use the plugin-bundled local workflow; runs fully offline, no webapp link:
@@ -155,7 +155,7 @@ Branch on `$MODE` to pick BOTH the right workflow source AND the session-mode fo
   "$P/scripts/setup-workflow.sh" \
     --mode=local \
     --topic="<slug-from-step-3>" \
-    --workflow="$P/skills/create-workflow/workflow"
+    --flow="$P/skills/create-workflow/workflow"
   ```
 
 

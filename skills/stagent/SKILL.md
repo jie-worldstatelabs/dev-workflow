@@ -7,7 +7,7 @@ description: "Drive the dev workflow state machine: read state.md, execute the c
 
 Orchestrate any development cycle as a **config-driven state machine**. This document is the workflow-agnostic meta-protocol; the specific stages, transitions, and per-stage work are declared elsewhere.
 
-A **workflow** is a directory containing `workflow.json` (config) plus one `<stage>.md` per stage (instructions). Alternate workflows can be selected via `setup-workflow.sh --workflow=<path>` where `<path>` is a local directory path or a `cloud://author/name` hub reference — see the **Cloud mode** section below. Omitting `--workflow` uses the plugin's default workflow.
+A **workflow** is a directory containing `workflow.json` (config) plus one `<stage>.md` per stage (instructions). Alternate workflows can be selected via `setup-workflow.sh --flow=<path>` where `<path>` is a local directory path or a `cloud://author/name` hub reference — see the **Cloud mode** section below. Omitting `--flow` uses the plugin's default workflow.
 
 The plugin's runtime behavior is defined in three places:
 
@@ -46,7 +46,7 @@ Some required or optional inputs in a stage's I/O context are **run files** — 
 
 **Login**: run `/stagent:login` for authenticated ownership (required to publish cloud workflows). Anonymous sessions are accepted for everything else. Export `STAGENT_SERVER` to point at an alternative deployment.
 
-**Workflow source** (what to pass as `--workflow`):
+**Workflow source** (what to pass as `--flow`):
 - `cloud://author/name` — named template from the hub
 - `/abs/path` or `./rel/path` — local workflow directory
 - bare name — bundled workflow first, then hub

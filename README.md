@@ -51,7 +51,7 @@ For a fully offline run, switch to local mode:
 
 ## The Default Workflow
 
-With no `--workflow` flag:
+With no `--flow` flag:
 
 - **Cloud mode** (default) fetches `cloud://demo` from the hub
 - **Local mode** uses the plugin-bundled workflow at `skills/stagent/workflow/` (offline fallback)
@@ -71,7 +71,7 @@ The `execute → verify → review → QA` loop runs **autonomously** after you 
 The plugin is **generic** — any stage shape works as long as it follows the schema. Running `/stagent:create` (see Quick Start) dispatches an internal stagent that interviews you, writes `workflow.json` + per-stage instruction files under `~/.config/stagent/workflows/<name>/`, validates them in a retry loop, and publishes the bundle to the hub (cloud mode only). Reuse it with:
 
 ```
-/stagent:start --workflow=cloud://<you>/<name> <task>
+/stagent:start --flow=cloud://<you>/<name> <task>
 ```
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the `workflow.json` schema.
@@ -82,15 +82,15 @@ Need ideas for what to turn into a workflow? See the [cookbook](./docs/claude-co
 
 | Command | Purpose |
 |---|---|
-| `/stagent:start [--mode=cloud\|local] [--workflow=<ref>] <task>` | Start a new run |
+| `/stagent:start [--mode=cloud\|local] [--flow=<ref>] <task>` | Start a new run |
 | `/stagent:interrupt` | Pause the active run at the end of the current stage |
 | `/stagent:continue [--session <id>]` | Resume an interrupted run (`--session` for cross-machine cloud takeover) |
 | `/stagent:cancel [--hard]` | Cancel and archive (or wipe with `--hard`) |
-| `/stagent:create [--workflow=<ref>] <description>` | Create a new workflow or edit an existing one |
+| `/stagent:create [--flow=<ref>] <description>` | Create a new workflow or edit an existing one |
 | `/stagent:publish <dir> [--name <n>] [--description <d>] [--dry-run]` | Publish a local workflow to the hub |
 | `/stagent:login` / `:logout` / `:whoami` | Manage your hub identity |
 
-**`--workflow=<ref>`** accepts:
+**`--flow=<ref>`** accepts:
 - *(omitted)* — cloud mode fetches `cloud://demo` from the hub; local mode uses the plugin-bundled workflow
 - `cloud://author/name` — fetched from the hub (cloud mode)
 - `/abs/path` or `./rel/path` — local workflow directory

@@ -20,7 +20,7 @@
 # `--dry-run` prints what would be uploaded without touching the server.
 #
 # After a successful publish, the workflow can be pulled by the plugin via:
-#   /stagent:start --workflow cloud://<name> <task>
+#   /stagent:start --flow cloud://<name> <task>
 
 set -euo pipefail
 
@@ -169,7 +169,7 @@ _PLUGIN_ROOT="$(cat ~/.config/stagent/plugin-root 2>/dev/null || true)"
 [[ -d "${_PLUGIN_ROOT}/scripts" ]] || _PLUGIN_ROOT=~/.claude/plugins/stagent
 [[ -d "${_PLUGIN_ROOT}/scripts" ]] || _PLUGIN_ROOT="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
 if [[ -z "$DRY_RUN" ]]; then
-  if ! "${_PLUGIN_ROOT}/scripts/setup-workflow.sh" --validate-only --workflow="$DIR"; then
+  if ! "${_PLUGIN_ROOT}/scripts/setup-workflow.sh" --validate-only --flow="$DIR"; then
     echo "❌ Workflow validation failed — fix the errors above before publishing." >&2
     exit 1
   fi
@@ -306,7 +306,7 @@ echo "   Description: ${FINAL_DESC:-<empty>}"
 echo "   Hub URL:     ${STAGENT_SERVER}/hub/${NAME}"
 echo ""
 echo "   Pull with:"
-echo "     /stagent:start --workflow cloud://${NAME} <task>"
+echo "     /stagent:start --flow cloud://${NAME} <task>"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📍 RELAY THIS TO THE USER VERBATIM BEFORE CONTINUING:"

@@ -24,7 +24,7 @@ Read every input path from your I/O context — do NOT construct or hardcode pat
    P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
    [[ -d $P/scripts ]] || P=~/.claude/plugins/stagent
    TARGET="<absolute-path-from-writer-report>"
-   OUTPUT="$("$P/scripts/setup-workflow.sh" --validate-only --workflow="$TARGET" 2>&1)"
+   OUTPUT="$("$P/scripts/setup-workflow.sh" --validate-only --flow="$TARGET" 2>&1)"
    RC=$?
    echo "=== VALIDATOR OUTPUT ==="
    echo "$OUTPUT"

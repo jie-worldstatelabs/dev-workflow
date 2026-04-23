@@ -11,7 +11,7 @@ Single-purpose skill: **materialize a new `state.md`** for the current Claude Co
 
 | Responsibility | Who |
 |---|---|
-| Parse `--mode` / `--workflow` / task description from `$ARGUMENTS` | This skill |
+| Parse `--mode` / `--flow` / task description from `$ARGUMENTS` | This skill |
 | Derive a kebab-case topic from the task | This skill |
 | Run `setup-workflow.sh` (which writes `state.md`, sets up scratch, registers cloud session) | This skill |
 | Handle `setup-workflow.sh` exit codes (0 → success, 2 → active conflict, other → error) | This skill |
@@ -54,10 +54,10 @@ Briefly tell the user: `I'll use topic \`<topic>\` for this workflow.`
 ```bash
 P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
 [[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
-"$P/scripts/setup-workflow.sh" --topic="<topic>" [--workflow="$WORKFLOW_FLAG"] [--mode="$MODE"]
+"$P/scripts/setup-workflow.sh" --topic="<topic>" [--flow="$WORKFLOW_FLAG"] [--mode="$MODE"]
 ```
 
-Pass `--workflow` only when `$WORKFLOW_FLAG` is non-empty. Pass `--mode` only when the user was explicit (otherwise the script defaults).
+Pass `--flow` only when `$WORKFLOW_FLAG` is non-empty. Pass `--mode` only when the user was explicit (otherwise the script defaults).
 
 ### Step 3 — Handle the exit code
 
@@ -73,7 +73,7 @@ Only re-run `setup-workflow.sh --force` if the user **explicitly** asks to disca
 
 **Exit 1 or other — real error.** Relay the stderr verbatim. Common cases:
 
-- Config validation errors (`❌ stage '<x>': ...`) — workflow.json / stage .md problems. If the user passed `--workflow=<their-path>`, that's their config; point at the offending file and stop. If no `--workflow` was passed, it's a plugin bug — surface it.
+- Config validation errors (`❌ stage '<x>': ...`) — workflow.json / stage .md problems. If the user passed `--flow=<their-path>`, that's their config; point at the offending file and stop. If no `--flow` was passed, it's a plugin bug — surface it.
 - `session_id is unknown` — SessionStart hook didn't populate the cache. Tell the user to restart their Claude Code session.
 - Cloud fetch failure — relay and suggest retry / network check / `--mode=local` escape hatch.
 

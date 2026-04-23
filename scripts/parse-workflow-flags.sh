@@ -9,15 +9,15 @@
 #   $1  — raw $ARGUMENTS string from the skill (the full user input line)
 #
 # On success (exit 0), prints sourciable variable assignments to stdout:
-#   WORKFLOW_FLAG='...'   value of --workflow (empty if omitted)
+#   WORKFLOW_FLAG='...'   value of --flow (empty if omitted)
 #   MODE='...'            cloud|local  (default: STAGENT_DEFAULT_MODE or cloud)
 #   WF_TYPE='...'         local|cloud  (empty when WORKFLOW_FLAG is empty)
-#   DESCRIPTION='...'     remaining text after stripping --workflow and --mode flags
+#   DESCRIPTION='...'     remaining text after stripping --flow and --mode flags
 #
 # On error (exit 1), prints ❌ lines to stderr. Nothing is printed to stdout.
 #
 # Validation performed:
-#   - --workflow value must be a local dir with workflow.json, or cloud://author/name
+#   - --flow value must be a local dir with workflow.json, or cloud://author/name
 #   - cloud://... is forbidden when --mode=local
 #   - local path must exist and contain workflow.json
 
@@ -35,13 +35,13 @@ DESCRIPTION="$ARGS"
 
 # ── Flag parsing ──────────────────────────────────────────────────────────────
 
-# --workflow=<value>  or  --workflow <value>  (space-separated, legacy)
-if [[ "$ARGS" =~ (^|[[:space:]])--workflow=([^[:space:]]+) ]]; then
+# --flow=<value>  or  --flow <value>  (space-separated, legacy)
+if [[ "$ARGS" =~ (^|[[:space:]])--flow=([^[:space:]]+) ]]; then
   WORKFLOW_FLAG="${BASH_REMATCH[2]}"
-  DESCRIPTION="${DESCRIPTION/--workflow=${WORKFLOW_FLAG}/}"
-elif [[ "$ARGS" =~ (^|[[:space:]])--workflow[[:space:]]+([^-][^[:space:]]*) ]]; then
+  DESCRIPTION="${DESCRIPTION/--flow=${WORKFLOW_FLAG}/}"
+elif [[ "$ARGS" =~ (^|[[:space:]])--flow[[:space:]]+([^-][^[:space:]]*) ]]; then
   WORKFLOW_FLAG="${BASH_REMATCH[2]}"
-  DESCRIPTION="${DESCRIPTION/--workflow ${WORKFLOW_FLAG}/}"
+  DESCRIPTION="${DESCRIPTION/--flow ${WORKFLOW_FLAG}/}"
 fi
 
 # --mode=cloud|local
@@ -82,7 +82,7 @@ if [[ -n "$WORKFLOW_FLAG" ]]; then
 
   # Cloud reference forbidden in local mode
   if [[ $ERRS -eq 0 && "$WF_TYPE" == "cloud" && "$MODE" == "local" ]]; then
-    echo "❌ --workflow '${WORKFLOW_FLAG}' is a cloud reference — cannot be used with --mode=local." >&2
+    echo "❌ --flow '${WORKFLOW_FLAG}' is a cloud reference — cannot be used with --mode=local." >&2
     echo "   Remove --mode=local (cloud is the default) or pass a local directory path." >&2
     ERRS=1
   fi

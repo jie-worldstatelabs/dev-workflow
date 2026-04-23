@@ -1077,7 +1077,7 @@ _cloud_post_json() {
 # Remote workflow config fetch
 # ──────────────────────────────────────────────────────────────
 #
-# Supported forms (matches setup-workflow.sh --workflow argument):
+# Supported forms (matches setup-workflow.sh --flow argument):
 #   cloud://author/name  named template on $STAGENT_SERVER
 #   /abs/path         local absolute path (copied verbatim)
 #   bare name         resolved against PLUGIN_ROOT/skills/stagent/

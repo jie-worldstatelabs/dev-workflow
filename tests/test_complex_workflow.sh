@@ -39,7 +39,7 @@ cat > "$TMP/cond/workflow.json" <<'EOF'
 }
 EOF
 touch "$TMP/cond/triage.md" "$TMP/cond/patch.md" "$TMP/cond/design.md"
-"$VALIDATE" --validate-only --workflow="$TMP/cond" 2>/dev/null
+"$VALIDATE" --validate-only --flow="$TMP/cond" 2>/dev/null
 check "conditional fan-out transitions → valid" $?
 
 # ── T12-2: Cycle (A → B → A) — valid (cycles are allowed state machine loops) ─
@@ -61,7 +61,7 @@ cat > "$TMP/cycle/workflow.json" <<'EOF'
 }
 EOF
 touch "$TMP/cycle/plan.md" "$TMP/cycle/review.md"
-"$VALIDATE" --validate-only --workflow="$TMP/cycle" 2>/dev/null
+"$VALIDATE" --validate-only --flow="$TMP/cycle" 2>/dev/null
 check "cycle (plan→review→plan) → valid" $?
 
 # ── T12-3: Transition to undefined stage → validation fails ──────────────────
@@ -79,7 +79,7 @@ cat > "$TMP/bad_trans/workflow.json" <<'EOF'
 }
 EOF
 touch "$TMP/bad_trans/plan.md"
-rc=0; "$VALIDATE" --validate-only --workflow="$TMP/bad_trans" 2>/dev/null || rc=$?
+rc=0; "$VALIDATE" --validate-only --flow="$TMP/bad_trans" 2>/dev/null || rc=$?
 [[ $rc -ne 0 ]]
 check "transition to undefined stage → validation fails" $?
 
@@ -98,7 +98,7 @@ cat > "$TMP/bad_init/workflow.json" <<'EOF'
 }
 EOF
 touch "$TMP/bad_init/plan.md"
-rc=0; "$VALIDATE" --validate-only --workflow="$TMP/bad_init" 2>/dev/null || rc=$?
+rc=0; "$VALIDATE" --validate-only --flow="$TMP/bad_init" 2>/dev/null || rc=$?
 [[ $rc -ne 0 ]]
 check "initial_stage not in stages → validation fails" $?
 
@@ -202,7 +202,7 @@ cat > "$TMP/chain/workflow.json" <<'EOF'
 }
 EOF
 touch "$TMP/chain/research.md" "$TMP/chain/design.md" "$TMP/chain/implement.md"
-"$VALIDATE" --validate-only --workflow="$TMP/chain" 2>/dev/null
+"$VALIDATE" --validate-only --flow="$TMP/chain" 2>/dev/null
 check "4-stage chain with conditional back-edges + required_inputs → valid" $?
 
 # ── T12-8: required_inputs from_stage refs undefined stage → validation fails ─
@@ -225,7 +225,7 @@ cat > "$TMP/bad_input/workflow.json" <<'EOF'
 }
 EOF
 touch "$TMP/bad_input/build.md"
-rc=0; "$VALIDATE" --validate-only --workflow="$TMP/bad_input" 2>/dev/null || rc=$?
+rc=0; "$VALIDATE" --validate-only --flow="$TMP/bad_input" 2>/dev/null || rc=$?
 [[ $rc -ne 0 ]]
 check "required_inputs from_stage refs undefined stage → validation fails" $?
 

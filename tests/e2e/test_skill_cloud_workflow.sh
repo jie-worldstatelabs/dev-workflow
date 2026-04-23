@@ -168,7 +168,7 @@ P1="$TMP/project1"
 make_git_project "$P1"
 
 run_claude "$P1" \
-    "/stagent:start --mode=cloud --workflow=${SMOKE_WF} smoke-cloud-e2e" \
+    "/stagent:start --mode=cloud --flow=${SMOKE_WF} smoke-cloud-e2e" \
     OUTPUT1 RC1
 
 check "C2E-2-1: claude exits 0" "$RC1"

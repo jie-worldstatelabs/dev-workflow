@@ -64,7 +64,7 @@ seed_state() {
   mkdir -p "$HOME/.cache/stagent/session-cache"
   echo "$session_id" > "$HOME/.cache/stagent/session-cache/cwd-$key"
   (cd "$project" && "${PLUGIN_ROOT}/scripts/setup-workflow.sh" \
-      --mode=local --topic="$topic" --workflow="$workflow" > /dev/null 2>&1)
+      --mode=local --topic="$topic" --flow="$workflow" > /dev/null 2>&1)
 }
 
 # Run claude --print; capture output and exit code without triggering set -e.
@@ -86,7 +86,7 @@ P1="$TMP/project1"
 make_git_project "$P1"
 
 run_claude "$P1" \
-    "/stagent:start --mode=local --workflow=${SMOKE_WF} smoke-check-e2e" \
+    "/stagent:start --mode=local --flow=${SMOKE_WF} smoke-check-e2e" \
     OUTPUT1 RC1
 
 check "E2E-1-1: claude exits 0" "$RC1"

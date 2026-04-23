@@ -27,7 +27,7 @@ skills/
     SKILL.md             ← meta-protocol: how to drive the state machine
                            (workflow-agnostic)
     workflow/            ← bundled workflow package (local-mode fallback
-                           when --workflow is omitted; cloud mode fetches
+                           when --flow is omitted; cloud mode fetches
                            cloud://demo from the hub instead)
       workflow.json      ← state-machine shape
       planning.md        ← per-stage instructions
@@ -55,7 +55,7 @@ hooks/
 scripts/
   lib.sh                 ← shared helpers (config reader, state routing,
                            cloud helpers)
-  setup-workflow.sh      ← creates state.md (--topic, --workflow, --mode,
+  setup-workflow.sh      ← creates state.md (--topic, --flow, --mode,
                            --force, --validate-only)
   update-status.sh       ← the only legal way to transition; validates
                            required inputs, bumps epoch, clears next stage's

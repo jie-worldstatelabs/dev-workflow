@@ -1,5 +1,5 @@
 #!/bin/bash
-# Print the pre-flight banner for /meta-workflow:start
+# Print the pre-flight banner for /stagent:start
 # Usage: print-start-banner.sh <mode> <workflow_flag> <wf_type>
 
 set -euo pipefail
@@ -11,7 +11,7 @@ MODE="${1:-cloud}"
 WORKFLOW_FLAG="${2:-}"
 WF_TYPE="${3:-}"
 
-_server="${META_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}"
+_server="${STAGENT_SERVER:-https://workflows.worldstatelabs.com}"
 if [[ -z "$WORKFLOW_FLAG" ]]; then
   if [[ "$MODE" == "cloud" ]]; then
     _wf="demo  ←  ${_server}/hub/demo  (cloud default)"
@@ -29,19 +29,19 @@ echo "  Mode:     ${MODE}"
 if [[ "$MODE" == "cloud" ]]; then
   echo "  State:    ${_server}/s/<session_id>  (live after setup)"
   cloud_is_logged_in \
-    && echo "  Auth:     $(jq -r '.author // "unknown"' ~/.config/meta-workflow/auth.json 2>/dev/null)  (logged in)" \
-    || echo "  Auth:     anonymous  — run /meta-workflow:login to attach an account"
+    && echo "  Auth:     $(jq -r '.author // "unknown"' ~/.config/stagent/auth.json 2>/dev/null)  (logged in)" \
+    || echo "  Auth:     anonymous  — run /stagent:login to attach an account"
 else
-  echo "  State:    <project>/.meta-workflow/<session_id>/"
+  echo "  State:    <project>/.stagent/<session_id>/"
 fi
 echo "  Workflow: ${_wf}"
 if [[ "$MODE" == "cloud" ]]; then
-  echo "  Tip:      To run locally: /meta-workflow:start --mode=local [--workflow=<path>]"
+  echo "  Tip:      To run locally: /stagent:start --mode=local [--workflow=<path>]"
 else
   if [[ -n "$WORKFLOW_FLAG" && "$WF_TYPE" != "cloud" ]]; then
-    echo "  Tip:      To run on cloud: /meta-workflow:start --workflow=cloud://<name>  (publish your local workflow first)"
+    echo "  Tip:      To run on cloud: /stagent:start --workflow=cloud://<name>  (publish your local workflow first)"
   else
-    echo "  Tip:      To run on cloud: /meta-workflow:start  (defaults to cloud mode, pulls cloud://demo)"
+    echo "  Tip:      To run on cloud: /stagent:start  (defaults to cloud mode, pulls cloud://demo)"
   fi
 fi
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

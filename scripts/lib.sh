@@ -1,8 +1,8 @@
 #!/bin/bash
-# Shared utilities for meta-workflow scripts.
+# Shared utilities for stagent scripts.
 #
 # Groups:
-#   1. .meta-workflow/ discovery (find_dw_root)
+#   1. .stagent/ discovery (find_dw_root)
 #   2. State resolution (resolve_state) — locates the right state.md among
 #      possibly many per-topic subdirs
 #   3. Workflow config access (reads workflow.json)
@@ -15,29 +15,29 @@ _LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(dirname "$_LIB_DIR")"
 
 # A workflow is a directory containing workflow.json + one {stage}.md per stage.
-# Default ships at skills/meta-workflow/workflow/.
-DEFAULT_WORKFLOW_DIR="${PLUGIN_ROOT}/skills/meta-workflow/workflow"
+# Default ships at skills/stagent/workflow/.
+DEFAULT_WORKFLOW_DIR="${PLUGIN_ROOT}/skills/stagent/workflow"
 
 # Resolved workflow dir + config file (may be overridden by resolve_workflow_dir_from_state)
 WORKFLOW_DIR="$DEFAULT_WORKFLOW_DIR"
 CONFIG_FILE="${WORKFLOW_DIR}/workflow.json"
 
 # ──────────────────────────────────────────────────────────────
-# .meta-workflow/ discovery
+# .stagent/ discovery
 # ──────────────────────────────────────────────────────────────
 
-# Echo the absolute path to the nearest .meta-workflow/ dir (upward walk from CWD).
+# Echo the absolute path to the nearest .stagent/ dir (upward walk from CWD).
 # Returns 1 if none found.
 find_dw_root() {
-  if [[ -d ".meta-workflow" ]]; then
-    echo "$(pwd)/.meta-workflow"
+  if [[ -d ".stagent" ]]; then
+    echo "$(pwd)/.stagent"
     return 0
   fi
   local dir
   dir="$(pwd)"
   while [[ "$dir" != "/" ]]; do
-    if [[ -d "$dir/.meta-workflow" ]]; then
-      echo "$dir/.meta-workflow"
+    if [[ -d "$dir/.stagent" ]]; then
+      echo "$dir/.stagent"
       return 0
     fi
     dir="$(dirname "$dir")"
@@ -72,18 +72,18 @@ set_fm_field() {
 }
 
 # ──────────────────────────────────────────────────────────────
-# Archive helper — move a run dir to .meta-workflow/.archive/
+# Archive helper — move a run dir to .stagent/.archive/
 # ──────────────────────────────────────────────────────────────
 #
 # Shared by setup-workflow.sh (archive-on-replace) and cancel-workflow.sh
 # (archive-on-cancel) so the "keep audit trail instead of rm -rf" policy
 # lives in one place.
 #
-# Archive path: <.meta-workflow>/.archive/<YYYYMMDD-HHMMSS>-<topic>[-<suffix>]/
+# Archive path: <.stagent>/.archive/<YYYYMMDD-HHMMSS>-<topic>[-<suffix>]/
 # Hidden dot-dir so resolve_state's "$dw"/*/state.md glob skips it.
 #
 # Args:
-#   $1 = run dir (absolute), typically .meta-workflow/<session_id>
+#   $1 = run dir (absolute), typically .stagent/<session_id>
 #   $2 = topic fallback (optional, used when state.md is missing/empty)
 #   $3 = suffix (optional, e.g. "cancelled" to distinguish intent)
 #
@@ -161,7 +161,7 @@ archive_run_dir() {
 # matches, the session_id is unknown and setup-workflow.sh fails fast
 # (it can't create a session-keyed run dir without one).
 
-_DW_SESSION_CACHE_DIR="${HOME}/.cache/meta-workflow/session-cache"
+_DW_SESSION_CACHE_DIR="${HOME}/.cache/stagent/session-cache"
 
 _session_cache_cwd_key() {
   printf '%s' "$(pwd)" | shasum -a 1 | cut -c1-16
@@ -221,7 +221,7 @@ read_cached_session_id() {
 # State resolution
 # ──────────────────────────────────────────────────────────────
 #
-# Layout: <project>/.meta-workflow/<session_id>/state.md plus per-stage
+# Layout: <project>/.stagent/<session_id>/state.md plus per-stage
 # reports in the same <session_id>/ subdir. Each Claude session gets its
 # own isolated run, so multiple sessions in the same worktree coexist
 # without stepping on each other.
@@ -255,7 +255,7 @@ _populate_state_vars() {
 resolve_state() {
   # Cloud mode short-circuit: if the current session is registered as
   # cloud, read its shadow state.md from the scratch dir directly. The
-  # project's worktree has no .meta-workflow/ in cloud mode, so walking up
+  # project's worktree has no .stagent/ in cloud mode, so walking up
   # from CWD would fail — the scratch dir is the only truth locally.
   local _sess="${DESIRED_SESSION:-}"
   if [[ -z "$_sess" ]]; then _sess="$(read_cached_session_id)"; fi
@@ -280,7 +280,7 @@ resolve_state() {
   local project_root
   project_root="$(dirname "$dw")"
 
-  # Session-keyed layout: .meta-workflow/<session_id>/state.md
+  # Session-keyed layout: .stagent/<session_id>/state.md
   # Primary resolution: DESIRED_SESSION (caller-supplied, typically from
   # HOOK_INPUT in hooks) or the cached session_id for this Claude session.
   local session="${DESIRED_SESSION:-}"
@@ -310,7 +310,7 @@ resolve_state() {
 
   # Unambiguous single-workflow fallback. When neither DESIRED_SESSION
   # nor DESIRED_TOPIC was provided and the project has exactly one
-  # session subdir under .meta-workflow/, just use it. This removes the
+  # session subdir under .stagent/, just use it. This removes the
   # friction of having to pass --topic when calling plugin scripts from
   # an agent Bash invocation that didn't inherit the session-start hook
   # context (so read_cached_session_id returned empty). With two or
@@ -323,7 +323,7 @@ resolve_state() {
   # workflow" — not "take the neighbor's". Without this gate, a stop-
   # hook firing in Claude Code session A (cwd=/proj/sub) would adopt
   # the workflow started by session B (cwd=/proj) because the project's
-  # .meta-workflow/ happens to have exactly one entry.
+  # .stagent/ happens to have exactly one entry.
   if [[ -z "$session" ]]; then
     local _candidates=()
     local _c
@@ -336,7 +336,7 @@ resolve_state() {
     fi
   fi
 
-  # Legacy: flat .meta-workflow/state.md (pre-v1.11) — single-workflow fallback
+  # Legacy: flat .stagent/state.md (pre-v1.11) — single-workflow fallback
   if [[ -f "$dw/state.md" ]]; then
     _populate_state_vars "$dw/state.md" "$project_root"
     TOPIC_DIR="$dw"
@@ -348,7 +348,7 @@ resolve_state() {
 }
 
 # Find a state.md with status=interrupted across all session dirs under
-# .meta-workflow/. Used by continue-workflow.sh for cross-session takeover.
+# .stagent/. Used by continue-workflow.sh for cross-session takeover.
 # On success: sets STATE_FILE/TOPIC_DIR/RUN_DIR_NAME/TOPIC/PROJECT_ROOT to
 # the found dir (still keyed by the ORIGINAL session id — caller must
 # rename to new session id).
@@ -392,7 +392,7 @@ resolve_interrupted_state() {
   return 0
 }
 
-# List all workflows (state.md files) under .meta-workflow/, with their status.
+# List all workflows (state.md files) under .stagent/, with their status.
 # Useful for error messages when resolve_state is ambiguous.
 list_all_workflows() {
   local dw
@@ -512,7 +512,7 @@ config_validate() {
     esac
 
     # subagent stages must NOT declare subagent_type. There is one generic
-    # meta-workflow:workflow-subagent hardcoded in agent-guard.sh and
+    # stagent:workflow-subagent hardcoded in agent-guard.sh and
     # stop-hook.sh — per-stage behavior comes entirely from the stage
     # instructions file. Accepting a per-stage subagent_type here would
     # create a silent mismatch between workflow.json and what actually
@@ -598,7 +598,7 @@ config_max_epoch() {
 # the plugin captures a baseline-tree at setup and POSTs a working-tree
 # diff to the server; when false it skips both and the UI hides the diff
 # panel. Set to false for workflows whose output lives outside the
-# project (e.g. create-workflow writes to ~/.config/meta-workflow/).
+# project (e.g. create-workflow writes to ~/.config/stagent/).
 #
 # Reads workflow.json `.modifies_worktree`. Accepts true/false; anything
 # else (missing, null, malformed) defaults to true for backward compat
@@ -691,7 +691,7 @@ config_optional_inputs() {
 #      right shadow path.
 #   2. $TOPIC_DIR — set by resolve_state after state.md is located; points
 #      to the correct run dir in both local and cloud modes.
-#   3. Fallback: <project>/.meta-workflow/<run_dir_name>/<stage>-report.md —
+#   3. Fallback: <project>/.stagent/<run_dir_name>/<stage>-report.md —
 #      the legacy local-mode path when neither of the above is populated.
 config_artifact_path() {
   local stage="$1"
@@ -705,7 +705,7 @@ config_artifact_path() {
     echo "${TOPIC_DIR}/${stage}-report.md"
     return
   fi
-  echo "${project_root}/.meta-workflow/${run_dir_name}/${stage}-report.md"
+  echo "${project_root}/.stagent/${run_dir_name}/${stage}-report.md"
 }
 
 # Path for a run_file (created once at setup time, stored in the run dir).
@@ -726,7 +726,7 @@ config_run_file_path() {
     echo "${TOPIC_DIR}/${name}"
     return
   fi
-  echo "${project_root}/.meta-workflow/${run_dir_name}/${name}"
+  echo "${project_root}/.stagent/${run_dir_name}/${name}"
 }
 
 # Init shell command for a run_file.
@@ -792,23 +792,23 @@ config_show_stage_context() {
 #
 # Cloud mode puts the authoritative copy of state + artifacts on a
 # remote server (the workflowUI webapp). A transient shadow lives under
-# ~/.cache/meta-workflow/sessions/<session_id>/ so Claude's Read/Write
+# ~/.cache/stagent/sessions/<session_id>/ so Claude's Read/Write
 # tools still have real file paths to operate on. Every write is mirrored
-# to the server via curl. The project worktree gets no .meta-workflow/ dir.
+# to the server via curl. The project worktree gets no .stagent/ dir.
 #
-# Registry: ~/.cache/meta-workflow/cloud-registry/<session_id>.json records
+# Registry: ~/.cache/stagent/cloud-registry/<session_id>.json records
 # {mode, session_id, scratch_dir, server, workflow_url}. Its presence is
 # how every script/hook decides "cloud or local" — no env var needed.
 
-CLOUD_REGISTRY_DIR="${HOME}/.cache/meta-workflow/cloud-registry"
-CLOUD_SCRATCH_BASE="${HOME}/.cache/meta-workflow/sessions"
+CLOUD_REGISTRY_DIR="${HOME}/.cache/stagent/cloud-registry"
+CLOUD_SCRATCH_BASE="${HOME}/.cache/stagent/sessions"
 
 # Default cloud server for this plugin build. Hard-coded so users only need
-# to export META_WORKFLOW_API_TOKEN; the server URL is baked in. Override by
-# exporting META_WORKFLOW_SERVER=... (useful for pointing at a local dev
+# to export STAGENT_API_TOKEN; the server URL is baked in. Override by
+# exporting STAGENT_SERVER=... (useful for pointing at a local dev
 # webapp, a staging deployment, or a fork).
-: "${META_WORKFLOW_SERVER:=https://workflows.worldstatelabs.com}"
-export META_WORKFLOW_SERVER
+: "${STAGENT_SERVER:=https://workflows.worldstatelabs.com}"
+export STAGENT_SERVER
 
 cloud_scratch_dir() {
   echo "$CLOUD_SCRATCH_BASE"
@@ -897,10 +897,10 @@ cloud_require_env() {
   # Auth is currently disabled — session_id in the URL is the capability.
   # Only the server URL must be set, and it always is (baked-in default
   # at the top of this file; users can override by exporting
-  # META_WORKFLOW_SERVER). This function stays in place so a future
+  # STAGENT_SERVER). This function stays in place so a future
   # multi-user auth layer can plug back in without touching callers.
-  if [[ -z "${META_WORKFLOW_SERVER:-}" ]]; then
-    echo "❌ META_WORKFLOW_SERVER unexpectedly empty" >&2
+  if [[ -z "${STAGENT_SERVER:-}" ]]; then
+    echo "❌ STAGENT_SERVER unexpectedly empty" >&2
     return 1
   fi
   return 0
@@ -912,29 +912,29 @@ _cloud_server() {
     local s; s="$(cloud_registry_get "$sid" server)"
     [[ -n "$s" ]] && { echo "$s"; return; }
   fi
-  echo "${META_WORKFLOW_SERVER:-}"
+  echo "${STAGENT_SERVER:-}"
 }
 
 # Auth header for cloud requests. Two modes:
 #
-#   - Authenticated: ~/.config/meta-workflow/auth.json exists with a `token`
+#   - Authenticated: ~/.config/stagent/auth.json exists with a `token`
 #     field. We emit "Authorization: Bearer <token>" so the server can
 #     attribute the request to the logged-in user and stamp user_id on
 #     any rows it creates.
 #
-#   - Anonymous: no auth file. We emit a benign X-Meta-Workflow marker
+#   - Anonymous: no auth file. We emit a benign X-Stagent marker
 #     so the curl -H argument is always well-formed (curl rejects empty
 #     -H values). Server routes that don't require auth continue to
 #     accept the request; routes that check user_id see NULL.
 #
-# To log in:  /meta-workflow:login
-# To log out: /meta-workflow:logout
+# To log in:  /stagent:login
+# To log out: /stagent:logout
 # Returns 0 if the user has a non-empty bearer token at
-# ~/.config/meta-workflow/auth.json (written by login-workflow.sh), else 1.
+# ~/.config/stagent/auth.json (written by login-workflow.sh), else 1.
 # Used by setup-workflow.sh to surface a "consider logging in" tip on
 # anonymous cloud runs. Never errors; non-zero just means "not logged in".
 cloud_is_logged_in() {
-  local auth_file="${HOME}/.config/meta-workflow/auth.json"
+  local auth_file="${HOME}/.config/stagent/auth.json"
   [[ -f "$auth_file" ]] || return 1
   local token
   token="$(jq -r '.token // empty' "$auth_file" 2>/dev/null || true)"
@@ -949,7 +949,7 @@ cloud_is_logged_in() {
 # Usage: cloud_explain_curl_exit <exit_code> [server_url]
 # Exit code 0 is a no-op; unknown codes fall back to a generic message.
 cloud_explain_curl_exit() {
-  local code="$1" server="${2:-the meta-workflow server}"
+  local code="$1" server="${2:-the stagent server}"
   case "$code" in
     0)   return 0 ;;
     6)   echo "❌ Can't resolve ${server} — DNS lookup failed." >&2
@@ -971,7 +971,7 @@ cloud_explain_curl_exit() {
 }
 
 _cloud_auth_header() {
-  local auth_file="${HOME}/.config/meta-workflow/auth.json"
+  local auth_file="${HOME}/.config/stagent/auth.json"
   if [[ -f "$auth_file" ]]; then
     local token
     token="$(jq -r '.token // empty' "$auth_file" 2>/dev/null || true)"
@@ -980,7 +980,7 @@ _cloud_auth_header() {
       return 0
     fi
   fi
-  echo "X-Meta-Workflow: plugin"
+  echo "X-Stagent: plugin"
 }
 
 # ──────────────────────────────────────────────────────────────
@@ -1052,7 +1052,7 @@ _cloud_curl_once() {
 _cloud_warn() {
   local sid="$1" msg="$2"
   [[ -n "$msg" ]] || return 0
-  echo "⚠️  [meta-workflow cloud] $msg" >&2
+  echo "⚠️  [stagent cloud] $msg" >&2
   [[ -n "$sid" ]] || return 0
   local shadow; shadow="$(cloud_registry_get "$sid" scratch_dir)"
   [[ -z "$shadow" ]] && shadow="${CLOUD_SCRATCH_BASE}/${sid}"
@@ -1078,9 +1078,9 @@ _cloud_post_json() {
 # ──────────────────────────────────────────────────────────────
 #
 # Supported forms (matches setup-workflow.sh --workflow argument):
-#   cloud://author/name  named template on $META_WORKFLOW_SERVER
+#   cloud://author/name  named template on $STAGENT_SERVER
 #   /abs/path         local absolute path (copied verbatim)
-#   bare name         resolved against PLUGIN_ROOT/skills/meta-workflow/
+#   bare name         resolved against PLUGIN_ROOT/skills/stagent/
 #
 # Destination is a local directory that setup-workflow.sh prepares — the
 # scratch dir's .workflow-cache/ in cloud mode, or a fresh temp dir for
@@ -1114,7 +1114,7 @@ cloud_fetch_workflow_from_name() {
   local name="$1" dest="$2"
   cloud_require_env || return 1
   mkdir -p "$dest"
-  local base="${META_WORKFLOW_SERVER}/api/workflows/${name}"
+  local base="${STAGENT_SERVER}/api/workflows/${name}"
   local bundle
   local fetch_rc=0
   bundle="$(curl -sS -fL -H "$(_cloud_auth_header)" "$base" 2>/dev/null)" || fetch_rc=$?
@@ -1123,9 +1123,9 @@ cloud_fetch_workflow_from_name() {
     # not authorized" with a specific hint; other codes are network problems.
     if [[ $fetch_rc -eq 22 ]]; then
       echo "❌ Workflow '${name}' not found on the hub (or you don't have access)." >&2
-      echo "   Check the name, or run /meta-workflow:login if it's private." >&2
+      echo "   Check the name, or run /stagent:login if it's private." >&2
     else
-      cloud_explain_curl_exit "$fetch_rc" "$META_WORKFLOW_SERVER"
+      cloud_explain_curl_exit "$fetch_rc" "$STAGENT_SERVER"
     fi
     return 1
   fi
@@ -1193,7 +1193,7 @@ cloud_post_setup() {
         force: $force
       }')"
 
-  _cloud_post_json "${META_WORKFLOW_SERVER}/api/sessions/${sid}/setup" "$payload"
+  _cloud_post_json "${STAGENT_SERVER}/api/sessions/${sid}/setup" "$payload"
 }
 
 cloud_post_state() {
@@ -1215,7 +1215,7 @@ cloud_post_state() {
       }
       + (if $pr  == "" then {} else {project_root: $pr} end)
       + (if $fpr == "" then {} else {project_fingerprint: $fpr} end)')"
-  if ! _cloud_post_json "${META_WORKFLOW_SERVER}/api/sessions/${sid}/state" "$payload"; then
+  if ! _cloud_post_json "${STAGENT_SERVER}/api/sessions/${sid}/state" "$payload"; then
     _cloud_warn "$sid" "cloud_post_state failed after retries: status=${status} epoch=${epoch}"
     return 1
   fi
@@ -1277,7 +1277,7 @@ cloud_post_artifact() {
     return 1
   fi
   if ! _cloud_curl_retry POST \
-        "${META_WORKFLOW_SERVER}/api/sessions/${sid}/artifacts/${stage}" \
+        "${STAGENT_SERVER}/api/sessions/${sid}/artifacts/${stage}" \
         -H "Content-Type: text/plain" \
         --data-binary "@${file}"; then
     local bytes; bytes=$(wc -c < "$file" 2>/dev/null | tr -d ' ')
@@ -1308,7 +1308,7 @@ synthesize_terminal_report() {
 
   local now server live_url artifacts_list snap
   now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  server="${META_WORKFLOW_SERVER:-}"
+  server="${STAGENT_SERVER:-}"
   live_url="-"
   [[ -n "$server" ]] && live_url="${server}/s/${sid}"
 
@@ -1370,7 +1370,7 @@ cloud_delete_artifact() {
   local sid="$1" stage="$2"
   cloud_require_env || return 1
   if ! _cloud_curl_retry DELETE \
-        "${META_WORKFLOW_SERVER}/api/sessions/${sid}/artifacts/${stage}"; then
+        "${STAGENT_SERVER}/api/sessions/${sid}/artifacts/${stage}"; then
     _cloud_warn "$sid" "cloud_delete_artifact failed after retries: stage=${stage}"
     return 1
   fi
@@ -1380,7 +1380,7 @@ cloud_delete_artifact() {
 cloud_post_archive() {
   local sid="$1"
   cloud_require_env || return 1
-  if ! _cloud_curl_retry POST "${META_WORKFLOW_SERVER}/api/sessions/${sid}/archive"; then
+  if ! _cloud_curl_retry POST "${STAGENT_SERVER}/api/sessions/${sid}/archive"; then
     _cloud_warn "$sid" "cloud_post_archive failed after retries"
     return 1
   fi
@@ -1390,7 +1390,7 @@ cloud_post_archive() {
 cloud_post_cancel() {
   local sid="$1"
   cloud_require_env || return 1
-  if ! _cloud_curl_retry POST "${META_WORKFLOW_SERVER}/api/sessions/${sid}/cancel"; then
+  if ! _cloud_curl_retry POST "${STAGENT_SERVER}/api/sessions/${sid}/cancel"; then
     _cloud_warn "$sid" "cloud_post_cancel failed after retries"
     return 1
   fi
@@ -1400,7 +1400,7 @@ cloud_post_cancel() {
 cloud_delete_session() {
   local sid="$1"
   cloud_require_env || return 1
-  if ! _cloud_curl_retry DELETE "${META_WORKFLOW_SERVER}/api/sessions/${sid}"; then
+  if ! _cloud_curl_retry DELETE "${STAGENT_SERVER}/api/sessions/${sid}"; then
     _cloud_warn "$sid" "cloud_delete_session failed after retries"
     return 1
   fi
@@ -1413,7 +1413,7 @@ cloud_delete_session() {
 #
 # Rebuild a full local shadow for a cloud session by pulling every
 # artifact, workflow file, state field, and baseline from the server.
-# Used by continue-workflow.sh when the user runs `/meta-workflow:continue
+# Used by continue-workflow.sh when the user runs `/stagent:continue
 # --session <id>` on a machine that has never seen this session before.
 #
 # Side effects:
@@ -1437,7 +1437,7 @@ cloud_pull_shadow() {
   trap "rm -f '$_pull_tmp'" RETURN
   _pull_http="$(curl -sS -o "$_pull_tmp" -w "%{http_code}" \
       -H "$(_cloud_auth_header)" \
-      "${META_WORKFLOW_SERVER}/api/sessions/${sid}" 2>/dev/null)" || _pull_http="000"
+      "${STAGENT_SERVER}/api/sessions/${sid}" 2>/dev/null)" || _pull_http="000"
   if [[ "$_pull_http" == "404" ]]; then
     echo "❌ session ${sid} was deleted from the server (HTTP 404)" >&2
     return 2
@@ -1471,7 +1471,7 @@ cloud_pull_shadow() {
     [[ -z "$fname" ]] && continue
     curl -sS -fL -H "$(_cloud_auth_header)" \
       -o "${shadow}/.workflow-cache/${fname}" \
-      "${META_WORKFLOW_SERVER}/api/sessions/${sid}/files/${fname}" 2>/dev/null || {
+      "${STAGENT_SERVER}/api/sessions/${sid}/files/${fname}" 2>/dev/null || {
       echo "⚠️  could not fetch workflow file ${fname}" >&2
     }
   done < <(printf '%s' "$snapshot" | jq -r '.workflow_files[]?.filename')
@@ -1523,7 +1523,7 @@ EOF
   # machine used.
   local diff_resp baseline
   diff_resp="$(curl -sS -fL -H "$(_cloud_auth_header)" \
-               "${META_WORKFLOW_SERVER}/api/sessions/${sid}/diff" 2>/dev/null || echo "{}")"
+               "${STAGENT_SERVER}/api/sessions/${sid}/diff" 2>/dev/null || echo "{}")"
   baseline="$(printf '%s' "$diff_resp" | jq -r '.baseline // ""')"
   if [[ -n "$baseline" ]] && [[ "$baseline" != "null" ]]; then
     echo "$baseline" > "${shadow}/baseline"
@@ -1568,7 +1568,7 @@ cloud_post_diff() {
   [[ -d "$shadow" ]] || return 0
 
   # Workflows that don't touch the worktree (e.g. create-workflow, which
-  # writes to ~/.config/meta-workflow/) opt out of the diff pipeline.
+  # writes to ~/.config/stagent/) opt out of the diff pipeline.
   # The UI renders a placeholder for these sessions instead of a noisy
   # full-worktree diff.
   if [[ "$(_session_modifies_worktree "$shadow")" == "false" ]]; then
@@ -1633,8 +1633,8 @@ cloud_post_diff() {
   # actually producing the noise. `:(top)` + `:(top,glob)` together cover
   # both the repo root and any nested occurrence.
   local -a DIFF_EXCLUDES=(
-    ':(top,exclude).meta-workflow' ':(top,exclude).meta-workflow/**'
-    ':(top,exclude,glob)**/.meta-workflow/**'
+    ':(top,exclude).stagent' ':(top,exclude).stagent/**'
+    ':(top,exclude,glob)**/.stagent/**'
     ':(top,exclude).omc' ':(top,exclude).omc/**'
     ':(top,exclude,glob)**/.omc/**'
     ':(top,exclude).omx' ':(top,exclude).omx/**'
@@ -1679,7 +1679,7 @@ cloud_post_diff() {
       --arg content "$diff" \
       '{baseline: $baseline, head: $head, content: $content}')"
 
-  if ! _cloud_post_json "${META_WORKFLOW_SERVER}/api/sessions/${sid}/diff" "$payload"; then
+  if ! _cloud_post_json "${STAGENT_SERVER}/api/sessions/${sid}/diff" "$payload"; then
     _cloud_warn "$sid" "cloud_post_diff failed after retries: baseline=${baseline:0:10} head=${head:0:10}"
     return 1
   fi
@@ -1961,9 +1961,9 @@ ensure_git_baseline() {
     local has_files
     has_files="$(git -C "$proot" diff --cached --name-only 2>/dev/null | head -1 || true)"
     git -C "$proot" \
-      -c user.name='meta-workflow' \
-      -c user.email='meta-workflow@local' \
-      commit --allow-empty -q -m "meta-workflow: initial baseline (topic=${topic})"
+      -c user.name='stagent' \
+      -c user.email='stagent@local' \
+      commit --allow-empty -q -m "stagent: initial baseline (topic=${topic})"
     if [[ -n "$has_files" ]]; then
       _ENSURE_GIT_MSG="${_ENSURE_GIT_MSG:+${_ENSURE_GIT_MSG}
 }   (committed existing files as initial baseline)"
@@ -2027,7 +2027,7 @@ cloud_reconcile_state() {
   local snapshot
   snapshot="$(curl -sS -fL --max-time 3 \
               -H "$(_cloud_auth_header)" \
-              "${META_WORKFLOW_SERVER}/api/sessions/${sid}" 2>/dev/null)" || return 0
+              "${STAGENT_SERVER}/api/sessions/${sid}" 2>/dev/null)" || return 0
   printf '%s' "$snapshot" | jq empty 2>/dev/null || return 0
 
   local server_status server_epoch

@@ -3,7 +3,7 @@
 # loop-tick.sh — single source of truth for the main agent's loop state.
 #
 # Prints a JSON object describing the current stage of the active
-# meta-workflow. The main agent calls this once per loop iteration and
+# stagent. The main agent calls this once per loop iteration and
 # reads every field via `jq`, instead of hand-parsing `state.md` or
 # `workflow.json` with `grep` / `sed` (which has repeatedly broken on
 # quote handling, YAML escapes, and JSON traversal).

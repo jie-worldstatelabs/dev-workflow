@@ -1,5 +1,5 @@
 #!/bin/bash
-# Delete ~/.config/meta-workflow/auth.json so the plugin falls back to anonymous
+# Delete ~/.config/stagent/auth.json so the plugin falls back to anonymous
 # mode. Does NOT revoke the token on the server — use the web UI for
 # that if you want to invalidate it everywhere.
 #
@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-AUTH_FILE="${HOME}/.config/meta-workflow/auth.json"
+AUTH_FILE="${HOME}/.config/stagent/auth.json"
 
 if [[ ! -f "$AUTH_FILE" ]]; then
   echo "Not signed in (no ${AUTH_FILE})."

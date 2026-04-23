@@ -3,12 +3,12 @@
 # Dev Workflow Setup Script
 #
 # Two modes:
-#   local (default)  workflow lives on disk under <project>/.meta-workflow/
+#   local (default)  workflow lives on disk under <project>/.stagent/
 #                    — one run per session per worktree.
 #   cloud            state and artifacts are mirrored to a remote server
 #                    (the workflowUI webapp); the project worktree gets
-#                    nothing under .meta-workflow/. A transient shadow at
-#                    ~/.cache/meta-workflow/sessions/<session_id>/ holds
+#                    nothing under .stagent/. A transient shadow at
+#                    ~/.cache/stagent/sessions/<session_id>/ holds
 #                    the minimum files the skill needs to Read/Write
 #                    against. Every write is POSTed to the server.
 #
@@ -19,8 +19,8 @@
 #   setup-workflow.sh --validate-only [--workflow <name-or-path>]
 #
 # --workflow accepts:
-#   (omitted)          default:  ${PLUGIN_ROOT}/skills/meta-workflow/workflow/
-#   cloud://author/name cloud:   named template on $META_WORKFLOW_SERVER
+#   (omitted)          default:  ${PLUGIN_ROOT}/skills/stagent/workflow/
+#   cloud://author/name cloud:   named template on $STAGENT_SERVER
 #   /abs/path          local:    absolute local path
 #   ./rel/path         local:    relative local path
 
@@ -37,8 +37,8 @@ FORCE=""
 # server, with a local shadow for Claude's Read/Write tools. Users who
 # want a fully-offline, local-only run can either:
 #   • pass `--mode=local` on the command line, or
-#   • export META_WORKFLOW_DEFAULT_MODE=local in their shell env
-MODE="${META_WORKFLOW_DEFAULT_MODE:-cloud}"
+#   • export STAGENT_DEFAULT_MODE=local in their shell env
+MODE="${STAGENT_DEFAULT_MODE:-cloud}"
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -131,7 +131,7 @@ SESSION_ID="$(read_cached_session_id)"
 if [[ -z "$SESSION_ID" ]]; then
   echo "❌ Error: session_id is unknown." >&2
   echo "   The SessionStart hook (hooks/session-start.sh) did not populate" >&2
-  echo "   the cache. Ensure the meta-workflow plugin is properly installed" >&2
+  echo "   the cache. Ensure the stagent plugin is properly installed" >&2
   echo "   and restart your Claude Code session." >&2
   exit 1
 fi
@@ -142,9 +142,9 @@ fi
 # gets the same clear message regardless of mode.
 #
 # Check order:
-#   1. Cloud shadow  (~/.cache/meta-workflow/sessions/<sid>/state.md)
-#   2. Local run dir (<project>/.meta-workflow/<sid>/state.md)
-#   3. Cloud registry (~/.cache/meta-workflow/cloud-registry/<sid>.json, shadow lost)
+#   1. Cloud shadow  (~/.cache/stagent/sessions/<sid>/state.md)
+#   2. Local run dir (<project>/.stagent/<sid>/state.md)
+#   3. Cloud registry (~/.cache/stagent/cloud-registry/<sid>.json, shadow lost)
 #   4. Cloud server GET (authoritative cross-machine check; skipped if offline)
 #
 # On active found → exit 2 so SKILL.md's Step 1 can ask the user.
@@ -155,7 +155,7 @@ if [[ -z "$FORCE" ]]; then
   _active_topic="" _active_status="" _active_mode="" _active_loc=""
 
   # 1. Cloud shadow
-  _cs="${HOME}/.cache/meta-workflow/sessions/${SESSION_ID}/state.md"
+  _cs="${HOME}/.cache/stagent/sessions/${SESSION_ID}/state.md"
   if [[ -f "$_cs" ]]; then
     _s="$(_read_fm_field "$_cs" status)"
     case "$_s" in complete|escalated|cancelled|"") ;;
@@ -169,7 +169,7 @@ if [[ -z "$FORCE" ]]; then
   fi
 
   # 2. Local run dir (only if cloud shadow didn't already fire)
-  _ld="${PROJECT_ROOT}/.meta-workflow/${SESSION_ID}/state.md"
+  _ld="${PROJECT_ROOT}/.stagent/${SESSION_ID}/state.md"
   if [[ -z "$_active_status" ]] && [[ -f "$_ld" ]]; then
     _s="$(_read_fm_field "$_ld" status)"
     case "$_s" in complete|escalated|cancelled|"") ;;
@@ -183,7 +183,7 @@ if [[ -z "$FORCE" ]]; then
   fi
 
   # 3. Cloud registry without shadow (orphaned registration)
-  _cr="${HOME}/.cache/meta-workflow/cloud-registry/${SESSION_ID}.json"
+  _cr="${HOME}/.cache/stagent/cloud-registry/${SESSION_ID}.json"
   if [[ -z "$_active_status" ]] && [[ -f "$_cr" ]]; then
     _active_mode="cloud"
     _active_status="unknown (registry exists, shadow missing)"
@@ -192,14 +192,14 @@ if [[ -z "$FORCE" ]]; then
   fi
 
   # 4. Cloud server GET — authoritative cross-machine check.
-  #    Only attempted when META_WORKFLOW_SERVER is set and we haven't
+  #    Only attempted when STAGENT_SERVER is set and we haven't
   #    already found an active run locally. On network failure we fall
   #    through (offline-safe) and note the caveat in the output.
   _server_unreachable=""
-  if [[ -z "$_active_status" ]] && [[ -n "${META_WORKFLOW_SERVER:-}" ]]; then
+  if [[ -z "$_active_status" ]] && [[ -n "${STAGENT_SERVER:-}" ]]; then
     _srv_snap="$(curl -sS -fL --max-time 4 \
         -H "$(_cloud_auth_header)" \
-        "${META_WORKFLOW_SERVER}/api/sessions/${SESSION_ID}" 2>/dev/null)" || true
+        "${STAGENT_SERVER}/api/sessions/${SESSION_ID}" 2>/dev/null)" || true
     if [[ -n "$_srv_snap" ]] && printf '%s' "$_srv_snap" | jq empty 2>/dev/null; then
       _srv_status="$(printf '%s' "$_srv_snap" | jq -r '.session.status // ""')"
       _srv_active="$(printf '%s' "$_srv_snap" | jq -r '.session.active // "false"')"
@@ -209,11 +209,11 @@ if [[ -z "$FORCE" ]]; then
             _active_topic="$(printf '%s' "$_srv_snap" | jq -r '.session.topic // ""')"
             _active_status="$_srv_status"
             _active_mode="cloud (server)"
-            _active_loc="${META_WORKFLOW_SERVER}/s/${SESSION_ID}"
+            _active_loc="${STAGENT_SERVER}/s/${SESSION_ID}"
           fi
           ;;
       esac
-    elif [[ -n "${META_WORKFLOW_SERVER:-}" ]]; then
+    elif [[ -n "${STAGENT_SERVER:-}" ]]; then
       _server_unreachable="   (server unreachable — relying on local state only)"
     fi
   fi
@@ -228,8 +228,8 @@ if [[ -z "$FORCE" ]]; then
     echo "   Location: ${_active_loc}" >&2
     [[ -n "$_server_unreachable" ]] && echo "$_server_unreachable" >&2
     echo "" >&2
-    echo "   /meta-workflow:interrupt to pause, /meta-workflow:continue to resume," >&2
-    echo "   /meta-workflow:cancel to stop the existing workflow first." >&2
+    echo "   /stagent:interrupt to pause, /stagent:continue to resume," >&2
+    echo "   /stagent:cancel to stop the existing workflow first." >&2
     exit 2
   fi
 
@@ -245,10 +245,10 @@ if [[ "$MODE" == "cloud" ]]; then
 
   WORKTREE_ROOT="$(git -C "${PROJECT_ROOT}" rev-parse --show-toplevel 2>/dev/null || echo "$PROJECT_ROOT")"
 
-  SCRATCH_DIR="${HOME}/.cache/meta-workflow/sessions/${SESSION_ID}"
+  SCRATCH_DIR="${HOME}/.cache/stagent/sessions/${SESSION_ID}"
   WORKFLOW_CACHE="${SCRATCH_DIR}/.workflow-cache"
 
-  # --force: mirror what /meta-workflow:cancel does for cloud sessions so
+  # --force: mirror what /stagent:cancel does for cloud sessions so
   # the server side is truly reset before we POST a new setup. Wiping
   # only the local shadow (as the old behaviour did) is not enough — the
   # server still holds an active session row, and the next setup POST
@@ -325,7 +325,7 @@ if [[ "$MODE" == "cloud" ]]; then
   # can render "changes since workflow start" — excluding pre-existing dirty
   # state (e.g. untracked tool output in the user's repo from before /start).
   # Skip for workflows that opt out of worktree diffs (e.g. create-workflow,
-  # which writes to ~/.config/meta-workflow/ not the project).
+  # which writes to ~/.config/stagent/ not the project).
   if [[ "$(config_modifies_worktree)" == "true" ]]; then
     _capture_baseline_tree "$SCRATCH_DIR" "$PROJECT_ROOT"
   fi
@@ -375,7 +375,7 @@ if [[ "$MODE" == "cloud" ]]; then
   tmp_body="$(mktemp -t dw-setup-XXXXXX)"
   trap 'rm -f "$tmp_body"' EXIT
   http_code=$(curl -sS -o "$tmp_body" -w "%{http_code}" \
-      -X POST "${META_WORKFLOW_SERVER}/api/sessions/${SESSION_ID}/setup" \
+      -X POST "${STAGENT_SERVER}/api/sessions/${SESSION_ID}/setup" \
       -H "$(_cloud_auth_header)" \
       -H "Content-Type: application/json" \
       --data "$payload" || echo "000")
@@ -384,7 +384,7 @@ if [[ "$MODE" == "cloud" ]]; then
     remote_status=$(jq -r '.status // "?"' "$tmp_body" 2>/dev/null || echo "?")
     echo "⚠️  Server refused setup — an active workflow already exists for this session." >&2
     echo "    Remote status: ${remote_status}" >&2
-    echo "    Use /meta-workflow:cancel to stop the existing run first." >&2
+    echo "    Use /stagent:cancel to stop the existing run first." >&2
     rm -rf "$SCRATCH_DIR"
     exit 2
   fi
@@ -414,14 +414,14 @@ started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ---
 EOF
 
-  cloud_register_session "$SESSION_ID" "$META_WORKFLOW_SERVER" "$WORKFLOW_URL"
+  cloud_register_session "$SESSION_ID" "$STAGENT_SERVER" "$WORKFLOW_URL"
 
   # Seed the server with an initial (empty) diff so the session page's
   # "Working-tree diff" panel has content to anchor on.
   cloud_post_diff "$SESSION_ID" || true
 
-  # Force config_show_stage_context to print shadow paths, not ${project}/.meta-workflow/.
-  DW_RUN_BASE="${HOME}/.cache/meta-workflow/sessions"
+  # Force config_show_stage_context to print shadow paths, not ${project}/.stagent/.
+  DW_RUN_BASE="${HOME}/.cache/stagent/sessions"
   export DW_RUN_BASE
 
   INTERRUPTIBLE_HINT=""
@@ -447,23 +447,23 @@ EOF
 
   echo ""
   echo "   Shadow dir: $SCRATCH_DIR"
-  echo "   Server:     $META_WORKFLOW_SERVER"
-  echo "   UI:         ${META_WORKFLOW_SERVER}/s/${SESSION_ID}"
-  echo "   To pause:  /meta-workflow:interrupt"
-  echo "   To cancel: /meta-workflow:cancel"
+  echo "   Server:     $STAGENT_SERVER"
+  echo "   UI:         ${STAGENT_SERVER}/s/${SESSION_ID}"
+  echo "   To pause:  /stagent:interrupt"
+  echo "   To cancel: /stagent:cancel"
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo "📍 RELAY THIS TO THE USER VERBATIM BEFORE CONTINUING:"
   echo ""
   echo "   Live session URL:"
-  echo "   ${META_WORKFLOW_SERVER}/s/${SESSION_ID}"
+  echo "   ${STAGENT_SERVER}/s/${SESSION_ID}"
   echo ""
   echo "   (The user needs this link to watch the workflow in a browser."
   echo "    Do not summarise it away — paste it as-is in your next message.)"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
   # Anonymous-cloud nudge: if the user has no bearer token stored at
-  # ~/.config/meta-workflow/auth.json, they're running as an anonymous capability
+  # ~/.config/stagent/auth.json, they're running as an anonymous capability
   # URL (whoever knows the session_id can read/write it). Surface the
   # benefits of logging in once, right after activation, so they don't
   # miss the browser dashboard / cross-device resume / private sessions
@@ -478,7 +478,7 @@ EOF
     echo "     • Your own rate-limit quota instead of shared anonymous"
     echo ""
     echo "   One command:"
-    echo "     /meta-workflow:login"
+    echo "     /stagent:login"
   fi
 
   exit 0
@@ -488,7 +488,7 @@ fi
 # LOCAL MODE (original behavior)
 # ══════════════════════════════════════════════════════════════
 
-SESSION_RUN_DIR="${PROJECT_ROOT}/.meta-workflow/${SESSION_ID}"
+SESSION_RUN_DIR="${PROJECT_ROOT}/.stagent/${SESSION_ID}"
 
 # ──────────────────────────────────────────────────────────────
 # Phase 1: Ensure git repo with a HEAD commit (baseline)
@@ -509,7 +509,7 @@ case $rc in
   2) ARCHIVE_MSG="   ⚠️  Archive failed; previous run removed." ;;
   # rc=1 → nothing to archive, stay silent
 esac
-rm -f "${PROJECT_ROOT}/.meta-workflow/state.md"
+rm -f "${PROJECT_ROOT}/.stagent/state.md"
 
 # ──────────────────────────────────────────────────────────────
 # Phase 3: Create this session's run dir and state.md
@@ -578,5 +578,5 @@ fi
 echo ""
 echo "   Run dir: $TOPIC_DIR"
 echo "   Workflow dir: $WORKFLOW_DIR"
-echo "   To pause: /meta-workflow:interrupt"
-echo "   To cancel: /meta-workflow:cancel"
+echo "   To pause: /stagent:interrupt"
+echo "   To cancel: /stagent:cancel"

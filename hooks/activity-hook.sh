@@ -1,7 +1,7 @@
 #!/bin/bash
 # PostToolUse hook (all tools) — cloud mode activity log.
 #
-# When a meta-workflow cloud session is active and a stage is running,
+# When a stagent cloud session is active and a stage is running,
 # posts a lightweight tool-use event to the server so the webapp can
 # display a live activity feed. Always fire-and-forget (cloud_post_activity
 # backgrounds the curl) — zero latency impact on the agent.

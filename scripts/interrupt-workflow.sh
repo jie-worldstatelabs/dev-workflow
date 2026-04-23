@@ -2,8 +2,8 @@
 
 # Dev Workflow Interrupt Script
 # Pauses the loop at the current phase WITHOUT clearing state.
-# Resume with: /meta-workflow:continue
-# Cancel entirely with: /meta-workflow:cancel
+# Resume with: /stagent:continue
+# Cancel entirely with: /stagent:cancel
 #
 # Usage: interrupt-workflow.sh
 # Targets the active workflow for the current session (or the single
@@ -40,8 +40,8 @@ STATUS=$(_read_fm_field "$STATE_FILE" status)
 
 if [[ "$STATUS" == "interrupted" ]]; then
   echo "⚠️  Workflow is already interrupted (topic: $TOPIC)." >&2
-  echo "   Resume with: /meta-workflow:continue" >&2
-  echo "   Cancel with: /meta-workflow:cancel" >&2
+  echo "   Resume with: /stagent:continue" >&2
+  echo "   Cancel with: /stagent:cancel" >&2
   exit 0
 fi
 
@@ -73,5 +73,5 @@ echo "   Topic: $TOPIC"
 echo "   Phase: $STATUS (saved as resume_status)"
 echo "   State preserved at: $STATE_FILE"
 echo ""
-echo "   Resume with: /meta-workflow:continue"
-echo "   Cancel entirely with: /meta-workflow:cancel"
+echo "   Resume with: /stagent:continue"
+echo "   Cancel entirely with: /stagent:cancel"

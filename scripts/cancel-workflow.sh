@@ -1,7 +1,7 @@
 #!/bin/bash
 # Cancel a dev workflow.
 #
-# Default:  move the run dir to .meta-workflow/.archive/<ts>-<topic>-cancelled/
+# Default:  move the run dir to .stagent/.archive/<ts>-<topic>-cancelled/
 #           so the audit trail (reports + baseline) is preserved.
 # --hard:   rm -rf the run dir (no archive). Use when you really don't want
 #           the artifacts.
@@ -70,7 +70,7 @@ if [[ -n "$HARD" ]]; then
   exit 0
 fi
 
-# Default: archive to .meta-workflow/.archive/<ts>-<topic>-cancelled/
+# Default: archive to .stagent/.archive/<ts>-<topic>-cancelled/
 rc=0
 archive_run_dir "$TOPIC_DIR" "$TOPIC" "cancelled" || rc=$?
 case $rc in

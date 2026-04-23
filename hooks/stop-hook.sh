@@ -24,7 +24,7 @@ source "$(dirname "$HOOK_DIR")/scripts/lib.sh"
 # subprocess invocation always has it set, so the `:=` no-op's in that path.
 : "${CLAUDE_PLUGIN_ROOT:=$(dirname "$HOOK_DIR")}"
 
-# Session-keyed: every session has its own .meta-workflow/<session_id>/ dir.
+# Session-keyed: every session has its own .stagent/<session_id>/ dir.
 # Resolve by THIS session's id (from HOOK_INPUT stdin). If there's no dir
 # for this session, this hook fires for a bystander → nothing to do,
 # allow exit cleanly.
@@ -70,7 +70,7 @@ if is_terminal_status "$STATUS"; then
   case "$STATUS" in
     interrupted)
       # This shouldn't happen (interrupted isn't in terminal_stages by default)
-      # but handle it gracefully — allow exit, keep state for /meta-workflow:continue
+      # but handle it gracefully — allow exit, keep state for /stagent:continue
       exit 0
       ;;
     *)
@@ -89,7 +89,7 @@ if is_terminal_status "$STATUS"; then
   esac
 fi
 
-# Paused by user — allow exit but KEEP state file for /meta-workflow:continue
+# Paused by user — allow exit but KEEP state file for /stagent:continue
 # (interrupted is handled here since it's a state machine feature, not a "terminal" per config)
 if [[ "$STATUS" == "interrupted" ]]; then
   exit 0
@@ -134,7 +134,7 @@ if config_is_interruptible "$STATUS"; then
     SYSTEM_MSG="📋 Dev workflow: $STATUS stage (epoch $EPOCH) — interruptible. ⚠️  $ARTIFACT has result: $ARTIFACT_RESULT; run \"${CLAUDE_PLUGIN_ROOT}/scripts/update-status.sh\" --status $NEXT_STATUS to proceed. Stage instructions: $INSTR"
 [[ -n "$SYNC_WARNINGS" ]] && SYSTEM_MSG="${SYSTEM_MSG}  |  sync warnings: ${SYNC_WARNINGS}"
   else
-    SYSTEM_MSG="📋 Dev workflow: $STATUS stage (epoch $EPOCH) — interruptible. Stage instructions: $INSTR. Continue the conversation to proceed, or use /meta-workflow:cancel to abort."
+    SYSTEM_MSG="📋 Dev workflow: $STATUS stage (epoch $EPOCH) — interruptible. Stage instructions: $INSTR. Continue the conversation to proceed, or use /stagent:cancel to abort."
   fi
   jq -n --arg msg "$SYSTEM_MSG" '{"systemMessage": $msg}'
   exit 0
@@ -175,7 +175,7 @@ INSTRUCTIONS_PATH="$(config_stage_instructions_path "$STATUS")"
 if [[ "$EXEC_TYPE" == "subagent" ]]; then
   # Single generic subagent for all stages; per-stage behavior lives in
   # the stage instructions file, which the subagent must read first.
-  SUBAGENT_TYPE="meta-workflow:workflow-subagent"
+  SUBAGENT_TYPE="stagent:workflow-subagent"
   MODEL="$(config_model "$STATUS")"
   MODEL_LINE=""
   if [[ -n "$MODEL" ]]; then
@@ -230,7 +230,7 @@ fi
 if [[ -f "$ARTIFACT" ]] && [[ "$ARTIFACT_EPOCH" == "$EPOCH" ]] && [[ -n "$ARTIFACT_RESULT" ]]; then
   NEXT=$(config_next_status "$STATUS" "$ARTIFACT_RESULT")
   if [[ -z "$NEXT" ]]; then
-    CONTINUE_PROMPT="[meta-workflow] BLOCKED EXIT — unknown result in artifact.
+    CONTINUE_PROMPT="[stagent] BLOCKED EXIT — unknown result in artifact.
 
 Status: $STATUS (epoch $EPOCH)
 Artifact: $ARTIFACT
@@ -241,7 +241,7 @@ Inspect $ARTIFACT, then call:
 
 DO NOT STOP."
   else
-    CONTINUE_PROMPT="[meta-workflow] BLOCKED EXIT — stage '$STATUS' DONE (result: $ARTIFACT_RESULT), transition not yet called.
+    CONTINUE_PROMPT="[stagent] BLOCKED EXIT — stage '$STATUS' DONE (result: $ARTIFACT_RESULT), transition not yet called.
 
 $ARTIFACT is valid for epoch $EPOCH.
 You MUST now run:
@@ -249,7 +249,7 @@ You MUST now run:
 
 Then continue the workflow (either do the next stage's work or, if the new status is terminal, announce completion).
 
-DO NOT STOP. The loop is infinite — only /meta-workflow:interrupt or /meta-workflow:cancel stops it."
+DO NOT STOP. The loop is infinite — only /stagent:interrupt or /stagent:cancel stops it."
   fi
 else
   if [[ ! -f "$ARTIFACT" ]]; then
@@ -260,17 +260,17 @@ else
     REASON="$ARTIFACT has no result field (incomplete)"
   fi
 
-  CONTINUE_PROMPT="[meta-workflow] BLOCKED EXIT — workflow in progress (phase: $STATUS, epoch: $EPOCH).
+  CONTINUE_PROMPT="[stagent] BLOCKED EXIT — workflow in progress (phase: $STATUS, epoch: $EPOCH).
 
 Reason: $REASON.
 
 Execute the stage:
 $STAGE_WORK
 
-DO NOT STOP. The loop is infinite — only /meta-workflow:interrupt or /meta-workflow:cancel stops it."
+DO NOT STOP. The loop is infinite — only /stagent:interrupt or /stagent:cancel stops it."
 fi
 
-SYSTEM_MSG="🔄 Dev workflow | Phase: $STATUS (epoch $EPOCH) | EXIT BLOCKED — /meta-workflow:interrupt to pause, /meta-workflow:cancel to stop"
+SYSTEM_MSG="🔄 Dev workflow | Phase: $STATUS (epoch $EPOCH) | EXIT BLOCKED — /stagent:interrupt to pause, /stagent:cancel to stop"
 [[ -n "$SYNC_WARNINGS" ]] && SYSTEM_MSG="${SYSTEM_MSG}  |  sync warnings: ${SYNC_WARNINGS}"
 
 jq -n \

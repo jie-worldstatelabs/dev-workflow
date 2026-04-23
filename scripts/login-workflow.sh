@@ -1,11 +1,11 @@
 #!/bin/bash
 # Device-code login flow.
 #
-# Hits POST $META_WORKFLOW_SERVER/api/auth/device/code to get a short
+# Hits POST $STAGENT_SERVER/api/auth/device/code to get a short
 # user_code + verification URL, prints them, tries to open the URL in
 # a browser, then polls POST /api/auth/device/token until the user
 # approves in the browser. On success, writes the returned bearer
-# token to ~/.config/meta-workflow/auth.json (mode 0600) so every subsequent
+# token to ~/.config/stagent/auth.json (mode 0600) so every subsequent
 # cloud_* request from lib.sh picks it up automatically.
 #
 # Usage: login-workflow.sh
@@ -17,8 +17,8 @@ source "${SCRIPT_DIR}/lib.sh"
 
 LABEL="$(hostname 2>/dev/null || echo unknown)"
 
-SERVER="${META_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}"
-AUTH_DIR="${HOME}/.config/meta-workflow"
+SERVER="${STAGENT_SERVER:-https://workflows.worldstatelabs.com}"
+AUTH_DIR="${HOME}/.config/stagent"
 AUTH_FILE="${AUTH_DIR}/auth.json"
 
 mkdir -p "$AUTH_DIR"
@@ -33,7 +33,7 @@ if [[ "${1:-}" == "--demo" ]]; then
     existing_user="$(jq -r '.user_id // empty' "$AUTH_FILE" 2>/dev/null || true)"
     if [[ -n "$existing_user" ]]; then
       echo "Already signed in as: $existing_user"
-      echo "Run /meta-workflow:logout first to switch to the demo account."
+      echo "Run /stagent:logout first to switch to the demo account."
       exit 0
     fi
   fi
@@ -71,7 +71,7 @@ if [[ -f "$AUTH_FILE" ]]; then
   existing_user="$(jq -r '.user_id // empty' "$AUTH_FILE" 2>/dev/null || true)"
   if [[ -n "$existing_user" ]]; then
     echo "Already signed in as: $existing_user"
-    echo "Run /meta-workflow:logout first if you want to switch accounts."
+    echo "Run /stagent:logout first if you want to switch accounts."
     exit 0
   fi
 fi
@@ -178,7 +178,7 @@ while :; do
       exit 1
       ;;
     expired_token)
-      echo "❌ Code expired. Run /meta-workflow:login to try again." >&2
+      echo "❌ Code expired. Run /stagent:login to try again." >&2
       exit 1
       ;;
     *)

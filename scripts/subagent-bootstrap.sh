@@ -59,7 +59,7 @@ CONTEXT_FILE="$(mktemp -t dw-subagent-ctx-XXXXXX)"
 trap 'rm -f "$CONTEXT_FILE"' EXIT
 
 {
-  echo "━━━━━━━━━━ meta-workflow subagent context ━━━━━━━━━━"
+  echo "━━━━━━━━━━ stagent subagent context ━━━━━━━━━━"
   echo ""
   echo "Stage: $STATUS"
   echo "Epoch: $EPOCH"

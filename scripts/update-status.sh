@@ -48,7 +48,7 @@ if ! resolve_state; then
     echo "$workflows" >&2
     echo "   Pass --topic <name> to select one." >&2
   else
-    echo "   No workflows found. Run /meta-workflow:start to start one." >&2
+    echo "   No workflows found. Run /stagent:start to start one." >&2
   fi
   exit 1
 fi
@@ -93,10 +93,10 @@ NEW_EPOCH=$((CURRENT_EPOCH + 1))
 MAX_EPOCH="$(config_max_epoch)"
 if ! is_terminal_status "$NEW_STATUS" && [[ "$NEW_EPOCH" -ge "$MAX_EPOCH" ]]; then
   if config_is_terminal "escalated"; then
-    echo "⚠️  [meta-workflow] epoch $NEW_EPOCH reached max-epoch $MAX_EPOCH — escalating (was heading to '$NEW_STATUS')" >&2
+    echo "⚠️  [stagent] epoch $NEW_EPOCH reached max-epoch $MAX_EPOCH — escalating (was heading to '$NEW_STATUS')" >&2
     NEW_STATUS="escalated"
   else
-    echo "⚠️  [meta-workflow] epoch $NEW_EPOCH reached max-epoch $MAX_EPOCH but 'escalated' is not declared under .terminal_stages — proceeding to '$NEW_STATUS' without auto-escalation" >&2
+    echo "⚠️  [stagent] epoch $NEW_EPOCH reached max-epoch $MAX_EPOCH but 'escalated' is not declared under .terminal_stages — proceeding to '$NEW_STATUS' without auto-escalation" >&2
   fi
 fi
 
@@ -270,7 +270,7 @@ if is_cloud_session "$RUN_DIR_NAME"; then
   fi
 fi
 
-echo "[meta-workflow] Topic: $TOPIC | Status: $NEW_STATUS | epoch: $NEW_EPOCH"
+echo "[stagent] Topic: $TOPIC | Status: $NEW_STATUS | epoch: $NEW_EPOCH"
 
 if config_is_stage "$NEW_STATUS"; then
   config_show_stage_context "$NEW_STATUS" "$RUN_DIR_NAME" "$PROJECT_ROOT"

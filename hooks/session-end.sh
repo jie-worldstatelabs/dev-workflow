@@ -4,11 +4,11 @@
 #
 # When a Claude Code session ends cleanly (/exit, UI close, orderly
 # shutdown), Claude Code fires SessionEnd. If this session owns an
-# active meta-workflow, flip it to `status: interrupted` so another
-# Claude session can safely pick it up via /meta-workflow:continue.
+# active stagent, flip it to `status: interrupted` so another
+# Claude session can safely pick it up via /stagent:continue.
 #
 # The goal is to make hand-off painless: the user doesn't need to
-# remember to run /meta-workflow:interrupt before leaving. ESC alone
+# remember to run /stagent:interrupt before leaving. ESC alone
 # still only cancels the current turn (that's the right semantics
 # for mid-course redirection); but an actual session exit should
 # release ownership.
@@ -29,7 +29,7 @@ DESIRED_SESSION=$(echo "$HOOK_INPUT" | jq -r '.session_id // ""' 2>/dev/null || 
 
 # Resolve this session's workflow. If there's nothing to interrupt,
 # exit silently — SessionEnd fires for every Claude Code session,
-# not just meta-workflow-aware ones.
+# not just stagent-aware ones.
 if ! resolve_state; then
   exit 0
 fi

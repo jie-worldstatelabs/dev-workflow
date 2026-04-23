@@ -1,5 +1,5 @@
 #!/bin/bash
-# Print the pre-flight banner for /meta-workflow:create-workflow
+# Print the pre-flight banner for /stagent:create-workflow
 # Usage: print-create-banner.sh <mode> <workflow_flag> <wf_type>
 
 set -euo pipefail
@@ -11,8 +11,8 @@ MODE="${1:-cloud}"
 WORKFLOW_FLAG="${2:-}"
 WF_TYPE="${3:-}"
 
-_server="${META_WORKFLOW_SERVER:-https://workflows.worldstatelabs.com}"
-_author_raw="$(jq -r '.author // "anonymous"' "${HOME}/.config/meta-workflow/auth.json" 2>/dev/null || echo "anonymous")"
+_server="${STAGENT_SERVER:-https://workflows.worldstatelabs.com}"
+_author_raw="$(jq -r '.author // "anonymous"' "${HOME}/.config/stagent/auth.json" 2>/dev/null || echo "anonymous")"
 _author="$(echo "$_author_raw" | tr '[:upper:]' '[:lower:]' | sed 's/[[:space:]][[:space:]]*/\-/g; s/[^a-z0-9._-]//g; s/^[^a-z0-9]*//')"
 _author="${_author:-anonymous}"
 _logged_in="$(cloud_is_logged_in && echo yes || echo no)"
@@ -36,10 +36,10 @@ else
     if [[ "$_logged_in" = yes ]]; then
       echo "  Auth:     ${_author}  (logged in)"
     else
-      echo "  Auth:     ❌ not signed in — cloud mode requires /meta-workflow:login first"
+      echo "  Auth:     ❌ not signed in — cloud mode requires /stagent:login first"
     fi
   else
-    echo "  Will save to: ~/.config/meta-workflow/workflows/<suffix>/"
+    echo "  Will save to: ~/.config/stagent/workflows/<suffix>/"
     echo "  No hub publish (local mode)"
   fi
 fi

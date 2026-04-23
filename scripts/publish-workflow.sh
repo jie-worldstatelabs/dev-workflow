@@ -20,7 +20,7 @@
 # `--dry-run` prints what would be uploaded without touching the server.
 #
 # After a successful publish, the workflow can be pulled by the plugin via:
-#   /meta-workflow:start --workflow cloud://<name> <task>
+#   /stagent:start --workflow cloud://<name> <task>
 
 set -euo pipefail
 
@@ -44,7 +44,7 @@ Options:
   -h, --help               Show this message.
 
 Environment:
-  META_WORKFLOW_SERVER      Hub server URL (default: baked-in plugin default).
+  STAGENT_SERVER      Hub server URL (default: baked-in plugin default).
 
 Example:
   publish-workflow.sh ./my-workflow --name bugfix-fast --description "Quick bugfix pipeline"
@@ -134,7 +134,7 @@ DIR="$(cd "$DIR" && pwd)"
 # ── Gate on login early (before any schema validation) ──
 if [[ -z "$DRY_RUN" ]] && ! cloud_is_logged_in; then
   echo "❌ Publishing requires a logged-in account." >&2
-  echo "   Run /meta-workflow:login first, then retry." >&2
+  echo "   Run /stagent:login first, then retry." >&2
   exit 1
 fi
 
@@ -165,9 +165,9 @@ if [[ ${#STAGE_KEYS[@]} -eq 0 ]]; then
 fi
 
 # ── Full workflow validation (transitions, inputs, stage files) ──
-_PLUGIN_ROOT="$(cat ~/.config/meta-workflow/plugin-root 2>/dev/null || true)"
-[[ -d "${_PLUGIN_ROOT}/scripts" ]] || _PLUGIN_ROOT=~/.claude/plugins/meta-workflow
-[[ -d "${_PLUGIN_ROOT}/scripts" ]] || _PLUGIN_ROOT="$(ls -d ~/.claude/plugins/cache/*/meta-workflow/*/ 2>/dev/null | head -1)"
+_PLUGIN_ROOT="$(cat ~/.config/stagent/plugin-root 2>/dev/null || true)"
+[[ -d "${_PLUGIN_ROOT}/scripts" ]] || _PLUGIN_ROOT=~/.claude/plugins/stagent
+[[ -d "${_PLUGIN_ROOT}/scripts" ]] || _PLUGIN_ROOT="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
 if [[ -z "$DRY_RUN" ]]; then
   if ! "${_PLUGIN_ROOT}/scripts/setup-workflow.sh" --validate-only --workflow="$DIR"; then
     echo "❌ Workflow validation failed — fix the errors above before publishing." >&2
@@ -177,7 +177,7 @@ fi
 
 # ── Resolve name (default: author/basename) + validate slug ──
 if [[ -z "$NAME" ]]; then
-  _author_raw="$(jq -r '.author // "anonymous"' "${HOME}/.config/meta-workflow/auth.json" 2>/dev/null || echo "anonymous")"
+  _author_raw="$(jq -r '.author // "anonymous"' "${HOME}/.config/stagent/auth.json" 2>/dev/null || echo "anonymous")"
   # Slugify: lowercase, spaces→hyphens, strip non-slug chars
   _author="$(echo "$_author_raw" | tr '[:upper:]' '[:lower:]' | sed 's/[[:space:]][[:space:]]*/\-/g; s/[^a-z0-9._-]//g; s/^[^a-z0-9]*//')"
   _author="${_author:-anonymous}"
@@ -230,7 +230,7 @@ PAYLOAD="$(jq -n --argjson files "$FILES_JSON" --arg desc "$DESCRIPTION" --arg v
 # Server URL is always populated via lib.sh's default; require_env
 # validates it didn't get unset out from under us.
 cloud_require_env || exit 1
-URL="${META_WORKFLOW_SERVER}/api/workflows/${NAME}"
+URL="${STAGENT_SERVER}/api/workflows/${NAME}"
 
 # ── Pre-check: does a workflow with this name already exist? ──
 # GET the workflow before the PUT so we can give a clear error if the
@@ -242,13 +242,13 @@ if [[ -z "$DRY_RUN" ]]; then
     -H "$(_cloud_auth_header)" \
     "$URL" 2>/dev/null)" || _pre_rc=$?
   if [[ $_pre_rc -ne 0 ]]; then
-    cloud_explain_curl_exit "$_pre_rc" "$META_WORKFLOW_SERVER"
+    cloud_explain_curl_exit "$_pre_rc" "$STAGENT_SERVER"
     rm -f "$_pre_tmp"
     exit 1
   fi
   if [[ "$_pre_code" == "200" ]]; then
     _remote_uid="$(jq -r '.user_id // .workflow.user_id // empty' "$_pre_tmp" 2>/dev/null || echo "")"
-    _my_uid="$(jq -r '.user_id // empty' ~/.config/meta-workflow/auth.json 2>/dev/null || echo "")"
+    _my_uid="$(jq -r '.user_id // empty' ~/.config/stagent/auth.json 2>/dev/null || echo "")"
     if [[ -n "$_remote_uid" && -n "$_my_uid" && "$_remote_uid" != "$_my_uid" ]]; then
       echo "❌ Name '${NAME}' is already taken by another user." >&2
       rm -f "$_pre_tmp"
@@ -281,7 +281,7 @@ http_code=$(curl -sS -o "$tmp_body" -w "%{http_code}" \
     --data "$PAYLOAD" 2>/dev/null) || put_rc=$?
 
 if [[ $put_rc -ne 0 ]]; then
-  cloud_explain_curl_exit "$put_rc" "$META_WORKFLOW_SERVER"
+  cloud_explain_curl_exit "$put_rc" "$STAGENT_SERVER"
   exit 1
 fi
 
@@ -303,16 +303,16 @@ echo "✅ Published '${NAME}' to the hub"
 echo ""
 echo "   Files:       ${FILE_LIST}"
 echo "   Description: ${FINAL_DESC:-<empty>}"
-echo "   Hub URL:     ${META_WORKFLOW_SERVER}/hub/${NAME}"
+echo "   Hub URL:     ${STAGENT_SERVER}/hub/${NAME}"
 echo ""
 echo "   Pull with:"
-echo "     /meta-workflow:start --workflow cloud://${NAME} <task>"
+echo "     /stagent:start --workflow cloud://${NAME} <task>"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "📍 RELAY THIS TO THE USER VERBATIM BEFORE CONTINUING:"
 echo ""
 echo "   Workflow published — hub URL:"
-echo "   ${META_WORKFLOW_SERVER}/hub/${NAME}"
+echo "   ${STAGENT_SERVER}/hub/${NAME}"
 echo ""
 echo "   (The user needs this link to view / share their workflow."
 echo "    Do not summarise it away — paste it as-is in your next message.)"

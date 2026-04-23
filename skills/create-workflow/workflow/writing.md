@@ -33,8 +33,9 @@ Copy the JSON **shape** and the stage-file **style** — NOT the specific stage 
 
 ## Schema constraints (the validator enforces all of these)
 
-- Top-level keys are exactly: `initial_stage`, `terminal_stages`, `max_epoch` (optional), `run_files` (optional), `stages`. Do NOT add `name`, `version`, `description`, or any other top-level field.
+- Top-level keys are exactly: `initial_stage`, `terminal_stages`, `max_epoch` (optional), `modifies_worktree` (optional), `run_files` (optional), `stages`. Do NOT add `name`, `version`, `description`, or any other top-level field.
 - `max_epoch`: optional integer, default `20`. `update-status.sh` forces `status=escalated` once a stage transition would push the epoch to or past this cap — breaks runaway FAIL→retry loops. Requires `escalated` in `.terminal_stages`; otherwise the cap is skipped with a warning.
+- `modifies_worktree`: optional boolean, default `true`. Set to `false` when the workflow writes nothing into the project worktree (e.g. writes only to `~/.config/` or makes pure HTTP calls). When `false`, the plugin skips worktree-diff capture and the UI hides the diff panel. **Read the plan's "Workflow-level flags" section** — if the planner listed non-default values there, emit them in `workflow.json`; otherwise omit them entirely.
 - `.stages` is a JSON **object keyed by stage name** (NOT an array of `{id,...}`).
 - Each stage has exactly these keys: `interruptible` (bool), `execution` (`{"type":"inline"}` or `{"type":"subagent","model":"opus|sonnet|haiku"}` — model optional), `transitions` (object), `inputs` (object with `required` and `optional` arrays).
 - `transitions` values are plain strings (`"done": "next-stage"`) — NEVER nested objects like `{"target":"next"}` or `{"id":"done","nextStage":"next"}`.

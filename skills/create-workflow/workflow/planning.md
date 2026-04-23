@@ -99,6 +99,15 @@ For each stage, list `required` and `optional` inputs using `from_stage <name>` 
 
 If the workflow needs setup-time constants (e.g. git SHA baseline, current date), list each `run_files` entry: name, description, and the shell init command.
 
+### Workflow-level flags (only when non-default)
+
+Don't put defaults on the user's screen. Surface a flag here ONLY when the design triggers one of these signals:
+
+- **`modifies_worktree: false`** — the workflow writes nothing into the project worktree (writes to `~/.config/`, pure HTTP, etc.). Mention it explicitly so the user knows the diff panel won't show up.
+- **`max_epoch: <N>`** — the workflow has expensive loop-back edges AND the user mentioned wanting a tighter cap than the default 20.
+
+If neither applies, skip this block entirely.
+
 ## Step 4 — Pick / confirm the suffix
 
 - **Create mode**: derive a short, kebab-case suffix from the description (e.g. "Python library dev with docs and publish" → `python-lib`). Confirm with the user. Target directory: `~/.config/stagent/workflows/<suffix>/`. If the directory already exists, ask whether to overwrite or pick a different name.
@@ -157,6 +166,14 @@ result: pending
 
 - `<name>` — description: <text> — init: `<shell command>`
 - (or: "none")
+
+## Workflow-level flags
+
+(Include ONLY the fields whose values differ from default. Omit this
+section entirely when everything is default.)
+
+- `modifies_worktree: false` — <one-line reason, e.g. "writes to ~/.config/stagent, never touches project dir">
+- `max_epoch: <N>` — <one-line reason, e.g. "verify→execute loop is expensive, cap lower than 20">
 
 ## Readme blurb
 

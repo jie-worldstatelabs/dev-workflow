@@ -28,7 +28,7 @@ Start a workflow — the default development workflow builds what you describe:
 The skill prints a live UI URL:
 
 ```
-UI: https://workflows.worldstatelabs.com/s/<session_id>
+UI: https://stagent.worldstatelabs.com/s/<session_id>
 ```
 
 Paste it in a browser to watch the stage timeline, rendered artifacts, and `git diff baseline..HEAD` update live via SSE. The project worktree stays clean — nothing under `.stagent/`.
@@ -100,7 +100,7 @@ Need ideas for what to turn into a workflow? See the [cookbook](./docs/claude-co
 | Variable | Default | Effect |
 |---|---|---|
 | `STAGENT_DEFAULT_MODE` | `cloud` | Set to `local` to flip the default for every run in the shell |
-| `STAGENT_SERVER` | `https://workflows.worldstatelabs.com` | Point at a self-hosted or staging server |
+| `STAGENT_SERVER` | `https://stagent.worldstatelabs.com` | Point at a self-hosted or staging server |
 
 ## Local vs Cloud
 
@@ -108,7 +108,7 @@ Need ideas for what to turn into a workflow? See the [cookbook](./docs/claude-co
 |---|---|---|
 | Authoritative state | `<project>/.stagent/<session>/state.md` | Postgres `sessions` row; local shadow mirrors |
 | Where the files live on your disk | Project worktree | `~/.cache/stagent/sessions/<session>/` — wiped on terminal |
-| Live viewer | None — read the files | `https://workflows.worldstatelabs.com/s/<session_id>` |
+| Live viewer | None — read the files | `https://stagent.worldstatelabs.com/s/<session_id>` |
 | Cross-machine continue | Not supported | `/stagent:continue --session <id>` with project-fingerprint verification |
 | `.gitignore` entry needed | `echo '/.stagent/' >> .gitignore` | None |
 

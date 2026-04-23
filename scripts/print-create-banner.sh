@@ -11,7 +11,7 @@ MODE="${1:-cloud}"
 WORKFLOW_FLAG="${2:-}"
 WF_TYPE="${3:-}"
 
-_server="${STAGENT_SERVER:-https://workflows.worldstatelabs.com}"
+_server="${STAGENT_SERVER:-https://stagent.worldstatelabs.com}"
 _author_raw="$(jq -r '.author // "anonymous"' "${HOME}/.config/stagent/auth.json" 2>/dev/null || echo "anonymous")"
 _author="$(echo "$_author_raw" | tr '[:upper:]' '[:lower:]' | sed 's/[[:space:]][[:space:]]*/\-/g; s/[^a-z0-9._-]//g; s/^[^a-z0-9]*//')"
 _author="${_author:-anonymous}"

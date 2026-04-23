@@ -32,7 +32,7 @@
 /stagent:start --workflow=cloud://<你>/<名字> "<任务>"
 ```
 
-创建完的 workflow 默认发到 hub（<https://workflows.worldstatelabs.com/hub>），跨 session、跨机器都能复用。浏览器里能看 stage timeline + 实时 diff + artifact。
+创建完的 workflow 默认发到 hub（<https://stagent.worldstatelabs.com/hub>），跨 session、跨机器都能复用。浏览器里能看 stage timeline + 实时 diff + artifact。
 
 ---
 
@@ -159,6 +159,6 @@
 ## 进阶
 
 - **改已有 workflow**：`/stagent:create-workflow --workflow=cloud://you/name "在 qa 后加一个 deploy-dry-run 阶段"` —— 同一个命令既是创建也是编辑。
-- **逛别人的 workflow**：<https://workflows.worldstatelabs.com/hub>。
+- **逛别人的 workflow**：<https://stagent.worldstatelabs.com/hub>。
 - **中途介入**：`/stagent:interrupt` 暂停，`/stagent:continue` 恢复（支持跨机器，需要 git push 同步代码）。
 - **本地模式**：加 `--mode=local` 全离线，state 存在 `<project>/.stagent/`。

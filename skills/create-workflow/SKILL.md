@@ -87,7 +87,7 @@ P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
 source "$P/scripts/lib.sh"
 
 _WF_NAME="${WORKFLOW_FLAG#cloud://}"
-CLOUD_URL="${STAGENT_SERVER:-https://workflows.worldstatelabs.com}/api/workflows/${_WF_NAME}"
+CLOUD_URL="${STAGENT_SERVER:-https://stagent.worldstatelabs.com}/api/workflows/${_WF_NAME}"
 MY_UID="$(jq -r '.user_id // empty' ~/.config/stagent/auth.json 2>/dev/null)"
 AUTH="$(_cloud_auth_header)"
 BUNDLE="$(curl -sf -H "$AUTH" "$CLOUD_URL" 2>/dev/null || echo '')"
@@ -138,7 +138,7 @@ Just a short kebab-case label for THIS stagent run's session (NOT the generated 
 
 Branch on `$MODE` to pick BOTH the right workflow source AND the session-mode for `setup-workflow.sh`:
 
-- **`$MODE=cloud`(default)** — use the hub-published anonymous mirror so this stagent session is cloud-tracked (gives the user a live `https://workflows.worldstatelabs.com/s/<sid>` link):
+- **`$MODE=cloud`(default)** — use the hub-published anonymous mirror so this stagent session is cloud-tracked (gives the user a live `https://stagent.worldstatelabs.com/s/<sid>` link):
   ```bash
   P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
   [[ -d $P/scripts ]] || P=~/.claude/plugins/stagent

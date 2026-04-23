@@ -164,7 +164,7 @@ if [[ "$IS_CLOUD" == "true" ]]; then
     _tgt_scratch="$(cloud_registry_get "$RUN_DIR_NAME" scratch_dir)"
     [[ -z "$_tgt_scratch" ]] && _tgt_scratch="$(cloud_scratch_dir)/${RUN_DIR_NAME}"
     _tgt_server="$(cloud_registry_get "$RUN_DIR_NAME" server)"
-    [[ -z "$_tgt_server" ]] && _tgt_server="${STAGENT_SERVER:-https://workflows.worldstatelabs.com}"
+    [[ -z "$_tgt_server" ]] && _tgt_server="${STAGENT_SERVER:-https://stagent.worldstatelabs.com}"
     cloud_register_session "$_LOCAL_SID" "$_tgt_server" "" "$_tgt_scratch"
     echo "   Aliased local session ${_LOCAL_SID} → ${_tgt_scratch}" >&2
   fi

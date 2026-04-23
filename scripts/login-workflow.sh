@@ -17,7 +17,7 @@ source "${SCRIPT_DIR}/lib.sh"
 
 LABEL="$(hostname 2>/dev/null || echo unknown)"
 
-SERVER="${STAGENT_SERVER:-https://workflows.worldstatelabs.com}"
+SERVER="${STAGENT_SERVER:-https://stagent.worldstatelabs.com}"
 AUTH_DIR="${HOME}/.config/stagent"
 AUTH_FILE="${AUTH_DIR}/auth.json"
 

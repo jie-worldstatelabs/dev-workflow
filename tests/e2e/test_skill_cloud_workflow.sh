@@ -13,7 +13,7 @@
 #   a .stagent/ directory in cloud mode.
 #
 # Requirements: claude CLI in PATH, API access, network access to
-#   STAGENT_SERVER (defaults to https://workflows.worldstatelabs.com).
+#   STAGENT_SERVER (defaults to https://stagent.worldstatelabs.com).
 # Cost: ~3-6 Sonnet API calls per test case.
 
 set -uo pipefail   # no -e: assertions use explicit rc vars
@@ -28,7 +28,7 @@ echo "C2E-2 — stagent SKILL: cloud mode (real Claude + real server)"
 SMOKE_WF="${PLUGIN_ROOT}/tests/e2e/fixtures/smoke-workflow"
 INTERRUPTIBLE_WF="${PLUGIN_ROOT}/tests/e2e/fixtures/cloud-interruptible-workflow"
 MODEL="claude-sonnet-4-6"
-STAGENT_SERVER="${STAGENT_SERVER:-https://workflows.worldstatelabs.com}"
+STAGENT_SERVER="${STAGENT_SERVER:-https://stagent.worldstatelabs.com}"
 export STAGENT_SERVER
 
 TMP="$(make_tmpdir)"

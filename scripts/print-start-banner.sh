@@ -11,7 +11,7 @@ MODE="${1:-cloud}"
 WORKFLOW_FLAG="${2:-}"
 WF_TYPE="${3:-}"
 
-_server="${STAGENT_SERVER:-https://workflows.worldstatelabs.com}"
+_server="${STAGENT_SERVER:-https://stagent.worldstatelabs.com}"
 if [[ -z "$WORKFLOW_FLAG" ]]; then
   if [[ "$MODE" == "cloud" ]]; then
     _wf="demo  ←  ${_server}/hub/demo  (cloud default)"

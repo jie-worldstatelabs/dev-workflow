@@ -807,7 +807,7 @@ CLOUD_SCRATCH_BASE="${HOME}/.cache/stagent/sessions"
 # to export STAGENT_API_TOKEN; the server URL is baked in. Override by
 # exporting STAGENT_SERVER=... (useful for pointing at a local dev
 # webapp, a staging deployment, or a fork).
-: "${STAGENT_SERVER:=https://workflows.worldstatelabs.com}"
+: "${STAGENT_SERVER:=https://stagent.worldstatelabs.com}"
 export STAGENT_SERVER
 
 cloud_scratch_dir() {

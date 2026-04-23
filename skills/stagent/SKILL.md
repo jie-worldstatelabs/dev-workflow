@@ -104,7 +104,7 @@ To bridge the gap, `hooks/session-start.sh` writes the absolute plugin root path
 
 ```bash
 P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
+[[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
 ```
 
 Line 1: read the SessionStart-populated cache (the happy path). Line 2: fallback to a filesystem search if the cache file is missing (plugin not loaded yet, session-start hook didn't fire, etc.). After those two lines, `"$P/scripts/<name>.sh"` is the absolute path you invoke.
@@ -123,7 +123,7 @@ Before touching the loop, verify this session actually has a state.md to drive. 
 
 ```bash
 P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
+[[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
 if ! "$P/scripts/loop-tick.sh" >/dev/null 2>&1; then
   echo "❌ No active workflow in this session." >&2
   echo "   stagent:stagent drives an existing workflow's stage loop. Routes that bootstrap a workflow:" >&2
@@ -151,7 +151,7 @@ Each loop iteration:
 ```
 # Re-discover $P every Bash-tool call — the env var is not inherited.
 P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
+[[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
 
 Loop:
   a. Snapshot the current stage:
@@ -246,7 +246,7 @@ Runs inside the subagent as its mandatory first action. The subagent self-resolv
 - **Unrecoverable workflow error** → run:
   ```bash
   P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-  [[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
+  [[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
   "$P/scripts/update-status.sh" --status escalated
   ```
   This sets `status=escalated` (a terminal stage), releasing the stop hook and letting the session exit.

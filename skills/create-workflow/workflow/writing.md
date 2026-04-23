@@ -23,7 +23,7 @@ Run this Bash call so the canonical schema and stage-file style flow into your c
 
 ````bash
 P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
+[[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
 for f in workflow.json planning.md executing.md reviewing.md verifying.md qa-ing.md run_files_catalog.md; do
   echo "===== $f ====="; cat "$P/skills/stagent/workflow/$f"; echo
 done

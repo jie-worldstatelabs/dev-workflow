@@ -24,7 +24,7 @@ Both modes dispatch the same stagent at `$P/skills/create-workflow/workflow`. Th
 
 ```bash
 P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
+[[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
 ```
 
 Re-derive `$P` inside every Bash-tool call — shell vars don't persist across calls.
@@ -35,7 +35,7 @@ Re-derive `$P` inside every Bash-tool call — shell vars don't persist across c
 
 ```bash
 P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
+[[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
 eval "$("$P/scripts/parse-workflow-flags.sh" '$ARGUMENTS')" || exit 1
 "$P/scripts/print-create-banner.sh" "$MODE" "$WORKFLOW_FLAG" "$WF_TYPE"
 ```
@@ -55,7 +55,7 @@ Relay the banner to the user. If the parser emitted errors, hard stop.
 ```bash
 if [[ "$MODE" == "cloud" ]]; then
   P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-  [[ -d $P/scripts ]] || P=~/.claude/plugins/stagent
+  [[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
   source "$P/scripts/lib.sh"
   cloud_is_logged_in && echo LOGGED_IN || echo NOT_LOGGED_IN
 fi
@@ -83,7 +83,7 @@ For `$WF_TYPE == cloud`: verify ownership, then download.
 
 ```bash
 P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || P=~/.claude/plugins/stagent
+[[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
 source "$P/scripts/lib.sh"
 
 _WF_NAME="${WORKFLOW_FLAG#cloud://}"
@@ -141,7 +141,7 @@ Branch on `$MODE` to pick BOTH the right workflow source AND the session-mode fo
 - **`$MODE=cloud`(default)** — use the hub-published anonymous mirror so this stagent session is cloud-tracked (gives the user a live `https://stagent.worldstatelabs.com/s/<sid>` link):
   ```bash
   P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-  [[ -d $P/scripts ]] || P=~/.claude/plugins/stagent
+  [[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
   "$P/scripts/setup-workflow.sh" \
     --mode=cloud \
     --topic="<slug-from-step-3>" \
@@ -151,7 +151,7 @@ Branch on `$MODE` to pick BOTH the right workflow source AND the session-mode fo
 - **`$MODE=local`** — use the plugin-bundled local workflow; runs fully offline, no webapp link:
   ```bash
   P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-  [[ -d $P/scripts ]] || P=~/.claude/plugins/stagent
+  [[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
   "$P/scripts/setup-workflow.sh" \
     --mode=local \
     --topic="<slug-from-step-3>" \

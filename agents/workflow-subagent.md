@@ -20,7 +20,7 @@ Run this Bash command as your very first action, before reading or writing anyth
 
 ```bash
 P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
+[[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
 "$P/scripts/subagent-bootstrap.sh"
 ```
 

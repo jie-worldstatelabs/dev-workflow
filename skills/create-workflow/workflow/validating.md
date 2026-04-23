@@ -22,7 +22,7 @@ Read every input path from your I/O context — do NOT construct or hardcode pat
 
    ```bash
    P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-   [[ -d $P/scripts ]] || P=~/.claude/plugins/stagent
+   [[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
    TARGET="<absolute-path-from-writer-report>"
    OUTPUT="$("$P/scripts/setup-workflow.sh" --validate-only --flow="$TARGET" 2>&1)"
    RC=$?

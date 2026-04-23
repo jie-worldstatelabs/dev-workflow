@@ -25,7 +25,7 @@ Every Bash tool call that runs a plugin script starts with the same two lines �
 
 ```bash
 P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
+[[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
 ```
 
 Shell vars don't persist across Bash-tool calls — repeat these two lines in every call.
@@ -36,7 +36,7 @@ Shell vars don't persist across Bash-tool calls — repeat these two lines in ev
 
 ```bash
 P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
+[[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
 eval "$("$P/scripts/parse-workflow-flags.sh" '$ARGUMENTS')" || exit 1
 "$P/scripts/print-start-banner.sh" "$MODE" "$WORKFLOW_FLAG" "$WF_TYPE"
 ```
@@ -53,7 +53,7 @@ Briefly tell the user: `I'll use topic \`<topic>\` for this workflow.`
 
 ```bash
 P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-[[ -d $P/scripts ]] || { P=~/.claude/plugins/stagent; [[ -d $P/scripts ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"; }
+[[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
 "$P/scripts/setup-workflow.sh" --topic="<topic>" [--flow="$WORKFLOW_FLAG"] [--mode="$MODE"]
 ```
 

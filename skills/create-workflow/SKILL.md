@@ -166,13 +166,37 @@ Do NOT pass `$DESCRIPTION` as a trailing argument — `setup-workflow.sh` silent
 
 On exit 0 only, the state machine is at `planning` and the next turn begins the interview.
 
-### Step 5 — Report handoff
+### Step 5 — Report handoff (VERBATIM TEXT REQUIRED)
 
-Print a dispatch summary and return control. The `commands/create-workflow.md` wrapper will invoke `stagent:stagent` as its next step to drive the state machine loop — do NOT invoke it yourself from this skill (two-skill handoff is coordinated at the command level, not the skill level).
+Print the handoff block below **verbatim** — substitute only the
+placeholders in angle brackets with real values. Then return control;
+the `commands/create-workflow.md` wrapper will invoke `stagent:stagent`
+as its next step.
 
-**Framing matters more than fields here.** First-time users conflate the session (transient) with the template (the static artifact being built). Lead with the session-vs-template distinction in plain language — this text is shown expanded to the user, while your Bash-tool banner is folded behind a +N-lines collapse. Put the key framing in your chat response, not in a bash echo.
+**Hard prohibitions for this step. Read all of them before you type.**
 
-Summary to print (Create mode — adjust wording for Edit):
+- **DO NOT** add a "Dispatch summary" header, or any other header, on
+  top of the block. The block's opening paragraph IS the header.
+- **DO NOT** add a "Status: create-workflow stagent dispatched" line,
+  or any variant. That line does not exist in this template.
+- **DO NOT** rename, reorder, reword, or omit any of the seven
+  bullets below. The field labels (`Session (transient)`,
+  `Live progress`, `Template (final artifact)`, `Current stage`,
+  `Where source files land on disk`, `Cloud publish`, `Abort`) are
+  the contract. They are not suggestions.
+- **DO NOT** paraphrase, abbreviate, or rewrite the opening paragraph.
+  Its wording is the whole reason this step exists — the session /
+  template distinction must land exactly as phrased.
+- **DO NOT** invent extra fields (e.g. `Change requested`,
+  `Editing: ... (ownership verified: is_owner: true)`,
+  `Source dir: (downloaded with stages: ...)`). Every field you
+  synthesize on top of this template defeats the contract.
+- **DO NOT** invoke any other skill from here; the command wrapper
+  does that.
+
+---
+
+#### Create mode — print this block verbatim
 
 ```
 This opens a transient **template-creation session** — it runs the
@@ -185,10 +209,8 @@ reaches `complete`.
 - **Live progress**: <stagent.worldstatelabs.com/s/<session_id>>
 - **Template (final artifact)**: cloud://<author>/<suffix>
   → visible at <stagent.worldstatelabs.com/hub/<author>/<suffix>>
-  once published. Suffix is chosen during planning (Edit mode:
-  reuses the existing name).
-- **Current stage**: `planning` (interruptible) — interview starts
-  next.
+  once published. Suffix is chosen during planning.
+- **Current stage**: `planning` (interruptible) — interview starts next.
 - **Where source files land on disk**: `~/.config/stagent/workflows/<suffix>/`
 - **Cloud publish** (mode=cloud only): auto-runs after the validator
   passes. If publish fails (expired token, network, name collision),
@@ -197,16 +219,32 @@ reaches `complete`.
 - **Abort**: `/stagent:cancel` or `/stagent:interrupt` anytime.
 ```
 
-For **Edit mode**, replace the opening paragraph with:
+#### Edit mode — print this block verbatim
 
 ```
 This opens a transient **template-edit session** — it re-runs the
 plan → write → validate → publish flow against your existing
 template `<name>`. Your live template at cloud://<name> is NOT
 mutated until this session publishes.
+
+- **Session (transient)**: <session_id>
+- **Live progress**: <stagent.worldstatelabs.com/s/<session_id>>
+- **Template being edited**: cloud://<name>
+  → <stagent.worldstatelabs.com/hub/<name>>
+- **Current stage**: `planning` (interruptible) — interview starts next.
+- **Source dir (local checkout for this edit)**: `~/.config/stagent/workflows/<name>/`
+- **Cloud publish** (mode=cloud only): auto-runs after the validator
+  passes, overwriting the hub version with your edits.
+- **Abort**: `/stagent:cancel` or `/stagent:interrupt` anytime.
 ```
 
-Do NOT call `setup-workflow.sh` again, and do NOT run `loop-tick.sh` here — that's the next skill's job.
+**Self-check before sending your response.** Re-read what you're
+about to output. If any of the prohibitions above appear in your
+text — rewrite it. The block must begin with `This opens a transient`
+and have exactly seven bullets in the listed order.
+
+Do NOT call `setup-workflow.sh` again, and do NOT run `loop-tick.sh`
+here — that's the next skill's job.
 
 ---
 

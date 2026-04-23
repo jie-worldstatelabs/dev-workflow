@@ -36,7 +36,7 @@ Paste it in a browser to watch the stage timeline, rendered artifacts, and `git 
 Or define your own workflow from a natural-language prompt — stagent scaffolds the stages:
 
 ```
-/stagent:create-workflow "Create a design workflow with plan, execute,
+/stagent:create "Create a design workflow with plan, execute,
 and evaluate stages. Plan browses the app and codebase and agrees a re-design
 plan with the user. Execute implements it. Evaluate operates the app in a
 browser and scores it on design quality, originality, craft, functionality,
@@ -68,7 +68,7 @@ The `execute → verify → review → QA` loop runs **autonomously** after you 
 
 ## Custom Workflows
 
-The plugin is **generic** — any stage shape works as long as it follows the schema. Running `/stagent:create-workflow` (see Quick Start) dispatches an internal stagent that interviews you, writes `workflow.json` + per-stage instruction files under `~/.config/stagent/workflows/<name>/`, validates them in a retry loop, and publishes the bundle to the hub (cloud mode only). Reuse it with:
+The plugin is **generic** — any stage shape works as long as it follows the schema. Running `/stagent:create` (see Quick Start) dispatches an internal stagent that interviews you, writes `workflow.json` + per-stage instruction files under `~/.config/stagent/workflows/<name>/`, validates them in a retry loop, and publishes the bundle to the hub (cloud mode only). Reuse it with:
 
 ```
 /stagent:start --workflow=cloud://<you>/<name> <task>
@@ -86,7 +86,7 @@ Need ideas for what to turn into a workflow? See the [cookbook](./docs/claude-co
 | `/stagent:interrupt` | Pause the active run at the end of the current stage |
 | `/stagent:continue [--session <id>]` | Resume an interrupted run (`--session` for cross-machine cloud takeover) |
 | `/stagent:cancel [--hard]` | Cancel and archive (or wipe with `--hard`) |
-| `/stagent:create-workflow [--workflow=<ref>] <description>` | Create a new workflow or edit an existing one |
+| `/stagent:create [--workflow=<ref>] <description>` | Create a new workflow or edit an existing one |
 | `/stagent:publish <dir> [--name <n>] [--description <d>] [--dry-run]` | Publish a local workflow to the hub |
 | `/stagent:login` / `:logout` / `:whoami` | Manage your hub identity |
 

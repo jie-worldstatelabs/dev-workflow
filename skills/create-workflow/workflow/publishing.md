@@ -2,7 +2,7 @@
 
 _Runtime config (canonical): `workflow.json` → `stages.publishing`_
 
-**Purpose:** After the validator confirms the workflow files are correct, push the workflow to the hub if the user invoked `/stagent:create-workflow` with `--mode=cloud`. For `--mode=local` this stage is a no-op pass-through.
+**Purpose:** After the validator confirms the workflow files are correct, push the workflow to the hub if the user invoked `/stagent:create` with `--mode=cloud`. For `--mode=local` this stage is a no-op pass-through.
 **Output artifact:** write to the absolute path provided in your I/O context
 **Valid results this stage writes:** `done` (published, or gracefully noted failure), `skipped` (local mode — nothing to publish)
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Print the pre-flight banner for /stagent:create-workflow
+# Print the pre-flight banner for /stagent:create
 # Usage: print-create-banner.sh <mode> <workflow_flag> <wf_type>
 
 set -euo pipefail

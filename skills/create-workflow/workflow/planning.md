@@ -18,7 +18,7 @@ This is an interruptible stage — the stop hook allows natural pauses for Q&A.
 Read the `setup_context` input at the absolute path shown in your I/O context. It contains JSON with these fields:
 
 - `mode`: `"create"` or `"edit"`
-- `description`: the original natural-language description the user passed to `/stagent:create-workflow` (may be empty). **This is the only place the description shows up** — it is NOT in `state.md`'s `topic:` field.
+- `description`: the original natural-language description the user passed to `/stagent:create` (may be empty). **This is the only place the description shows up** — it is NOT in `state.md`'s `topic:` field.
 - `source_dir`: (edit mode only) absolute path to the existing workflow to edit
 
 Log the parsed `mode` and `description` before proceeding:

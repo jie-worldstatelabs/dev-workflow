@@ -1,6 +1,6 @@
 # create-workflow (stagent)
 
-Turns a natural-language description into a validated workflow definition via a plan → write → validate loop, then pushes to the hub when the caller asked for cloud mode. This is the default stagent that drives `/stagent:create-workflow`.
+Turns a natural-language description into a validated workflow definition via a plan → write → validate loop, then pushes to the hub when the caller asked for cloud mode. This is the default stagent that drives `/stagent:create`.
 
 ## Overview
 
@@ -27,7 +27,7 @@ publishing --(done / skipped)--> complete
 
 ## Setup context
 
-The caller (SKILL.md for `/stagent:create-workflow`) exports `CREATE_WORKFLOW_CONTEXT` as a JSON env var before dispatch. The `setup_context` run_file captures it at setup time so all stages can read it:
+The caller (SKILL.md for `/stagent:create`) exports `CREATE_WORKFLOW_CONTEXT` as a JSON env var before dispatch. The `setup_context` run_file captures it at setup time so all stages can read it:
 
 ```json
 {
@@ -40,4 +40,4 @@ The caller (SKILL.md for `/stagent:create-workflow`) exports `CREATE_WORKFLOW_CO
 
 ## Usage
 
-Invoked automatically by `/stagent:create-workflow`. Not intended to be launched directly via `/stagent:start`.
+Invoked automatically by `/stagent:create`. Not intended to be launched directly via `/stagent:start`.

@@ -35,7 +35,7 @@ SUFFIX="e2eci$(date +%s)"
 # ── E2E-2-1: Create a 2-stage workflow from a complete description ─────────────
 # Provide the full spec so Claude skips the design interview and writes files.
 PROMPT1="$(cat <<EOF
-/stagent:create-workflow --mode=local
+/stagent:create --mode=local
 Build a simple 2-stage code-linting workflow. Here is the complete design — please proceed directly to writing files without asking for confirmation:
 
 Stage 1: linting
@@ -135,7 +135,7 @@ check "E2E-2-4: initial status matches initial_stage from generated workflow" $?
 
 # ── E2E-2-5: Edit mode — Claude can add a stage to an existing workflow ────────
 PROMPT5="$(cat <<EOF
-/stagent:create-workflow --mode=local --workflow=${WF_DIR1}
+/stagent:create --mode=local --workflow=${WF_DIR1}
 Add a new stage called reporting after fixing. It should be inline, uninterruptible, result: done → complete. Required input: from_stage fixing. The change is approved. Please update the files now.
 EOF
 )"

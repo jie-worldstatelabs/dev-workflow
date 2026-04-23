@@ -129,7 +129,7 @@ if ! "$P/scripts/loop-tick.sh" >/dev/null 2>&1; then
   echo "   stagent:stagent drives an existing workflow's stage loop. Routes that bootstrap a workflow:" >&2
   echo "     /stagent:start <task>           — start a fresh workflow" >&2
   echo "     /stagent:continue [--session X] — resume an interrupted/cloud workflow" >&2
-  echo "     /stagent:create-workflow <desc> — author a new workflow definition" >&2
+  echo "     /stagent:create <desc> — author a new workflow definition" >&2
   exit 1
 fi
 ```

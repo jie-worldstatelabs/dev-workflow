@@ -46,8 +46,8 @@ Done.
 Run `publish-workflow.sh` on the target directory and capture output + exit code:
 
 ```bash
-P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-[[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
+P=$(cat ~/.config/stagent/plugin-root 2>/dev/null)
+[[ -n $P && -d $P/scripts ]] || P=$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)
 TARGET="<absolute-path-from-writer-report>"
 OUTPUT="$("$P/scripts/publish-workflow.sh" "$TARGET" 2>&1)"
 RC=$?

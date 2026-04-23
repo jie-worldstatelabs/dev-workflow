@@ -21,8 +21,8 @@ Read every input path from your I/O context — do NOT construct or hardcode pat
 2. Run the validator and capture both stdout+stderr AND the exit code:
 
    ```bash
-   P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-   [[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
+   P=$(cat ~/.config/stagent/plugin-root 2>/dev/null)
+   [[ -n $P && -d $P/scripts ]] || P=$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)
    TARGET="<absolute-path-from-writer-report>"
    OUTPUT="$("$P/scripts/setup-workflow.sh" --validate-only --flow="$TARGET" 2>&1)"
    RC=$?

@@ -19,8 +19,8 @@ The main agent's `prompt` message to you is just a trigger — it may be a singl
 Run this Bash command as your very first action, before reading or writing anything else:
 
 ```bash
-P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-[[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
+P=$(cat ~/.config/stagent/plugin-root 2>/dev/null)
+[[ -n $P && -d $P/scripts ]] || P=$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)
 "$P/scripts/subagent-bootstrap.sh"
 ```
 

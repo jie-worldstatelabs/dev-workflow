@@ -103,8 +103,8 @@ Claude Code sets `$CLAUDE_PLUGIN_ROOT` **only for hook subprocesses**. It is NOT
 To bridge the gap, `hooks/session-start.sh` writes the absolute plugin root path to **`~/.config/stagent/plugin-root`** on every session start (the hook runs with `$CLAUDE_PLUGIN_ROOT` set). Every Bash-tool call that needs to run a plugin script should read that file:
 
 ```bash
-P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-[[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
+P=$(cat ~/.config/stagent/plugin-root 2>/dev/null)
+[[ -n $P && -d $P/scripts ]] || P=$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)
 ```
 
 Line 1: read the SessionStart-populated cache (the happy path). Line 2: fallback to a filesystem search if the cache file is missing (plugin not loaded yet, session-start hook didn't fire, etc.). After those two lines, `"$P/scripts/<name>.sh"` is the absolute path you invoke.
@@ -122,8 +122,8 @@ By the time control reaches this skill, `loop-tick.sh` should succeed. If it doe
 Before touching the loop, verify this session actually has a state.md to drive. Run this as your FIRST Bash call:
 
 ```bash
-P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-[[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
+P=$(cat ~/.config/stagent/plugin-root 2>/dev/null)
+[[ -n $P && -d $P/scripts ]] || P=$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)
 if ! "$P/scripts/loop-tick.sh" >/dev/null 2>&1; then
   echo "❌ No active workflow in this session." >&2
   echo "   stagent:stagent drives an existing workflow's stage loop. Routes that bootstrap a workflow:" >&2
@@ -150,8 +150,8 @@ Each loop iteration:
 
 ```
 # Re-discover $P every Bash-tool call — the env var is not inherited.
-P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-[[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
+P=$(cat ~/.config/stagent/plugin-root 2>/dev/null)
+[[ -n $P && -d $P/scripts ]] || P=$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)
 
 Loop:
   a. Snapshot the current stage:
@@ -245,8 +245,8 @@ Runs inside the subagent as its mandatory first action. The subagent self-resolv
 - **Stage-specific edge cases** (e.g. what an agent should do when it cannot complete the work) live in the active workflow's `<workflow_dir>/<stage>.md` — consult that file rather than inventing behavior here.
 - **Unrecoverable workflow error** → run:
   ```bash
-  P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-  [[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
+  P=$(cat ~/.config/stagent/plugin-root 2>/dev/null)
+  [[ -n $P && -d $P/scripts ]] || P=$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)
   "$P/scripts/update-status.sh" --status escalated
   ```
   This sets `status=escalated` (a terminal stage), releasing the stop hook and letting the session exit.

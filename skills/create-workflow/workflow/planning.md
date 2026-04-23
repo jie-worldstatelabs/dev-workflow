@@ -22,8 +22,8 @@ You still speak plain language with them — this is just so you don't
 silently omit schema options they'd want.
 
 ```bash
-P="$(cat ~/.config/stagent/plugin-root 2>/dev/null)"
-[[ -n "$P" && -d "$P/scripts" ]] || P="$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)"
+P=$(cat ~/.config/stagent/plugin-root 2>/dev/null)
+[[ -n $P && -d $P/scripts ]] || P=$(ls -d ~/.claude/plugins/cache/*/stagent/*/ 2>/dev/null | head -1)
 cat "$P/skills/create-workflow/workflow/schema-cheatsheet.md"
 ```
 

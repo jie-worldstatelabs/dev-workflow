@@ -21,8 +21,8 @@ The script flips the session's `state.md` from `interrupted` back to its saved `
 
 ## Step 2 — Drive the loop
 
-Invoke `Skill("meta-workflow:meta-workflow")` and follow its instructions exactly. It picks up the now-active `state.md`, reads the resumed stage via `loop-tick.sh`, and continues through transitions until terminal — including the per-stage `inline` vs `subagent` execution dispatch (the loop skill handles all of that internally; this command does NOT need to give per-stage instructions).
+Invoke `Skill("stagent:stagent")` and follow its instructions exactly. It picks up the now-active `state.md`, reads the resumed stage via `loop-tick.sh`, and continues through transitions until terminal — including the per-stage `inline` vs `subagent` execution dispatch (the loop skill handles all of that internally; this command does NOT need to give per-stage instructions).
 
 Do NOT invoke any other skill before, during, or after these two.
 
-To interrupt again: `/meta-workflow:interrupt`. To cancel: `/meta-workflow:cancel`.
+To interrupt again: `/stagent:interrupt`. To cancel: `/stagent:cancel`.

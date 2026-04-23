@@ -1,5 +1,5 @@
 ---
-description: "Pause the active dev workflow loop without clearing state — resume later with /meta-workflow:continue"
+description: "Pause the active dev workflow loop without clearing state — resume later with /stagent:continue"
 argument-hint: "[--session <id>]  (omit to interrupt this Claude session's own workflow)"
 allowed-tools: ["Bash"]
 ---

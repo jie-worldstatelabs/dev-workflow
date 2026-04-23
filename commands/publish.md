@@ -5,7 +5,7 @@ allowed-tools: Bash, Read, Glob
 ---
 
 Publish a local workflow directory to the workflow hub served by
-`$META_WORKFLOW_SERVER` (default: the baked-in plugin server).
+`$STAGENT_SERVER` (default: the baked-in plugin server).
 
 The directory must contain `workflow.json`; `readme.md` and one
 `<stage>.md` per stage declared in `workflow.json` are optional but
@@ -24,7 +24,7 @@ The script prints the resulting Hub URL on success, plus the one-line
 pull command a teammate can use from their own plugin:
 
 ```
-/meta-workflow:start --workflow=cloud://<name> <task>
+/stagent:start --workflow=cloud://<name> <task>
 ```
 
 ## Step 2 (optional): confirm in the browser

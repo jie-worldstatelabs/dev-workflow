@@ -1,10 +1,10 @@
 {
-  "name": "stagent-local",
+  "name": "stagent",
   "owner": {
     "name": "jie"
   },
   "metadata": {
-    "description": "Local marketplace for stagent plugin"
+    "description": "Marketplace for the Stagent plugin"
   },
   "plugins": [
     {

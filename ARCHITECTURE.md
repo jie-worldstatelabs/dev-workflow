@@ -12,7 +12,7 @@ commands/
   interrupt.md           ← pause at the current stage (state preserved)
   continue.md            ← resume from interrupt
   cancel.md              ← abort + archive (or wipe with --hard)
-  create-workflow.md     ← create / edit a workflow definition
+  create.md              ← create / edit a workflow definition
   publish.md             ← publish a local workflow to the hub
   login.md               ← sign in to the cloud server
   logout.md              ← sign out
@@ -73,9 +73,9 @@ scripts/
   whoami-workflow.sh     ← prints identity + verifies token
   stage-context.sh       ← prints a stage's I/O context (paths) after a
                            transition
-  parse-workflow-flags.sh ← shared flag parser for /start, /create-workflow
+  parse-workflow-flags.sh ← shared flag parser for /start, /create
   print-start-banner.sh   ← human-readable banner at /start
-  print-create-banner.sh  ← human-readable banner at /create-workflow
+  print-create-banner.sh  ← human-readable banner at /create
 ```
 
 ---

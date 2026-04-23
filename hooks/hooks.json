@@ -1,5 +1,5 @@
 {
-  "description": "Dev workflow hooks — session-start caches session_id; stop-hook prevents exit during active workflow; session-end auto-interrupts the workflow on graceful exit so another Claude session can continue it; agent-guard steers subagent launches; postwrite mirrors cloud-mode shadow writes; activity-hook posts tool-use events to the cloud activity feed",
+  "description": "Dev workflow hooks — session-start caches session_id; stop-hook prevents exit during active workflow; session-end auto-interrupts the workflow on graceful exit so another Claude session can continue it; agent-guard steers subagent launches; postwrite mirrors cloud-mode shadow writes; activity-hook posts tool-use events to the cloud activity feed; auto-approve-bash skips CC's permission prompt for stagent's own scripts so end users aren't asked to confirm every stage transition",
   "hooks": {
     "SessionStart": [
       {
@@ -38,6 +38,15 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/agent-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/auto-approve-bash.sh"
           }
         ]
       }

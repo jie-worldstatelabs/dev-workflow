@@ -168,16 +168,43 @@ On exit 0 only, the state machine is at `planning` and the next turn begins the 
 
 ### Step 5 — Report handoff
 
-Print a short dispatch summary and return control. The `commands/create-workflow.md` wrapper will invoke `stagent:stagent` as its next step to drive the state machine loop — do NOT invoke it yourself from this skill (two-skill handoff is coordinated at the command level, not the skill level).
+Print a dispatch summary and return control. The `commands/create-workflow.md` wrapper will invoke `stagent:stagent` as its next step to drive the state machine loop — do NOT invoke it yourself from this skill (two-skill handoff is coordinated at the command level, not the skill level).
 
-Summary to print:
+**Framing matters more than fields here.** First-time users conflate the session (transient) with the template (the static artifact being built). Lead with the session-vs-template distinction in plain language — this text is shown expanded to the user, while your Bash-tool banner is folded behind a +N-lines collapse. Put the key framing in your chat response, not in a bash echo.
 
-- **Status**: create-workflow stagent dispatched (mode: create or edit).
-- **Session**: `<session_id from setup-workflow.sh output>`.
-- **Current stage**: `planning` (interruptible inline) — the next skill will start the interview.
-- **Where files land**: `~/.config/stagent/workflows/<suffix>/` (suffix chosen in planning; reused for Edit).
-- **Cloud publish**: for `--mode=cloud`, the `publishing` stage auto-runs `publish-workflow.sh` after the validator passes. If publish fails (token expired, network, name collision), the workflow still terminates at `complete` with a publish-failure note — retry with `/stagent:publish <target-dir>`.
-- **Abort**: `/stagent:cancel` or `/stagent:interrupt` any time.
+Summary to print (Create mode — adjust wording for Edit):
+
+```
+This opens a transient **template-creation session** — it runs the
+plan → write → validate → publish flow and leaves behind a new
+reusable template in your hub. The template itself does not exist
+yet; it appears at cloud://<author>/<suffix> when the session
+reaches `complete`.
+
+- **Session (transient)**: <session_id>
+- **Live progress**: <stagent.worldstatelabs.com/s/<session_id>>
+- **Template (final artifact)**: cloud://<author>/<suffix>
+  → visible at <stagent.worldstatelabs.com/hub/<author>/<suffix>>
+  once published. Suffix is chosen during planning (Edit mode:
+  reuses the existing name).
+- **Current stage**: `planning` (interruptible) — interview starts
+  next.
+- **Where source files land on disk**: `~/.config/stagent/workflows/<suffix>/`
+- **Cloud publish** (mode=cloud only): auto-runs after the validator
+  passes. If publish fails (expired token, network, name collision),
+  the session still terminates at `complete` and you can retry with
+  `/stagent:publish <target-dir>`.
+- **Abort**: `/stagent:cancel` or `/stagent:interrupt` anytime.
+```
+
+For **Edit mode**, replace the opening paragraph with:
+
+```
+This opens a transient **template-edit session** — it re-runs the
+plan → write → validate → publish flow against your existing
+template `<name>`. Your live template at cloud://<name> is NOT
+mutated until this session publishes.
+```
 
 Do NOT call `setup-workflow.sh` again, and do NOT run `loop-tick.sh` here — that's the next skill's job.
 

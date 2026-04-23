@@ -22,7 +22,7 @@ Requires: [Claude Code](https://claude.ai/claude-code), `jq`.
 Start a workflow — the default development workflow builds what you describe:
 
 ```
-/stagent:start "Build a webapp for diary and MBTI analysis"
+/stagent:start Build a webapp for diary and MBTI analysis
 ```
 
 The skill prints a live UI URL:
@@ -36,17 +36,17 @@ Paste it in a browser to watch the stage timeline, rendered artifacts, and `git 
 Or define your own workflow from a natural-language prompt — stagent scaffolds the stages:
 
 ```
-/stagent:create "Create a design workflow with plan, execute,
+/stagent:create Create a design workflow with plan, execute,
 and evaluate stages. Plan browses the app and codebase and agrees a re-design
 plan with the user. Execute implements it. Evaluate operates the app in a
 browser and scores it on design quality, originality, craft, functionality,
-and adherence to the plan."
+and adherence to the plan.
 ```
 
 For a fully offline run, switch to local mode:
 
 ```
-/stagent:start --mode=local "Build a webapp for diary and MBTI analysis"
+/stagent:start --mode=local Build a webapp for diary and MBTI analysis
 ```
 
 ## The Default Workflow

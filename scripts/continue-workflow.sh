@@ -349,11 +349,20 @@ if [[ "$STATUS" == "interrupted" ]]; then
   set_fm_field "$STATE_FILE" resume_status ""
 fi
 
+# Resuming = starting fresh driving. If the last live session crashed
+# while awaiting user input, the flag on disk / server would still be
+# true; clear it now so the webapp banner doesn't linger past resume.
+# Correct even if the resumed stage happens to be interruptible: the
+# first turn post-resume is the agent's, not the user's, so by
+# definition we're not awaiting a reply yet.
+set_awaiting_user "$STATE_FILE" false
+
 if [[ "$IS_CLOUD" == "true" ]]; then
   CUR_EPOCH=$(_read_fm_field "$STATE_FILE" epoch)
   cloud_post_state "$RUN_DIR_NAME" "$DISPLAY_PHASE" "${CUR_EPOCH:-1}" "" "true" || {
     echo "⚠️  cloud resume sync failed" >&2
   }
+  cloud_post_awaiting_user "$RUN_DIR_NAME" false >/dev/null 2>&1 || true
 fi
 
 echo "▶️  Dev workflow resumed."

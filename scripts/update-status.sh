@@ -210,6 +210,13 @@ set_fm_field "$STATE_FILE" epoch "$NEW_EPOCH"
 # UserPromptSubmit hook therefore never fires.
 set_awaiting_user "$STATE_FILE" false
 
+# Any stage transition also clears the bootstrap-edge marker — at
+# this point the workflow has demonstrably advanced past the
+# bootstrap window, even if the user called update-status.sh
+# directly without going through loop-tick.sh first (rare, but
+# possible in debug/recovery workflows).
+rm -f "$(dirname "$STATE_FILE")/.bootstrap_pending"
+
 # Record the git HEAD seen by this workdir at transition time. continue-
 # workflow.sh compares current workdir HEAD against this to detect
 # cross-clone takeovers where the new workdir is missing commits the

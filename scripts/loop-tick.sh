@@ -66,6 +66,14 @@ if ! config_check; then
   exit 1
 fi
 
+# Clear the bootstrap-edge marker. Its presence meant "state.md was
+# just materialised but stagent:stagent has not yet started driving
+# the loop"; once we've reached this point the loop IS driving — the
+# stop hook should fall back to its normal interruptible-pause path
+# on the next turn, not the bootstrap-nudge path. Safe to `rm -f`
+# regardless of whether the marker is there (continue, dry-runs, etc).
+rm -f "$(dirname "$STATE_FILE")/.bootstrap_pending"
+
 STATUS=$(_read_fm_field "$STATE_FILE" status)
 EPOCH_RAW=$(_read_fm_field "$STATE_FILE" epoch)
 EPOCH="${EPOCH_RAW:-0}"

@@ -23,9 +23,7 @@ Invoke `Skill("stagent:create")` and follow its instructions exactly. It sets up
 
 ## Step 2 — Drive the loop
 
-**IMMEDIATELY** after Step 1's skill returns, invoke `Skill("stagent:stagent")` in the **same turn**. Do NOT end the turn, do NOT wait for the user, do NOT stop because the bootstrap step emitted a "planning stage — Continue the conversation" systemMessage. That message is meant for later turns of the interruptible stage; on the bootstrap turn it's a red herring. Stopping here leaves the session stranded at the initial stage with no driver.
-
-The `Skill("stagent:stagent")` call picks up the dispatched session, runs the planning interview, and continues through the retry loop to the terminal.
+Invoke `Skill("stagent:stagent")` and follow its instructions exactly. It picks up the dispatched session, runs the planning interview, and continues through the retry loop to the terminal.
 
 Do NOT invoke any other skill before, during, or after these two.
 

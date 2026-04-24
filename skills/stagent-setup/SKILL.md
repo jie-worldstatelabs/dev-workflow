@@ -61,7 +61,7 @@ Pass `--flow` only when `$WORKFLOW_FLAG` is non-empty. Pass `--mode` only when t
 
 ### Step 3 — Handle the exit code
 
-**Exit 0 — success.** `setup-workflow.sh` already printed the run directory and the initial stage's I/O context. Tell the user **exactly one** line: `Workflow session initialised; stage loop will take over.` Then **return control to `commands/start.md` — do NOT invoke any skill yourself, and do NOT end the turn.** The next instruction in the same turn is `commands/start.md` Step 2, which invokes `Skill("stagent:stagent")` to drive the loop; skipping that call leaves the session stranded at the initial stage with no driver. In other words: this skill finishes silently; the command wrapper does the hand-off.
+**Exit 0 — success.** `setup-workflow.sh` already printed the run directory and the initial stage's I/O context. Tell the user **exactly one** line: `Workflow session initialised; stage loop will take over.` Then return control — do not invoke any other skill or script from here. `commands/start.md` Step 2 invokes `stagent:stagent` to start the loop.
 
 **Exit 2 — session already has an active (or interrupted) workflow.** The script prints the existing topic + status. Do NOT offer to archive-and-restart blindly (that silently discards in-progress work). Relay the script's message verbatim and give the user three choices:
 
@@ -83,5 +83,5 @@ Do NOT auto-fix the user's workflow files. Do NOT proceed. Wait for user confirm
 
 - This skill **does not drive the stage loop**. It exits after `setup-workflow.sh` succeeds. The loop is `stagent:stagent`'s job.
 - This skill **does not call `update-status.sh`**, **does not read stage artifacts**, **does not launch subagents**. Just bootstrap.
-- Do NOT invoke `stagent:stagent` (or any other skill) FROM INSIDE this skill; the chain is coordinated at the command-file level. But DO finish this skill in a way that leaves the turn still going so `commands/start.md` Step 2 can fire — never emit a "done, waiting for user" framing.
+- Do NOT invoke any other skill from here. The chain is coordinated at the command-file level (`commands/start.md`).
 - When `setup-workflow.sh` returns exit 2, **do not auto-force**. The user's active work must be preserved unless they explicitly say otherwise.

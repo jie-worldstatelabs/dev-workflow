@@ -120,6 +120,28 @@ if [[ -f "$ARTIFACT" ]]; then
 fi
 
 # ──────────────────────────────────────────────────────────────
+# Bootstrap edge — setup-workflow.sh just wrote state.md, but
+# stagent:stagent has NEVER been invoked yet (loop-tick.sh would
+# have deleted the marker on its first successful run). If the
+# agent stops here, it's between Step 1 and Step 2 of the command
+# wrapper — the stage hasn't actually started, and the agent's
+# about to wait for user input on a stage that's never run.
+#
+# Emit a different systemMessage that commands the agent to
+# invoke stagent:stagent RIGHT NOW, instead of the normal
+# interruptible "continue the conversation" hint (which reads as
+# "turn is over, wait for user"). Skip the awaiting_user=true
+# side effect because we're not genuinely waiting on the user —
+# we're waiting on the agent to finish chaining.
+# ──────────────────────────────────────────────────────────────
+if [[ -f "${TOPIC_DIR}/.bootstrap_pending" ]]; then
+  BOOT_MSG="🚀 Dev workflow: bootstrap complete at stage \"$STATUS\" (epoch $EPOCH). The stage loop driver has NOT been invoked yet. You MUST invoke \`Skill(\"stagent:stagent\")\` IMMEDIATELY in this same turn to drive the loop. Do NOT end the turn. Do NOT wait for user input. This is a hand-off window, not a pause."
+  [[ -n "$SYNC_WARNINGS" ]] && BOOT_MSG="${BOOT_MSG}  |  sync warnings: ${SYNC_WARNINGS}"
+  jq -n --arg msg "$BOOT_MSG" '{"systemMessage": $msg}'
+  exit 0
+fi
+
+# ──────────────────────────────────────────────────────────────
 # Interruptible stages: output info, do NOT block exit
 # For interruptible stages, a "transition key" result (e.g. planning:approved)
 # triggers a ⚠️ hint. Other values (pending, empty, etc.) are neutral.

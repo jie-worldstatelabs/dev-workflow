@@ -414,6 +414,15 @@ started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ---
 EOF
 
+  # Bootstrap-edge marker. Presence = "state.md just materialised but
+  # stagent:stagent has NOT yet been invoked to drive the loop." The
+  # stop hook detects this marker on the bootstrap turn and emits a
+  # different systemMessage ("invoke stagent:stagent now") instead of
+  # the normal interruptible "continue the conversation" hint, which
+  # gets misread as "wait for user" before the loop has even started.
+  # loop-tick.sh clears the marker on its first successful run.
+  touch "${SCRATCH_DIR}/.bootstrap_pending"
+
   cloud_register_session "$SESSION_ID" "$STAGENT_SERVER" "$WORKFLOW_URL"
 
   # Seed the server with an initial (empty) diff so the session page's
@@ -542,6 +551,12 @@ project_fingerprint: ${LOCAL_FINGERPRINT:-}
 started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 ---
 EOF
+
+# Bootstrap-edge marker — see the cloud-path counterpart above. The
+# stop hook reads this to distinguish "just-bootstrapped, stagent:stagent
+# has not been invoked yet" from "normal interruptible pause", and emit
+# different guidance. loop-tick.sh clears it on first successful run.
+touch "${TOPIC_DIR}/.bootstrap_pending"
 
 # ──────────────────────────────────────────────────────────────
 # Phase 4: Generate run_files declared in workflow.json

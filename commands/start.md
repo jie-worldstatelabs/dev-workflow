@@ -17,6 +17,8 @@ Invoke `Skill("stagent:stagent-setup")` and follow its instructions exactly. It 
 
 ## Step 2 — Drive the loop
 
-Invoke `Skill("stagent:stagent")` and follow its instructions exactly. It picks up the freshly-created `state.md`, runs the initial stage, and continues through transitions until terminal.
+**IMMEDIATELY** after Step 1's skill returns, invoke `Skill("stagent:stagent")` in the **same turn**. This is non-negotiable — do NOT end the turn, do NOT wait for the user, do NOT stop because stagent-setup's final systemMessage says "Continue the conversation". That systemMessage is meant for later turns of the interruptible stage; on the bootstrap turn it's a red herring. Stopping here leaves the session stranded at the initial stage with no driver, the user staring at a blank cursor.
+
+The `Skill("stagent:stagent")` call picks up the freshly-created `state.md`, runs the initial stage, and continues through transitions until terminal.
 
 Do NOT invoke any other skill before, during, or after these two.

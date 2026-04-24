@@ -136,6 +136,18 @@ if config_is_interruptible "$STATUS"; then
   else
     SYSTEM_MSG="📋 Dev workflow: $STATUS stage (epoch $EPOCH) — interruptible. Stage instructions: $INSTR. Continue the conversation to proceed, or use /stagent:cancel to abort."
   fi
+
+  # Mark this session as awaiting user input. The flag is read by the
+  # webapp to render a "waiting for you" banner + pill. Cleared when
+  # the user types anything (UserPromptSubmit hook) or update-status.sh
+  # advances the stage.
+  if [[ "$(get_awaiting_user "$STATE_FILE")" != "true" ]]; then
+    set_awaiting_user "$STATE_FILE" true
+    if is_cloud_session "$RUN_DIR_NAME"; then
+      cloud_post_awaiting_user "$RUN_DIR_NAME" true >/dev/null 2>&1 || true
+    fi
+  fi
+
   jq -n --arg msg "$SYSTEM_MSG" '{"systemMessage": $msg}'
   exit 0
 fi

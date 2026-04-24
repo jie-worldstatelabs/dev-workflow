@@ -203,6 +203,13 @@ fi
 set_fm_field "$STATE_FILE" status "$NEW_STATUS"
 set_fm_field "$STATE_FILE" epoch "$NEW_EPOCH"
 
+# Any stage transition clears the awaiting-user flag — we're no longer
+# paused on the previous stage by definition. Covers the case where an
+# interruptible stage pauses (awaiting=true), the user then runs
+# update-status.sh directly without first typing a reply, and the
+# UserPromptSubmit hook therefore never fires.
+set_awaiting_user "$STATE_FILE" false
+
 # Record the git HEAD seen by this workdir at transition time. continue-
 # workflow.sh compares current workdir HEAD against this to detect
 # cross-clone takeovers where the new workdir is missing commits the
@@ -229,6 +236,10 @@ if is_cloud_session "$RUN_DIR_NAME"; then
   cloud_post_state "$RUN_DIR_NAME" "$NEW_STATUS" "$NEW_EPOCH" "" "$_active" || {
     echo "⚠️  cloud state sync failed; local shadow is ahead of server" >&2
   }
+  # Mirror the awaiting-user clear to the server so the webapp banner
+  # disappears as soon as the transition lands, not on the next
+  # unrelated state push.
+  cloud_post_awaiting_user "$RUN_DIR_NAME" false >/dev/null 2>&1 || true
   if config_is_stage "$NEW_STATUS"; then
     cloud_delete_artifact "$RUN_DIR_NAME" "$NEW_STATUS" || true
   fi

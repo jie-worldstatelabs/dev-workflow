@@ -72,6 +72,36 @@ set_fm_field() {
 }
 
 # ──────────────────────────────────────────────────────────────
+# awaiting_user — "this stage is interruptible AND we've paused
+# because the agent expects a reply from the user."
+# ──────────────────────────────────────────────────────────────
+#
+# Written by stop-hook.sh when an interruptible stage leaves the agent
+# without a done artifact; cleared by UserPromptSubmit (user sent a
+# message) and by update-status.sh (stage transitioned).
+#
+# Missing field is treated as false — guarantees backwards-compat with
+# state.md files produced by older plugin versions that don't know
+# about this field.
+
+get_awaiting_user() {
+  local file="$1"
+  local v
+  v="$(_read_fm_field "$file" awaiting_user)"
+  [[ "$v" == "true" ]] && echo "true" || echo "false"
+}
+
+set_awaiting_user() {
+  local file="$1" value="$2"
+  # Normalise to lowercase true/false.
+  case "$value" in
+    true|TRUE|1|yes)   value=true ;;
+    *)                 value=false ;;
+  esac
+  set_fm_field "$file" awaiting_user "$value"
+}
+
+# ──────────────────────────────────────────────────────────────
 # Archive helper — move a run dir to .stagent/.archive/
 # ──────────────────────────────────────────────────────────────
 #
@@ -1217,6 +1247,29 @@ cloud_post_state() {
       + (if $fpr == "" then {} else {project_fingerprint: $fpr} end)')"
   if ! _cloud_post_json "${STAGENT_SERVER}/api/sessions/${sid}/state" "$payload"; then
     _cloud_warn "$sid" "cloud_post_state failed after retries: status=${status} epoch=${epoch}"
+    return 1
+  fi
+  return 0
+}
+
+# Partial state update — PATCH-style POST carrying only awaiting_user.
+# The webapp's /api/sessions/<id>/state handler uses `body.field ??
+# current` semantics so omitted fields are preserved. We exploit that
+# to flip just the awaiting flag without re-sending the whole snapshot
+# (which would mean recomputing active/project_root/fingerprint every
+# time the stop hook fires).
+cloud_post_awaiting_user() {
+  local sid="$1" awaiting="$2"
+  cloud_require_env || return 1
+  # Coerce to JSON boolean literal.
+  case "$awaiting" in
+    true|TRUE|1|yes) awaiting=true ;;
+    *)               awaiting=false ;;
+  esac
+  local payload
+  payload="$(jq -n --argjson a "$awaiting" '{awaiting_user: $a}')"
+  if ! _cloud_post_json "${STAGENT_SERVER}/api/sessions/${sid}/state" "$payload"; then
+    _cloud_warn "$sid" "cloud_post_awaiting_user failed: awaiting=${awaiting}"
     return 1
   fi
   return 0

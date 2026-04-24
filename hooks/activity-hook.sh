@@ -40,6 +40,14 @@ STAGE=$(_read_fm_field "$STATE_FILE" status)
 
 EPOCH=$(_read_fm_field "$STATE_FILE" epoch)
 
+# Takeover aliasing: Claude Code's session_id ($SID) is the local CC
+# session, which in a takeover may differ from the cloud server-side
+# session_id. The cloud server keys rows by the server-side id, so
+# posting to /api/sessions/<local-SID>/activity 404s. state.md's
+# frontmatter always carries the canonical cloud session_id — use it.
+CLOUD_SID=$(_read_fm_field "$STATE_FILE" session_id)
+[[ -z "$CLOUD_SID" ]] && CLOUD_SID="$SID"
+
 # Skip known terminal statuses
 case "$STAGE" in
   complete|cancelled|archived|interrupted) exit 0 ;;
@@ -103,7 +111,7 @@ IS_ERROR=$(echo "$HOOK_INPUT" | jq -r '
   else "false" end
 ' 2>/dev/null || echo "false")
 
-cloud_post_activity "$SID" "$STAGE" "${EPOCH:-0}" "$TOOL" "${SUMMARY:-}" \
+cloud_post_activity "$CLOUD_SID" "$STAGE" "${EPOCH:-0}" "$TOOL" "${SUMMARY:-}" \
   "$TOOL_INPUT_JSON" "$TOOL_RESULT_JSON" "$IS_ERROR"
 
 exit 0

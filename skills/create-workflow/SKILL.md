@@ -133,7 +133,7 @@ Branch on `$MODE` to pick BOTH the right workflow source AND the session-mode fo
   "$P/scripts/setup-workflow.sh" \
     --mode=cloud \
     --topic="<slug-from-step-3>" \
-    --flow="cloud://create-workflow"
+    --flow="cloud://jie-worldstatelabs/create-template"
   ```
 
 - **`$MODE=local`** — use the plugin-bundled local workflow; runs fully offline, no webapp link:

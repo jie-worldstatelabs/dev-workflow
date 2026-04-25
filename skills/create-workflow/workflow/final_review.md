@@ -1,6 +1,6 @@
-# Stage: user_review
+# Stage: final_review
 
-_Runtime config (canonical): `workflow.json` → `stages.user_review`_
+_Runtime config (canonical): `workflow.json` → `stages.final_review`_
 
 **Purpose:** After publishing, surface where the workflow lives (hub URL for cloud mode, local path for local mode) and pause for the user to either approve into `complete` or send free-form feedback that loops back to `writing` for another iteration.
 **Output artifact:** write to the absolute path provided in your I/O context
@@ -110,6 +110,6 @@ result: revise
 
 - **Redesign requests**: if the user's feedback essentially asks for "rebuild the whole stage decomposition", you should still write `result: revise` and pass it to writing — but mention in the artifact body's first line: `NOTE: user is requesting deep changes; if writing cannot accommodate without redesigning the stage graph, surface that to the user via planner.md once they cancel + restart.` v1 of this stage does not loop back to `planning`; that's a `cancel + /stagent:create` story.
 
-- **User keeps replying with more feedback during a revise iteration**: each revise round is a new epoch with one user reply per epoch. If the user sends a second message before writing finishes, the workflow loop should already buffer it for the next user_review pass.
+- **User keeps replying with more feedback during a revise iteration**: each revise round is a new epoch with one user reply per epoch. If the user sends a second message before writing finishes, the workflow loop should already buffer it for the next final_review pass.
 
 - **Feedback contains code blocks, ANSI escapes, or unusual whitespace**: keep them verbatim. The writer needs to see exactly what the user wrote.

@@ -35,7 +35,7 @@
         ],
         "optional": [
           { "from_stage": "validating", "description": "Validator report from the previous iteration — every ❌ line must be addressed in this pass" },
-          { "from_stage": "user_review", "description": "User feedback from the most recent publish round — incorporate every point as the highest-priority change list for this iteration" }
+          { "from_stage": "final_review", "description": "User feedback from the most recent publish round — incorporate every point as the highest-priority change list for this iteration" }
         ]
       }
     },
@@ -57,8 +57,8 @@
       "interruptible": false,
       "execution": { "type": "inline" },
       "transitions": {
-        "done": "user_review",
-        "skipped": "user_review"
+        "done": "final_review",
+        "skipped": "final_review"
       },
       "inputs": {
         "required": [
@@ -70,7 +70,7 @@
         ]
       }
     },
-    "user_review": {
+    "final_review": {
       "interruptible": true,
       "execution": { "type": "inline" },
       "transitions": {

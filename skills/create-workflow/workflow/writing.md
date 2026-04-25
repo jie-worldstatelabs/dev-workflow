@@ -16,7 +16,7 @@ Read every input path from your prompt — do NOT construct or hardcode paths.
 
 - **Required:** `planning` report — the approved design (suffix, target dir, stage decomposition, transitions, inputs, run_files, readme blurb).
 - **Optional:** `validating` report from the previous epoch — contains the validator's stdout/stderr with every `❌` line. If present, every listed error MUST be addressed in this pass.
-- **Optional:** `user_review` report from the previous publish round — present only when the user reviewed a published draft and chose `revise`. The body under `# User Review Feedback` is the user's verbatim change request. **Read it FIRST and treat every point as a required change for this iteration**, taking priority over the planner's original design where they conflict. Address each one explicitly in your report's "User feedback addressed" section.
+- **Optional:** `final_review` report from the previous publish round — present only when the user reviewed a published draft and chose `revise`. The body under `# User Review Feedback` is the user's verbatim change request. **Read it FIRST and treat every point as a required change for this iteration**, taking priority over the planner's original design where they conflict. Address each one explicitly in your report's "User feedback addressed" section.
 
 ## Read the plugin's canonical reference first
 
@@ -165,9 +165,9 @@ result: done
 - [ ] <❌ line 2 copied from validating report> — <what file changed and how>
 
 ## User feedback addressed
-(Include this section ONLY if the optional `user_review` input was provided this epoch — i.e. the user reviewed a published draft and chose `revise`. Otherwise omit it.)
+(Include this section ONLY if the optional `final_review` input was provided this epoch — i.e. the user reviewed a published draft and chose `revise`. Otherwise omit it.)
 
-- [ ] <feedback point 1, copied verbatim from user_review body> — <what file changed and how>
+- [ ] <feedback point 1, copied verbatim from final_review body> — <what file changed and how>
 - [ ] <feedback point 2 ...> — <...>
 ```
 
@@ -178,4 +178,4 @@ result: done
 - Do NOT invent top-level or per-stage schema fields not listed above.
 - Do NOT call `setup-workflow.sh --validate-only` yourself — that is the next stage's job.
 - If validator feedback is provided, address every `❌` line. If a line can't be addressed, document why in the report's "Validator feedback addressed" section rather than silently dropping it.
-- If user_review feedback is provided, treat it as the highest-priority change list — overrides the planner's original design where they conflict (the user has seen the published draft and is asking for changes against IT, not against the original plan). Address every point and document it in "User feedback addressed".
+- If final_review feedback is provided, treat it as the highest-priority change list — overrides the planner's original design where they conflict (the user has seen the published draft and is asking for changes against IT, not against the original plan). Address every point and document it in "User feedback addressed".

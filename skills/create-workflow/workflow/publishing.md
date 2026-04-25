@@ -92,10 +92,10 @@ cloud
 
 ## Rules
 
-- Do NOT fail the stage on publish errors. The state machine routes to `user_review` after this stage; an `escalated` terminal would suggest the whole run is broken, which is wrong — the local workflow files are valid and usable, and the user can still review them and approve / request changes.
+- Do NOT fail the stage on publish errors. The state machine routes to `final_review` after this stage; an `escalated` terminal would suggest the whole run is broken, which is wrong — the local workflow files are valid and usable, and the user can still review them and approve / request changes.
 - Do NOT modify any file in the target workflow directory. Your job is to push it up (or skip), nothing else.
 - Do NOT call `update-status.sh` — the main loop reads this artifact's `result:` and advances.
 
 ## What happens next
 
-After this stage's `result: done` (or `skipped`), the state machine transitions to `user_review` — an interruptible inline stage that surfaces the published URL (cloud) or local path (local) to the user and waits for an approve / revise reply. Format your `## Script output` block (cloud) and `## Mode` line (local) so `user_review` can extract them cleanly.
+After this stage's `result: done` (or `skipped`), the state machine transitions to `final_review` — an interruptible inline stage that surfaces the published URL (cloud) or local path (local) to the user and waits for an approve / revise reply. Format your `## Script output` block (cloud) and `## Mode` line (local) so `final_review` can extract them cleanly.

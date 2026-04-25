@@ -4,7 +4,7 @@ Turns a natural-language description into a validated workflow definition via a 
 
 ## Overview
 
-`planning` interviews the user — from scratch in create mode, or pre-loaded with the existing workflow in edit mode. It records an approved design. `writing` (opus subagent) produces `workflow.json`, stage `.md` files, and `readme.md` in the target directory. `validating` runs `setup-workflow.sh --validate-only`: `PASS` advances to `publishing`, `FAIL` loops back to `writing` with the validator's verbatim `❌` lines as optional feedback. `publishing` reads `publish_intent` from the setup_context — for cloud it runs `publish-workflow.sh` and reports the hub URL; for local it's a skip. `user_review` (interruptible) surfaces the published URL or local path to the user and pauses for an `approve` / free-form-revise reply: approve goes to `complete`, revise loops back to `writing` with the user's reply as the highest-priority change list. The retry loops (writing↔validating, user_review→writing) are enforced by workflow.json transitions, not by agent prose.
+`planning` interviews the user — from scratch in create mode, or pre-loaded with the existing workflow in edit mode. It records an approved design. `writing` (opus subagent) produces `workflow.json`, stage `.md` files, and `readme.md` in the target directory. `validating` runs `setup-workflow.sh --validate-only`: `PASS` advances to `publishing`, `FAIL` loops back to `writing` with the validator's verbatim `❌` lines as optional feedback. `publishing` reads `publish_intent` from the setup_context — for cloud it runs `publish-workflow.sh` and reports the hub URL; for local it's a skip. `final_review` (interruptible) surfaces the published URL or local path to the user and pauses for an `approve` / free-form-revise reply: approve goes to `complete`, revise loops back to `writing` with the user's reply as the highest-priority change list. The retry loops (writing↔validating, final_review→writing) are enforced by workflow.json transitions, not by agent prose.
 
 ## Stages
 
@@ -14,7 +14,7 @@ Turns a natural-language description into a validated workflow definition via a 
 | `writing` | subagent | opus | Produce `workflow.json` + stage `.md` files + `readme.md` matching the plan, addressing validator and user feedback when present |
 | `validating` | inline | — | Run `--validate-only`; PASS → publishing, FAIL → writing |
 | `publishing` | inline | — | If `publish_intent=cloud`, push to hub via `publish-workflow.sh`; else skip |
-| `user_review` | inline (interruptible) | — | Show the URL/path to the user and wait for approve / revise reply |
+| `final_review` | inline (interruptible) | — | Show the URL/path to the user and wait for approve / revise reply |
 
 ## Flow
 
@@ -23,9 +23,9 @@ planning    --(approved)----------> writing
 writing     --(done)--------------> validating
 validating  --(PASS)--------------> publishing
 validating  --(FAIL)--------------> writing
-publishing  --(done / skipped)---> user_review
-user_review --(approve)----------> complete
-user_review --(revise)-----------> writing
+publishing  --(done / skipped)---> final_review
+final_review --(approve)----------> complete
+final_review --(revise)-----------> writing
 ```
 
 ## Setup context

@@ -34,7 +34,8 @@
           { "from_stage": "planning", "description": "Approved design: suffix, target dir, stage decomposition, transition graph, inputs per stage" }
         ],
         "optional": [
-          { "from_stage": "validating", "description": "Validator report from the previous iteration — every ❌ line must be addressed in this pass" }
+          { "from_stage": "validating", "description": "Validator report from the previous iteration — every ❌ line must be addressed in this pass" },
+          { "from_stage": "user_review", "description": "User feedback from the most recent publish round — incorporate every point as the highest-priority change list for this iteration" }
         ]
       }
     },
@@ -56,8 +57,8 @@
       "interruptible": false,
       "execution": { "type": "inline" },
       "transitions": {
-        "done": "complete",
-        "skipped": "complete"
+        "done": "user_review",
+        "skipped": "user_review"
       },
       "inputs": {
         "required": [
@@ -66,6 +67,23 @@
         ],
         "optional": [
           { "from_run_file": "setup_context", "description": "publish_intent gates cloud vs skip" }
+        ]
+      }
+    },
+    "user_review": {
+      "interruptible": true,
+      "execution": { "type": "inline" },
+      "transitions": {
+        "approve": "complete",
+        "revise":  "writing"
+      },
+      "inputs": {
+        "required": [
+          { "from_stage": "publishing", "description": "Publish report — contains the hub URL (cloud) or skip notice (local) to surface to the user" },
+          { "from_stage": "writing",    "description": "Writer report — has the absolute target directory, useful in both modes" }
+        ],
+        "optional": [
+          { "from_run_file": "setup_context", "description": "publish_intent — drives whether the user message highlights the hub URL or the local path" }
         ]
       }
     }

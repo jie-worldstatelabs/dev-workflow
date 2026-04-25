@@ -184,7 +184,36 @@ section entirely when everything is default.)
 
 ## Step 7 — Get user approval
 
-> "Plan saved. Please review and confirm to start writing, or request changes."
+Surface the plan with a **concrete pointer** to where the user can read it. Don't just say "review the plan" — paste the actual URL (cloud mode) or absolute path (local mode) so the link/path is one click / one copy away.
+
+1. Read `publish_intent` from the `setup_context` input you already loaded in Step 1.
+2. Build the review pointer:
+   - **`publish_intent == "cloud"`**: the live session URL.
+     - `SESSION_ID`: read from `state.md` frontmatter (`session_id:` field) — your I/O context tells you which `state.md` file.
+     - `SERVER`: read from `~/.cache/stagent/cloud-registry/<SESSION_ID>.json` `.server` field. Falls back to `https://stagent.worldstatelabs.com` if the file or field is missing.
+     - URL format: `<SERVER>/s/<SESSION_ID>`
+   - **`publish_intent == "local"`**: the absolute path of the artifact you just wrote (the path your I/O context gave you for `planning-report.md`).
+3. Print exactly this format (and nothing else — no chatter, no follow-up paragraphs):
+
+   **Cloud mode:**
+   ```
+   Plan ready for review.
+
+   <SERVER>/s/<SESSION_ID>
+
+   Reply "approve" / "ok" / "lgtm" to start writing, or send any changes you want to the plan.
+   ```
+
+   **Local mode:**
+   ```
+   Plan ready for review.
+
+   <absolute-path-to-planning-report.md>
+
+   Reply "approve" / "ok" / "lgtm" to start writing, or send any changes you want to the plan.
+   ```
+
+4. **End the turn.** Keep the artifact at `result: pending` — Step 8 flips it to `approved` only after the user explicitly OKs.
 
 If the user requests changes, iterate on the plan body — keep `result: pending`.
 

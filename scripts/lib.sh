@@ -45,10 +45,22 @@ find_dw_root() {
   return 1
 }
 
-# Read a YAML frontmatter scalar from a file; echoes the value.
+# Read a YAML frontmatter scalar from a file; echoes the value (or empty
+# if the field is absent). Always exits 0 — callers branch on the string
+# value, not on the rc.
+#
+# The `|| true` is load-bearing: when the field is missing, `grep` exits
+# 1 (no match). Under `set -o pipefail` (which most plugin scripts set
+# at their head), that grep failure propagates as the pipeline rc → the
+# function returns 1. Combined with `set -e`, the caller's command
+# substitution `VAR=$(_read_fm_field ...)` then aborts the entire
+# script silently — exactly what bit cross-machine `/stagent:continue`
+# when `cloud_pull_shadow` rebuilt state.md without `last_seen_head`,
+# leaving the script to die at the workdir-health check before the
+# status flip ran.
 _read_fm_field() {
   local file="$1" field="$2"
-  grep "^${field}:" "$file" 2>/dev/null \
+  { grep "^${field}:" "$file" 2>/dev/null || true; } \
     | head -1 \
     | sed "s/^${field}: *//" \
     | sed 's/^"\(.*\)"$/\1/' \

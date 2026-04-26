@@ -1,0 +1,14 @@
+{
+  "initial_stage": "analyze",
+  "terminal_stages": ["complete", "escalated", "cancelled"],
+  "max_epoch": 5,
+  "modifies_worktree": false,
+  "stages": {
+    "analyze": {
+      "interruptible": true,
+      "execution": { "type": "inline" },
+      "transitions": { "done": "complete" },
+      "inputs": { "required": [], "optional": [] }
+    }
+  }
+}

@@ -1679,6 +1679,16 @@ cloud_post_diff() {
       if git -C "$proot" read-tree --index-output="$cur_idx" HEAD 2>/dev/null \
          && GIT_INDEX_FILE="$cur_idx" git -C "$proot" add -A 2>/dev/null; then
         current_tree="$(GIT_INDEX_FILE="$cur_idx" git -C "$proot" write-tree 2>/dev/null || true)"
+        # Narrow current_tree to project_root subtree so it matches the
+        # (also-narrowed) baseline-tree. Without this, baseline is a
+        # subtree but current is whole-repo and the diff is incoherent
+        # (every sibling-project file shows as "added"). Falls back to
+        # whole tree if narrowing fails.
+        if [[ -n "$current_tree" ]] && [[ "$current_tree" =~ ^[0-9a-f]{40}$ ]]; then
+          local cur_proj
+          cur_proj="$(_extract_project_subtree "$proot" "$current_tree")"
+          [[ -n "$cur_proj" && "$cur_proj" =~ ^[0-9a-f]{40}$ ]] && current_tree="$cur_proj"
+        fi
       fi
       rm -f "$cur_idx"
     fi
@@ -1884,6 +1894,52 @@ _session_modifies_worktree() {
   esac
 }
 
+# Given a whole-repo tree SHA and the project_root path, return the tree
+# SHA representing only the project_root subtree. The returned SHA's
+# entries are relative to project_root (so paths look like "src/App.jsx",
+# not "diary2/src/App.jsx") — which is exactly what every downstream
+# consumer (cloud_post_diff, audit stages, terminal summaries) needs to
+# scope output to the project. Reuses the parent repo's object store via
+# `git rev-parse <tree>:<path>`; produces no new git state.
+#
+# Echoes the subtree SHA on success. On failure or when narrowing is a
+# no-op (project_root == repo_root, no .git, malformed input), echoes
+# the input tree unchanged so the caller can fall back gracefully.
+_extract_project_subtree() {
+  local proot="$1" whole_tree="$2"
+  [[ -z "$whole_tree" || ! "$whole_tree" =~ ^[0-9a-f]{40}$ ]] && { echo "$whole_tree"; return 0; }
+  [[ -z "$proot" ]] && { echo "$whole_tree"; return 0; }
+
+  local repo_root
+  repo_root="$(git -C "$proot" rev-parse --show-toplevel 2>/dev/null)" || { echo "$whole_tree"; return 0; }
+  [[ -z "$repo_root" ]] && { echo "$whole_tree"; return 0; }
+
+  # project_root == repo_root: whole tree IS the project tree.
+  if [[ "$proot" == "$repo_root" ]]; then
+    echo "$whole_tree"; return 0
+  fi
+
+  # Compute the project's path relative to the repo root, stripping any
+  # trailing slash. If the prefix-strip is a no-op (proot wasn't actually
+  # under repo_root, e.g. via symlink), `rev-parse` will fail and we fall
+  # back to the whole tree.
+  local proj_rel="${proot#$repo_root/}"
+  proj_rel="${proj_rel%/}"
+  if [[ -z "$proj_rel" || "$proj_rel" == "$proot" ]]; then
+    echo "$whole_tree"; return 0
+  fi
+
+  local sub
+  sub="$(git -C "$proot" rev-parse "${whole_tree}:${proj_rel}" 2>/dev/null || true)"
+  if [[ -n "$sub" && "$sub" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "$sub"
+  else
+    # Path missing in tree (e.g. project_root is a brand-new dir not yet
+    # in HEAD and somehow not picked up by add -A). Degrade to whole tree.
+    echo "$whole_tree"
+  fi
+}
+
 # Idempotent: no-op if $shadow/baseline-tree already exists and is
 # non-empty. Best-effort: bails quietly on missing git / missing HEAD.
 # Callers are responsible for gating on config_modifies_worktree /
@@ -1927,6 +1983,12 @@ _capture_baseline_tree() {
   tree_sha="$(GIT_INDEX_FILE="$tmp_index" git -C "$proot" write-tree 2>/dev/null || true)"
   rm -f "$tmp_index"
   if [[ "$tree_sha" =~ ^[0-9a-f]{40}$ ]]; then
+    # Narrow to project_root subtree so monorepo siblings don't bleed
+    # into the diff. Falls back to the whole tree if narrowing isn't
+    # applicable (proot == repo_root) or fails (unusual paths).
+    local proj_tree
+    proj_tree="$(_extract_project_subtree "$proot" "$tree_sha")"
+    [[ -n "$proj_tree" && "$proj_tree" =~ ^[0-9a-f]{40}$ ]] && tree_sha="$proj_tree"
     echo "$tree_sha" > "$tree_file"
     _cloud_warn "$sid" "_capture_baseline_tree: captured ${tree_sha:0:10}"
   else

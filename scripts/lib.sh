@@ -1462,6 +1462,40 @@ cloud_post_cancel() {
   return 0
 }
 
+# Check whether the server still considers $sid an active workflow.
+# Echoes one of: 'active', 'inactive' (terminal or archived), 'missing'
+# (404), 'unknown' (network / non-2xx). Used by cancel-workflow.sh's
+# fallback path to decide whether to fire a server-side cancel when no
+# local shadow exists for the session.
+cloud_session_status_class() {
+  local sid="$1"
+  cloud_require_env || { echo "unknown"; return 1; }
+  if [[ -z "$sid" ]]; then
+    echo "missing"
+    return 1
+  fi
+  local body http
+  body="$(mktemp -t dw-status-XXXXXX)"
+  http="$(curl -sS -o "$body" -w "%{http_code}" --max-time 5 \
+    -H "$(_cloud_auth_header)" \
+    "${STAGENT_SERVER}/api/sessions/${sid}" 2>/dev/null)" || http="000"
+  case "$http" in
+    404) rm -f "$body"; echo "missing"; return 0 ;;
+    200) ;;
+    *)   rm -f "$body"; echo "unknown"; return 1 ;;
+  esac
+  local active archived
+  active="$(jq -r '.session.active // false' "$body" 2>/dev/null)"
+  archived="$(jq -r '.session.archived_at // empty' "$body" 2>/dev/null)"
+  rm -f "$body"
+  if [[ "$active" == "true" ]] && [[ -z "$archived" ]]; then
+    echo "active"
+  else
+    echo "inactive"
+  fi
+  return 0
+}
+
 cloud_delete_session() {
   local sid="$1"
   cloud_require_env || return 1

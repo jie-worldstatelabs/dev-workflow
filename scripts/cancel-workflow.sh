@@ -29,6 +29,49 @@ while [[ $# -gt 0 ]]; do
 done
 
 if ! resolve_state; then
+  # Local resolution failed — but for cloud sessions, the server can be
+  # active even when the local shadow has been wiped (claude killed
+  # mid-run, cache cleared, plugin re-installed, etc.). Without this
+  # fallback the user is stuck: /stagent:start refuses ("server has
+  # active workflow"), /stagent:cancel refuses ("no local state"). We
+  # check the cwd-cache for a session_id this directory was last tied
+  # to and, if the server still flags it active, fire a server-side
+  # cancel to break the deadlock.
+  #
+  # Safety:
+  #   - Only the cwd-cache is consulted (PPID walk forced off via
+  #     _DW_FORCE_CWD_CACHE=1) so the sid is guaranteed to belong to
+  #     a claude session that ran in THIS directory. No parent-process
+  #     bleedthrough into unrelated workflows.
+  #   - Owned cloud sessions are protected by server-side ownership
+  #     checks — POSTing cancel from a different identity returns 403.
+  #   - Anonymous sessions are URL-as-credential by design; if the cwd
+  #     cache still points at one, the user is the URL holder.
+  CLOUD_SID="${DESIRED_SESSION:-$(_DW_FORCE_CWD_CACHE=1 read_cached_session_id 2>/dev/null || true)}"
+  if [[ -n "$CLOUD_SID" ]]; then
+    SRV_CLASS="$(cloud_session_status_class "$CLOUD_SID" 2>/dev/null || echo unknown)"
+    if [[ "$SRV_CLASS" == "active" ]]; then
+      echo "▶️  No local state for session ${CLOUD_SID}, but the server still has it active." >&2
+      echo "   Cancelling on the server to clear the deadlock..." >&2
+      if [[ -n "$HARD" ]]; then
+        cloud_delete_session "$CLOUD_SID" || true
+      else
+        cloud_post_cancel "$CLOUD_SID" || {
+          echo "⚠️  cloud cancel POST failed — the server may still show this run as active" >&2
+          exit 1
+        }
+      fi
+      cloud_wipe_scratch    "$CLOUD_SID" 2>/dev/null || true
+      cloud_unregister_session "$CLOUD_SID" 2>/dev/null || true
+      if [[ -n "$HARD" ]]; then
+        echo "Dev workflow cancelled (hard-deleted from cloud — no local state was found)."
+      else
+        echo "Dev workflow cancelled (archived on server — no local state was found)."
+      fi
+      exit 0
+    fi
+  fi
+
   echo "No matching dev workflow to cancel." >&2
   if workflows=$(list_all_workflows); [[ -n "$workflows" ]]; then
     echo "   Available workflows:" >&2

@@ -255,40 +255,35 @@ if is_cloud_session "$RUN_DIR_NAME"; then
   # best-effort — failures never block the transition.
   cloud_post_diff "$RUN_DIR_NAME" || true
   if is_terminal_status "$NEW_STATUS"; then
-    # Terminal artifact: prefer a human-written summary at
-    # <terminal>-report.md, fall back to a machine-generated one so
-    # the webapp always has content when the user clicks the terminal
-    # node. Best-effort — failures must not block the terminal cleanup
-    # below (the state transition itself already succeeded server-side).
+    # Terminal artifact is owned by the plugin, not by any stage.
+    # We always synthesize fresh from the session's authoritative state
+    # at the moment of terminal transition — single source of truth,
+    # deterministic frontmatter (correct epoch + result), no reliance
+    # on whatever may already be on disk.
+    #
+    # The previous policy ("prefer human-written summary, fall back to
+    # synthesize") looked like a thoughtful upgrade path but in
+    # practice broke uploads: agents in earlier stages would pre-write
+    # `<terminal>-report.md` during their own stage (observed: clean_up
+    # subagent writing complete-report.md at epoch N-1). The webapp's
+    # artifact route enforces `artifact_epoch === session.epoch`, so
+    # the stale-epoch file silently 409'd, and the agent-authored body
+    # was a snapshot of pre-terminal state anyway. Best-effort —
+    # failures must not block the terminal cleanup below (the state
+    # transition itself already succeeded server-side).
     TERMINAL_REPORT="${TOPIC_DIR}/${NEW_STATUS}-report.md"
-    if [[ ! -f "$TERMINAL_REPORT" ]]; then
-      _started_at=$(_read_fm_field "$STATE_FILE" started_at 2>/dev/null || true)
-      _workflow_url="$(cloud_registry_get "$RUN_DIR_NAME" workflow_url 2>/dev/null || echo "")"
-      synthesize_terminal_report \
-        "$TERMINAL_REPORT" \
-        "$RUN_DIR_NAME" \
-        "${TOPIC:-}" \
-        "$NEW_STATUS" \
-        "$CURRENT_STATUS" \
-        "$NEW_EPOCH" \
-        "${_started_at:-}" \
-        "${_workflow_url:-}" \
-        || true
-    fi
-    # Force-correct the frontmatter epoch + result before upload.
-    # An overeager agent sometimes pre-writes <terminal>-report.md
-    # during the previous stage (observed: clean_up subagent writing
-    # complete-report.md while still at epoch N-1). The webapp's
-    # artifact route enforces strict `artifact_epoch === session.epoch`
-    # monotonicity, so a stale epoch in the file silently 409s the
-    # upload — and our `2>/dev/null || true` swallowed the failure.
-    # set_fm_field is idempotent: when the value already matches it
-    # is a no-op, so synthesized files (which already carry NEW_EPOCH)
-    # pay nothing.
-    if [[ -f "$TERMINAL_REPORT" ]]; then
-      set_fm_field "$TERMINAL_REPORT" epoch  "$NEW_EPOCH"  2>/dev/null || true
-      set_fm_field "$TERMINAL_REPORT" result "$NEW_STATUS" 2>/dev/null || true
-    fi
+    _started_at=$(_read_fm_field "$STATE_FILE" started_at 2>/dev/null || true)
+    _workflow_url="$(cloud_registry_get "$RUN_DIR_NAME" workflow_url 2>/dev/null || echo "")"
+    synthesize_terminal_report \
+      "$TERMINAL_REPORT" \
+      "$RUN_DIR_NAME" \
+      "${TOPIC:-}" \
+      "$NEW_STATUS" \
+      "$CURRENT_STATUS" \
+      "$NEW_EPOCH" \
+      "${_started_at:-}" \
+      "${_workflow_url:-}" \
+      || true
     cloud_post_artifact "$RUN_DIR_NAME" "$NEW_STATUS" "$TERMINAL_REPORT" 2>/dev/null || true
 
     cloud_post_archive "$RUN_DIR_NAME" || true

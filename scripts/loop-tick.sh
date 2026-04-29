@@ -62,6 +62,16 @@ if ! resolve_state; then
 fi
 resolve_workflow_dir_from_state
 if ! config_check; then
+  # Drop the bootstrap-edge marker BEFORE exiting — otherwise the
+  # stop-hook's `decision: block` branch (introduced together with
+  # this change) would force claude to keep re-invoking
+  # `stagent:stagent`, each call landing right back here, each call
+  # bouncing off the same `config_check` failure. That turns a fixable
+  # config error into a livelock the user can only break with
+  # `/stagent:cancel`. Removing the marker means the next stop-hook
+  # invocation falls through to the regular uninterruptible-stage
+  # branch, which surfaces a clear error instead of looping.
+  rm -f "$(dirname "$STATE_FILE")/.bootstrap_pending" 2>/dev/null || true
   echo "❌ loop-tick: workflow config invalid" >&2
   exit 1
 fi

@@ -135,9 +135,34 @@ fi
 # we're waiting on the agent to finish chaining.
 # ──────────────────────────────────────────────────────────────
 if [[ -f "${TOPIC_DIR}/.bootstrap_pending" ]]; then
-  BOOT_MSG="🚀 Dev workflow: bootstrap complete at stage \"$STATUS\" (epoch $EPOCH). The stage loop driver has NOT been invoked yet. You MUST invoke \`Skill(\"stagent:stagent\")\` IMMEDIATELY in this same turn to drive the loop. Do NOT end the turn. Do NOT wait for user input. This is a hand-off window, not a pause."
-  [[ -n "$SYNC_WARNINGS" ]] && BOOT_MSG="${BOOT_MSG}  |  sync warnings: ${SYNC_WARNINGS}"
-  jq -n --arg msg "$BOOT_MSG" '{"systemMessage": $msg}'
+  # Block the stop instead of merely emitting `systemMessage`. A
+  # systemMessage is informational — claude is free to acknowledge it
+  # and end the turn, which is exactly what's been observed in the
+  # wild: setup completes, the boot message renders, and claude stops
+  # without ever invoking `Skill("stagent:stagent")`. The workflow
+  # then sits frozen at its initial stage with `.bootstrap_pending`
+  # still on disk until the user prompts something else.
+  #
+  # `decision: block` plus a `reason` body is the same control signal
+  # the uninterruptible-stage path below uses. claude cannot end the
+  # turn while this signal is in flight; the `reason` text becomes
+  # the injected continuation prompt.
+  #
+  # Companion fix: loop-tick.sh now `rm -f`s this marker on its early
+  # resolve_state / config_check failure paths too, so a transient
+  # loop-tick error can't leave the marker behind and turn the block
+  # into a permanent retry loop.
+  BOOT_REASON="🚀 Dev workflow: bootstrap complete at stage \"$STATUS\" (epoch $EPOCH). The stage loop driver has NOT been invoked yet. You MUST invoke \`Skill(\"stagent:stagent\")\` IMMEDIATELY in this same turn to drive the loop. Do NOT end the turn. Do NOT wait for user input. This is a hand-off window, not a pause."
+  [[ -n "$SYNC_WARNINGS" ]] && BOOT_REASON="${BOOT_REASON}  |  sync warnings: ${SYNC_WARNINGS}"
+  BOOT_MSG="🚀 Dev workflow | Phase: $STATUS (epoch $EPOCH) | bootstrap → invoking stage loop"
+  jq -n \
+    --arg prompt "$BOOT_REASON" \
+    --arg msg "$BOOT_MSG" \
+    '{
+      "decision": "block",
+      "reason": $prompt,
+      "systemMessage": $msg
+    }'
   exit 0
 fi
 

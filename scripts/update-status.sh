@@ -275,6 +275,20 @@ if is_cloud_session "$RUN_DIR_NAME"; then
         "${_workflow_url:-}" \
         || true
     fi
+    # Force-correct the frontmatter epoch + result before upload.
+    # An overeager agent sometimes pre-writes <terminal>-report.md
+    # during the previous stage (observed: clean_up subagent writing
+    # complete-report.md while still at epoch N-1). The webapp's
+    # artifact route enforces strict `artifact_epoch === session.epoch`
+    # monotonicity, so a stale epoch in the file silently 409s the
+    # upload — and our `2>/dev/null || true` swallowed the failure.
+    # set_fm_field is idempotent: when the value already matches it
+    # is a no-op, so synthesized files (which already carry NEW_EPOCH)
+    # pay nothing.
+    if [[ -f "$TERMINAL_REPORT" ]]; then
+      set_fm_field "$TERMINAL_REPORT" epoch  "$NEW_EPOCH"  2>/dev/null || true
+      set_fm_field "$TERMINAL_REPORT" result "$NEW_STATUS" 2>/dev/null || true
+    fi
     cloud_post_artifact "$RUN_DIR_NAME" "$NEW_STATUS" "$TERMINAL_REPORT" 2>/dev/null || true
 
     cloud_post_archive "$RUN_DIR_NAME" || true

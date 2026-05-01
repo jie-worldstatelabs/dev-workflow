@@ -38,7 +38,8 @@
 
 ## 场景库
 
-### 场景 1 · 不调研就瞎写
+### 场景 1 · 调研优先
+*不调研就瞎写*
 
 **症状**：让 CC 加一个 feature，它不 grep 现有实现、不查官方文档，直接开写。结果 API 版本对不上、项目里已有的工具类重造了一遍、风格跟现有代码割裂。
 
@@ -63,7 +64,8 @@
 /stagent:start --flow=cloud://you/research-first "给 API 加限流"
 ```
 
-### 场景 2 · 改完自己说 done
+### 场景 2 · 强制验证
+*改完自己说 done*
 
 **症状**：CC 写完代码不跑 build、不跑测试、不看 lint，直接说「已完成」。下一轮你一运行发现 TypeError。
 
@@ -78,7 +80,8 @@
 - review：subagent 对着 baseline commit 做对抗式 code review，列风险点；FAIL 回 execute。"
 ```
 
-### 场景 3 · 单点修改 scope creep
+### 场景 3 · 范围锁定
+*单点修改顺手改一片*
 
 **症状**：让它修 bug A，它顺手 refactor B、重命名 C、还给 D 加了个 helper。PR 变 unreviewable，回滚也一锅端。
 
@@ -92,7 +95,8 @@
 - scope-check：diff 出来的文件集合必须是 plan.files 的子集；超出的文件数 > 0 或 diff 行数 > 2×estimated_loc，FAIL 回 plan 重新规划（而不是 execute，强迫它先承认 scope 变了）。"
 ```
 
-### 场景 4 · 修 bug 只修症状
+### 场景 4 · 强制溯因
+*修 bug 只修症状*
 
 **症状**：报错 CC 就加 `try/except: pass`；断言挂了把断言改松；测试 flaky 就加 retry。根因从来没查清过。
 
@@ -107,7 +111,8 @@
 - fix：fix.md 必须引用 verify.md 里确认的根因；禁止 try/except 吞异常。"
 ```
 
-### 场景 5 · TDD 说了不听
+### 场景 5 · 严格 TDD
+*说了 test first 还是先写实现*
 
 **症状**：你说「test first」，CC 回答「好的」，然后直接写 implementation，测试放 TODO。
 
@@ -119,7 +124,8 @@
 - refactor：跑整个测试套件保证还绿；FAIL 回 green。"
 ```
 
-### 场景 6 · UI 改完不看浏览器
+### 场景 6 · 视觉验收
+*UI 改完只看代码*
 
 **症状**：改完 UI 只看代码就说完成，视觉 regression 全靠你自己打开浏览器发现。
 
@@ -133,7 +139,8 @@
   任一 FAIL 回 execute。"
 ```
 
-### 场景 7 · 长任务中途忘约束
+### 场景 7 · 约束常驻
+*长任务跑到一半忘约束*
 
 **症状**：session 开头说「不要加 emoji 装饰」「测试覆盖率要 80%」，到半程开始飘。
 

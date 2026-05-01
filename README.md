@@ -22,7 +22,7 @@ Requires: [Claude Code](https://claude.ai/claude-code), `jq`, `curl`, `git` (clo
 Start a workflow — the default development workflow builds what you describe:
 
 ```
-/stagent:start --flow=cloud://demo "Build a journaling app with MBTI insights"
+/stagent:start "Build a journaling app with MBTI insights"
 ```
 
 The skill prints a live UI URL:
@@ -49,15 +49,15 @@ For a fully offline run, switch to local mode:
 
 With no `--flow` flag:
 
-- **Cloud mode** (default) fetches `cloud://demo` from the hub
-- **Local mode** uses the plugin-bundled workflow at `skills/stagent/workflow/` (offline fallback)
+- **Cloud mode** (default) fetches `cloud://demo` from the hub — a hosted template that may evolve independently of this README
+- **Local mode** uses the plugin-bundled workflow at `skills/stagent/workflow/` (offline fallback) — the canonical source for the cycle described below
 
-Both are the same **plan → execute → verify → review → QA → loop** cycle:
+The bundled workflow runs a **plan → execute → verify → review → QA → loop** cycle:
 
 1. **Planning** *(interruptible)* — inline Q&A with you: clarifying questions, proposed approaches, plan file. You confirm before anything gets built.
 2. **Executing** — subagent (opus) implements the plan: tests-first when specified, minimal focused changes.
 3. **Verifying** — quick tests (unit/integration) run inline. FAIL → loop to Execute; PASS/SKIPPED → Review.
-4. **Reviewing** — subagent (sonnet) runs adversarial code review against the baseline commit. PASS → QA; FAIL → loop to Execute.
+4. **Reviewing** — subagent runs adversarial code review against the baseline commit. PASS → QA; FAIL → loop to Execute.
 5. **QA-ing** — subagent runs real user journey tests (Playwright, XcodeBuildMCP, etc.). Distinguishes test bugs from app bugs — only confirmed app bugs block progress. PASS → complete; FAIL → loop to Execute.
 
 The `execute → verify → review → QA` loop runs **autonomously** after you approve the plan. A Stop hook guarantees the loop runs to completion. The loop stops on one of: QA passes (terminal `complete`), `max_epoch` is hit (default `20`, configured in `workflow.json` → `.max_epoch`; breaks runaway iteration by forcing terminal `escalated`), or you intervene with `/stagent:interrupt` (pauses) or `/stagent:cancel` (terminal `cancelled`). All three — `complete`, `escalated`, `cancelled` — are declared in `workflow.json` → `.terminal_stages`.
@@ -81,7 +81,7 @@ Need ideas for what to turn into a workflow? See the [cookbook](./docs/claude-co
 | `/stagent:start [--mode=cloud\|local] [--flow=<ref>] <task>` | Start a new run |
 | `/stagent:interrupt` | Pause the active run without clearing state (can be called mid-stage; resume with `/stagent:continue`) |
 | `/stagent:continue [--session <id>]` | Resume an interrupted run (`--session` for cross-machine cloud takeover) |
-| `/stagent:cancel [--hard]` | Cancel and archive (or wipe with `--hard`) |
+| `/stagent:cancel [--hard]` | Cancel the run. Default archives; `--hard` hard-deletes. Local-mode files are archived/removed accordingly; in cloud mode the local shadow is wiped either way and the difference is only on the server (archived vs hard-deleted) |
 | `/stagent:create [--flow=<ref>] <description>` | Create a new workflow or edit an existing one |
 | `/stagent:publish <dir> [--name <n>] [--description <d>] [--dry-run]` | Publish a local workflow to the hub |
 | `/stagent:login` / `:logout` / `:whoami` | Manage your hub identity |
@@ -138,55 +138,6 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for:
 - State machine protocol (epoch, result, transitions)
 - Stop-hook behavior
 - End-to-end cycle walkthrough
-
-## Troubleshooting
-
-### Claude Code prompts for permission on every plugin-script call
-
-Stagent ships a `PreToolUse:Bash` hook (`hooks/plugin-path-rewrite.sh`)
-that rewrites skill-emitted `"$P/scripts/..."` invocations into
-absolute paths before Claude Code's permission classifier sees them.
-With the hook active, the user only needs to accept the classifier
-prompt once (with "Don't ask again") for the fixed plugin path, and
-all further script calls run silently.
-
-If prompts return on every transition, the hook isn't active. Check:
-- `/reload-plugins` inside the Claude Code session after an install
-  or update
-- `hooks/hooks.json` lists a `PreToolUse` entry with `"matcher": "Bash"`
-  pointing at `plugin-path-rewrite.sh`
-- `hooks/plugin-path-rewrite.sh` is present and executable
-  (`chmod +x`)
-- `STAGENT_NO_PATH_REWRITE` is unset (`1` disables the hook by design)
-
-When the hook is inactive the plugin still works — the skill's
-`$P`-discovery preamble takes over — you just get the old prompt
-behavior back until you restore the hook.
-
-### Plugin upgraded mid-session: `no such file or directory` on scripts
-
-If stagent gets upgraded (e.g. via `omc update` or a plugin
-marketplace refresh) **while a Claude Code session is still running**,
-Claude Code's `CLAUDE_PLUGIN_ROOT` env var in that session keeps
-pointing at the old versioned cache dir (which has just been
-deleted), so any slash-command whose markdown expands
-`${CLAUDE_PLUGIN_ROOT}/scripts/...` will 404. The plugin's own skill
-scripts usually survive — they discover `$P` via
-`~/.config/stagent/plugin-root` plus a filesystem fallback — but
-slash-commands that short-circuit to `${CLAUDE_PLUGIN_ROOT}` don't.
-
-Symptom:
-
-```
-bash: /…/stagent/stagent/<old-version>/scripts/whoami-workflow.sh:
-      No such file or directory
-```
-
-Fix: **restart the Claude Code session.** The new session picks up
-the current versioned cache dir and refreshes
-`~/.config/stagent/plugin-root` via the SessionStart hook.
-Editing the cache file alone is not enough — `CLAUDE_PLUGIN_ROOT`
-is captured at session start and cannot be re-read mid-session.
 
 ## License
 

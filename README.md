@@ -31,7 +31,7 @@ The skill prints a live UI URL:
 UI: https://stagent.worldstatelabs.com/s/<session_id>
 ```
 
-Paste it in a browser to watch the stage timeline, rendered artifacts, and `git diff baseline..HEAD` update live via SSE. The project worktree stays clean — nothing under `.stagent/`.
+Paste it in a browser to watch the stage timeline, rendered artifacts, and `git diff baseline..HEAD` update live via SSE. (The diff panel is populated only for workflows that declare `modifies_worktree: true` in `workflow.json` — read-only workflows leave it empty.) The project worktree stays clean — nothing under `.stagent/`.
 
 Or define your own workflow from a natural-language prompt — stagent scaffolds the stages:
 
@@ -82,7 +82,7 @@ Need ideas for what to turn into a workflow? See the [cookbook](./docs/claude-co
 | `/stagent:interrupt` | Pause the active run without clearing state (can be called mid-stage; resume with `/stagent:continue`) |
 | `/stagent:continue [--session <id>]` | Resume an interrupted run (`--session` for cross-machine cloud takeover) |
 | `/stagent:cancel [--hard]` | Cancel the run. Default archives; `--hard` hard-deletes. Local-mode files are archived/removed accordingly; in cloud mode the local shadow is wiped either way and the difference is only on the server (archived vs hard-deleted) |
-| `/stagent:create [--flow=<ref>] <description>` | Create a new workflow or edit an existing one |
+| `/stagent:create [--mode=cloud\|local] [--flow=<ref>] <description>` | Create a new workflow or edit an existing one |
 | `/stagent:publish <dir> [--name <n>] [--description <d>] [--dry-run]` | Publish a local workflow to the hub |
 | `/stagent:login` / `:logout` / `:whoami` | Manage your hub identity |
 
@@ -90,6 +90,7 @@ Need ideas for what to turn into a workflow? See the [cookbook](./docs/claude-co
 - *(omitted)* — cloud mode fetches `cloud://demo` from the hub; local mode uses the plugin-bundled workflow
 - `cloud://author/name` — fetched from the hub (cloud mode)
 - `/abs/path` or `./rel/path` — local workflow directory
+- `<bare-name>` — resolved against the plugin-bundled workflows first, then `cloud://<bare-name>` on the hub
 
 **Env vars:**
 
@@ -110,7 +111,7 @@ Need ideas for what to turn into a workflow? See the [cookbook](./docs/claude-co
 
 ### Cross-machine / cross-clone takeover caveat
 
-`/stagent:continue --session <id>` mirrors the workflow's **state** (`state.md`, stage reports, `baseline`) to the new machine — it does **not** copy the project's source code. Code lives in your git repo, not in the plugin.
+`/stagent:continue --session <id>` mirrors the workflow's **state** (`state.md`, stage reports, plus the `baseline` run-file — the git SHA captured at workflow start) to the new machine. It does **not** copy the project's source code. Code lives in your git repo, not in the plugin.
 
 `continue-workflow.sh` verifies:
 
@@ -126,7 +127,8 @@ If the original session committed its subagent work before interrupting, `git fe
 - **One generic subagent** — every subagent stage runs under a single `workflow-subagent`; the per-stage protocol lives in `<workflow-dir>/<stage>.md`, which the subagent reads at runtime. No per-stage `subagent_type` field.
 - **Required inputs block transitions** — `update-status.sh` refuses to move into a stage if any `required` input artifact is missing. State-machine-level enforcement.
 - **Epoch-stamped artifacts** — each stage's artifact carries the epoch that was current when it was produced. The stop hook only trusts artifacts whose epoch matches `state.md` — stale artifacts from previous iterations are ignored.
-- **Self-contained** — the skill blocks all external skill invocations to prevent flow hijacking.
+- **Self-contained** — the skill instructs the agent not to invoke external skills, to prevent flow hijacking.
+- **Graceful exit auto-interrupts** — when a Claude Code session exits cleanly (e.g. `/exit`, window close), stagent's `SessionEnd` hook flips the active workflow to `interrupted` so another Claude session can pick it up via `/stagent:continue`. Crashes / `kill -9` don't trigger this; in cloud mode, server-side stale detection is the backstop.
 - **One session = one run** — each Claude session's run lives in its own session-keyed subdir. Multiple Claude sessions in the same worktree can run independent workflows without interfering.
 
 ## Architecture & Internals

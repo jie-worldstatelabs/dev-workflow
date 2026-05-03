@@ -1710,8 +1710,12 @@ cloud_post_diff() {
       # since baseline. `git diff <tree>` against the worktree ignores
       # untracked files, which would hide workflow-created new files.
       local cur_idx="${shadow}/.current-index.tmp"
-      if git -C "$proot" read-tree --index-output="$cur_idx" HEAD 2>/dev/null \
-         && GIT_INDEX_FILE="$cur_idx" git -C "$proot" add -A 2>/dev/null; then
+      if git -C "$proot" read-tree --index-output="$cur_idx" HEAD 2>/dev/null; then
+        # Scope to project_root via `-- .` and tolerate per-path errors
+        # via `--ignore-errors` — same reasoning as _capture_baseline_tree.
+        # We deliberately don't gate write-tree on add's exit code:
+        # partial-tree current is still useful for diffing.
+        GIT_INDEX_FILE="$cur_idx" git -C "$proot" add -A --ignore-errors -- . 2>/dev/null || true
         current_tree="$(GIT_INDEX_FILE="$cur_idx" git -C "$proot" write-tree 2>/dev/null || true)"
         # Narrow current_tree to project_root subtree so it matches the
         # (also-narrowed) baseline-tree. Without this, baseline is a
@@ -2005,13 +2009,19 @@ _capture_baseline_tree() {
     rm -f "$tmp_index"
     return 0
   fi
-  # Stage every worktree file into the temp index. `git add -A`
-  # respects .gitignore, so ignored files stay ignored (matches what
-  # the user sees in `git status`).
-  if ! GIT_INDEX_FILE="$tmp_index" git -C "$proot" add -A 2>/dev/null; then
-    _cloud_warn "$sid" "_capture_baseline_tree: add -A failed"
-    rm -f "$tmp_index"
-    return 0
+  # Stage worktree files into the temp index, scoped to project_root
+  # via the `-- .` pathspec. Without scoping, `git add -A` walks the
+  # entire git repo: when project_root is a subdir (monorepo or a
+  # junk-drawer repo at $HOME/code/), a single broken nested repo in
+  # an unrelated sibling dir can fail the whole add and we'd lose the
+  # baseline-tree (downstream falls back to a path that misses
+  # untracked files). `--ignore-errors` keeps partial progress if a
+  # nested repo INSIDE project_root itself is broken — coarse baseline
+  # beats no baseline.
+  local add_ok=1
+  if ! GIT_INDEX_FILE="$tmp_index" git -C "$proot" add -A --ignore-errors -- . 2>/dev/null; then
+    add_ok=0
+    _cloud_warn "$sid" "_capture_baseline_tree: add -A had errors; using partial / HEAD-only tree"
   fi
   local tree_sha
   tree_sha="$(GIT_INDEX_FILE="$tmp_index" git -C "$proot" write-tree 2>/dev/null || true)"
@@ -2024,7 +2034,11 @@ _capture_baseline_tree() {
     proj_tree="$(_extract_project_subtree "$proot" "$tree_sha")"
     [[ -n "$proj_tree" && "$proj_tree" =~ ^[0-9a-f]{40}$ ]] && tree_sha="$proj_tree"
     echo "$tree_sha" > "$tree_file"
-    _cloud_warn "$sid" "_capture_baseline_tree: captured ${tree_sha:0:10}"
+    if [[ "$add_ok" == "1" ]]; then
+      _cloud_warn "$sid" "_capture_baseline_tree: captured ${tree_sha:0:10}"
+    else
+      _cloud_warn "$sid" "_capture_baseline_tree: captured ${tree_sha:0:10} (partial — some paths skipped)"
+    fi
   else
     _cloud_warn "$sid" "_capture_baseline_tree: write-tree returned '$tree_sha'"
   fi

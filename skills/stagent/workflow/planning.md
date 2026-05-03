@@ -2,7 +2,7 @@
 
 _Runtime config (canonical): `workflow.json` → `stages.planning`_
 
-**Purpose:** produce an agreed implementation plan and record user approval.
+**Purpose:** produce an agreed implementation plan and record user approval. Webapp-focused — the plan must specify the frontend framework, key pages/flows, test strategy, and Vercel deployment details.
 **Output artifact:** write to the absolute path provided in your prompt
 **Valid results this stage writes:** `pending` (plan drafted, awaiting user approval), `approved` (user has explicitly confirmed)
 
@@ -13,11 +13,11 @@ Write `result: approved` only after they have said so.
 
 This is an interruptible stage — the stop hook allows natural pauses for Q&A.
 
-> Note: picking the topic name and activating the workflow (`setup-workflow.sh`) happen in SKILL.md's protocol (Step 1 — Bootstrap), **before** any stage runs. By the time you read this file, `state.md` already exists with `status: planning` and `epoch` is set.
+> By the time you read this file, `state.md` already exists with `status: planning` and `epoch` is set. The bootstrap (topic name, `setup-workflow.sh`) ran before this stage starts.
 
 ## Explore context
 
-Understand the project state (files, conventions, tech stack). New project → note it. Existing codebase → respect patterns before proposing anything.
+Understand the project state (files, conventions, framework, package manager). New project → note it, suggest a starting framework. Existing codebase → respect patterns before proposing anything.
 
 ## Ask clarifying questions
 
@@ -25,7 +25,7 @@ Inline Q&A — the stop hook allows natural pauses.
 
 - One question per message, prefer multiple choice (A/B/C) when possible
 - Typically 3-6 questions; stop asking when you have enough
-- Focus on: purpose, constraints, scope, success criteria, tech preferences
+- Webapp-specific topics to cover: frontend framework, routing model, data layer, auth, key pages/flows, tests strategy, Vercel project name + env vars
 - Flag multi-subsystem scopes early and help decompose
 
 ## Propose approaches
@@ -34,7 +34,7 @@ Inline Q&A — the stop hook allows natural pauses.
 
 ## Present design
 
-Architecture, components, data flow, tech stack, error handling. Iterate until agreed.
+Architecture, components, data flow, tech stack, error handling, deployment target. Iterate until agreed.
 
 ## Write the plan into the output artifact
 
@@ -48,7 +48,7 @@ result: pending
 # Planning Report: <Topic>
 
 ## Design Summary
-<agreed architecture, tech stack, key decisions>
+<agreed architecture, framework, key decisions>
 
 ## Implementation Steps
 1. ...
@@ -62,15 +62,23 @@ result: pending
 ## Testing Strategy
 
 ### Quick Tests
-- Framework: <e.g. pytest / jest / flutter test / go test — or "none">
+- Framework: <e.g. vitest / jest / pytest — or "none">
 - Coverage target: <e.g. 80%>
 - Key test cases:
   - [ ] ...
 
 ### Journey Tests
-- Framework: <e.g. playwright / XcodeBuildMCP / none>
+- Framework: playwright (default for webapp) | none
 - Key user paths:
   - [ ] ...
+
+## Deployment (Vercel)
+- Project name: <vercel project slug; will be set on first deploy via `vercel link`>
+- Scope: <personal | team-slug>
+- Production env vars (names only — values supplied at deploy time):
+  - <NAME>
+- Build command: <auto-detected, or override>
+- Notes: <any deploy-time considerations — protected branches, edge runtimes, etc.>
 ```
 
 `result: pending` signals "plan written but not approved yet."
@@ -85,4 +93,4 @@ If the user requests changes, iterate on the plan body — keep `result: pending
 
 Once the user explicitly approves, edit the output artifact: change `result: pending` → `result: approved`.
 
-That is the only action needed here. The SKILL.md main loop's step (e) reads the artifact's `result:` and calls `update-status.sh` to advance the state machine — do NOT call it yourself from this stage file.
+That is the only action needed here. The main loop reads the artifact's `result:` and calls `update-status.sh` to advance the state machine — do NOT call it yourself from this stage file.

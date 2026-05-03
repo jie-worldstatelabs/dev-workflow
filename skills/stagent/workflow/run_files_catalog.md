@@ -63,3 +63,4 @@ Any shell command works as `init`. Examples:
 `config_validate` (run by `setup-workflow.sh --validate-only`) checks that every
 `from_run_file` reference in stage inputs names a key that exists in `.run_files`.
 A missing entry is a hard error — the workflow will not start.
+

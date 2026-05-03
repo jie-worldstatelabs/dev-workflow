@@ -2,7 +2,7 @@
 
 _Runtime config (canonical): `workflow.json` → `stages.verifying`_
 
-**Purpose:** run the project's quick test suite to catch obvious regressions.
+**Purpose:** run the project's quick test suite (unit / integration / type-check) to catch obvious regressions before the reviewer sees the code.
 **Output artifact:** write to the absolute path provided in your prompt
 **Valid results this stage writes:** `PASS`, `FAIL`, `SKIPPED`
 
@@ -15,8 +15,7 @@ Check the project root in this order:
 | Detect | Command |
 |--------|---------|
 | `package.json` with a `"test"` script | `npm test` |
-| `pytest.ini`, `setup.cfg`, or `pyproject.toml` with `[tool.pytest]` | `pytest` |
-| `pubspec.yaml` | `flutter test` |
+| `pyproject.toml` with `[tool.pytest]` (or `pytest.ini`) | `pytest` |
 | `go.mod` | `go test ./...` |
 | `Makefile` with a `test` target | `make test` |
 | None of the above | skip the run — result is `SKIPPED` |
@@ -30,8 +29,6 @@ cd <project-directory> && <test-command> 2>&1
 Use a 3-minute timeout (`timeout: 180000`). Capture full output.
 
 ### 3. Write the report
-
-Output artifact:
 
 ```markdown
 ---
@@ -49,4 +46,4 @@ result: PASS | FAIL | SKIPPED
 
 ### 4. Done
 
-Writing the artifact with the correct `result:` value is the only output required. The SKILL.md main loop's step (e) reads the artifact's `result:` and calls `update-status.sh` to advance the state machine — do NOT call it yourself from this stage file.
+Writing the artifact with the correct `result:` value is the only output required. The main loop reads `result:` and calls `update-status.sh` to advance — do NOT call it yourself from this stage file.

@@ -2,112 +2,87 @@
 
 _Runtime config (canonical): `workflow.json` → `stages.qa-ing`_
 
-**Purpose:** run real user journey tests (Playwright, XcodeBuildMCP, etc.). Distinguish test bugs from app bugs — only confirmed app bugs block progress. Test bugs and unresolved uncertainties are tracked in `<session_id>/journey-tests.md` for future iterations.
+**Purpose:** run real Playwright user-journey tests against the webapp. Distinguish test bugs (auto-fix) from app bugs (block progress). Test-side fixes and uncertain failures are tracked in a persistent state file across iterations; the QA report contains only confirmed app bugs.
 **Output artifact:** write to the absolute path provided in your prompt
 **Valid results this stage writes:** `PASS`, `FAIL`
 
-> This file is the canonical protocol for the `qa-ing` stage. The main agent launches `workflow-subagent` with this file as the stage instructions; the subagent reads this file first before doing anything.
+> This file is the canonical protocol for the `qa-ing` stage. The main agent launches `stagent:workflow-subagent` with this file as the stage instructions; the subagent reads this file first before doing anything.
 
-You are a QA engineer executing real user journey tests for a stagent cycle. Your job is to ensure journey tests are adequate, run them, diagnose failures honestly, and report only confirmed app bugs.
+You are a QA engineer running Playwright journey tests. Your job is to ensure tests are adequate, run them, diagnose failures honestly, and report only confirmed app bugs.
 
 ## QA Protocol
 
-### Step 1: Check Journey Test Framework
+### Step 1: Check the journey-test framework
 
-Read the plan file (provided as a required input) and look at its `## Testing Strategy` → `### Journey Tests` section.
+Read the plan (required input) → `## Testing Strategy` → `### Journey Tests`.
 
-- If the framework is **`none`** → write a minimal QA report (`SKIPPED` in the body, `result: PASS` in the frontmatter), update the journey test state file, return.
-- Otherwise, note the framework (e.g. `playwright`, `XcodeBuildMCP`) and the key user paths to test.
+- Framework `none` → write a minimal QA report (`SKIPPED` in body, `result: PASS` in frontmatter), update the state file, return.
+- Framework `playwright` → continue.
 
-### Step 2: Load Previous State
+### Step 2: Load previous state
 
-The journey test state file path is at `<session_id>/journey-tests.md` relative to the project root. If it exists, read it. It contains:
-- Which user paths have tests and their current coverage status
+The journey-test state file lives in the **same directory as the output artifact** (the run directory). Filename: `journey-tests.md`.
+
+If it exists, read it. It contains:
+- Which user paths have tests + their coverage status
 - Test bugs found and fixed in previous iterations
-- Unresolved/uncertain failures that couldn't be classified before
-- Coverage gaps noted for this iteration to address
+- Unresolved/uncertain failures from prior rounds (re-examine — implementation may have changed)
+- Coverage gaps to address this iteration
 
-Use this as your starting context. Re-examine previous "unresolved" failures — the implementation may have changed.
+### Step 3: Audit and update Playwright tests
 
-### Step 3: Audit and Update Journey Tests
+Find existing tests (`*.spec.ts`, `*.spec.js`, `*.test.ts`) in `e2e/`, `tests/`, or `playwright/`.
 
-Find existing journey test files for the specified framework:
-- **Playwright**: look for `*.spec.ts`, `*.spec.js`, `*.test.ts` in `e2e/`, `tests/`, `playwright/` directories
-- **XcodeBuildMCP**: look for UI test targets in the Xcode project (files ending in `UITests.swift`)
-- **Other**: use the framework's conventional test file location
-
-For each key user path listed in the plan:
+For each key user path in the plan:
 - Does an existing test cover it end-to-end?
-- Does the test have meaningful assertions (not just clicking through without checking outcomes)?
+- Does it have meaningful assertions (not just clicking through without checking outcomes)?
 
-Also address any coverage gaps noted in the previous round's state file.
+Also address coverage gaps noted in the previous round.
 
-**For paths with missing or inadequate coverage: write or update the journey tests now.**
+**For paths with missing or inadequate coverage: write or update tests now.**
 
-Rules for writing journey tests:
-- You MAY create and modify test files — this is the **only** type of file you are allowed to write/modify outside the output artifact.
+Rules:
+- You MAY create and modify test files — this is the **only** type of file you may write outside the output artifact.
 - Do NOT touch any implementation code.
 - Follow existing test conventions and file structure.
-- Make tests deterministic — use proper waits and explicit assertions, avoid flaky timing assumptions.
+- Make tests deterministic — proper waits and explicit assertions, no flaky timing assumptions.
 
-### Step 4: Run Journey Tests
+### Step 4: Run the tests
 
-Run all journey tests using the appropriate method:
-
-**Playwright:**
 ```bash
 cd <project-directory> && npx playwright test 2>&1
 ```
 
-**XcodeBuildMCP:**
-Use the `mcp__XcodeBuildMCP__test_sim` tool to run UI tests against the simulator.
-
-**Other frameworks:** use the command specified in the plan or infer from project conventions.
-
 Capture the full output. Note which tests passed and which failed.
 
-### Step 5: Diagnose Each Failure
+### Step 5: Diagnose each failure
 
-For each failing test, read the test source code, the error/stack trace, and the relevant implementation code. Reason carefully about the root cause. There are three classifications:
+For each failing test, read the test source code, the error/stack trace, and the relevant implementation code. Three classifications:
 
 | Signal | Likely cause |
-|--------|-------------|
-| Element selector not found / timeout | Test bug (stale selector) OR app bug (element not rendered) — read the app code to judge |
+|--------|--------------|
+| Element selector not found / timeout | Test bug (stale selector) OR app bug (element not rendered) — judge from app code |
 | Assertion mismatch — expected value looks wrong | Test bug (incorrect expected value) |
-| Assertion mismatch — actual value is clearly wrong | App bug (incorrect behavior) |
-| Test crashes before any assertion | Test bug (setup/config error) OR app bug (crash) — check stack trace |
-| Flaky: passes sometimes, fails sometimes | Test bug (timing/race condition in test) |
+| Assertion mismatch — actual value clearly wrong | App bug (incorrect behavior) |
+| Test crashes before any assertion | Test bug (setup) OR app bug (crash) — check stack |
+| Flaky: passes sometimes, fails sometimes | Test bug (timing/race) |
 | Consistent failure, behavior clearly wrong | Confirmed app bug |
 
-**Three classifications — different actions:**
+**Three actions:**
 
-**1. Confirmed test bug** (clear evidence the test itself is wrong):
-- Fix the test
-- Record what you changed and why (for the state file)
+**1. Confirmed test bug** — fix the test. Record what you changed and why (for the state file).
 
-**2. Confirmed app bug** (clear evidence the app behavior is wrong):
-- Do NOT fix the implementation
-- Record precisely: which user path failed, expected behavior, actual behavior
+**2. Confirmed app bug** — do NOT fix the implementation. Record precisely: which user path failed, expected behavior, actual behavior.
 
-**3. Cannot determine** (you've read error, test code, and app code but genuinely cannot tell):
-- Do NOT guess. Do NOT report it as an app bug.
-- Record in your notes for the state file: full error, what you examined, what's ambiguous, what information would resolve it
+**3. Cannot determine** — do NOT guess. Do NOT report as an app bug. Record in the state file: full error, what you examined, what's ambiguous, what info would resolve it.
 
-### Step 6: Fix, Re-run, Re-diagnose
+### Step 6: Fix, re-run, re-diagnose
 
-If you fixed any test bugs, re-run the journey tests.
+If you fixed any test bugs, re-run the suite. For any tests still failing, repeat Step 5's classification on the new error. Stop when you stop making progress on test-side issues.
 
-For any tests still failing after fixes, perform the **same root cause analysis as Step 5** — read the new error, updated test code, and app code. Apply the same three-way classification:
+### Step 7: Write the journey-test state file
 
-- New test bug revealed by the fix → fix it, record it
-- Now clearly an app bug → record it as a confirmed app bug
-- Still ambiguous → record in state file with updated notes
-
-Repeat fix-and-rerun cycles as long as you are making progress on test bugs. Each fix must be justified by specific evidence from the failure output.
-
-### Step 7: Write Journey Test State File
-
-Write/update the state file at `<session_id>/journey-tests.md` (same directory as the output artifact). This is your internal hand-off across rounds — write it as a briefing for the next QA run.
+Write `journey-tests.md` in the same directory as the output artifact (the run directory). This is your hand-off across rounds — write it as a briefing for the next QA run.
 
 ```markdown
 # Journey Test State — <Topic>
@@ -117,40 +92,38 @@ _Last updated: <date>_
 ## Test Suite Overview
 
 | User Path | Test File | Coverage Status |
-|-----------|-----------|----------------|
+|-----------|-----------|-----------------|
 | <path 1> | <file or "—"> | Covered / Added this iteration / Not covered |
-| <path 2> | ... | ... |
 
 ## Latest Activity
 
 ### Tests Added or Modified
-- `<file:line>` — <what was added or changed and why>
+- `<file:line>` — <what + why>
 
 ### Test Bugs Fixed
 - `<file:line>` — <what was wrong, what was fixed>
 
 ## Unresolved Failures
 
-> Failures that could not be confidently classified as test bug or app bug.
-> Re-examine after each execution round.
+> Failures that could not be confidently classified. Re-examine each round.
 
 ### [UNRESOLVED] <test name>
-**Error:** <exact error message>
+**Error:** <exact message>
 **Test code:** <relevant snippet>
 **App code examined:** <relevant snippet>
 **Analysis:** <what you read, what's ambiguous>
-**What would resolve this:** <e.g. "check if redirect request is actually made in network log">
+**What would resolve this:** <e.g. "check whether redirect actually fires in network log">
 
 ## Coverage Gaps
 - [ ] <user path with no test — and why not added this round if applicable>
 
 ## Notes for Next QA Round
-<Patterns noticed, suspected fragility, tests that feel flaky but couldn't be confirmed, etc.>
+<Patterns noticed, suspected fragility, etc.>
 ```
 
-### Step 8: Write QA Report
+### Step 8: Write the QA report
 
-Write the QA report to the absolute output path in your prompt. **This report contains only confirmed app bugs** — test setup issues and uncertain failures belong in the state file only.
+Write to the absolute output path in your prompt. **The QA report contains only confirmed app bugs** — test-side issues and uncertain failures stay in the state file only.
 
 ```markdown
 ---
@@ -160,16 +133,16 @@ result: PASS | FAIL
 # QA Report
 
 ## Journey Test Framework
-<framework name, or "none">
+playwright | none
 
 ## Coverage
-<How many key user paths are now covered; what was added this iteration>
+<How many key user paths now covered; what was added this iteration>
 
 ## Test Run Results
-<X tests passed, Y failed — or "All passed" / "Skipped (framework: none)">
+<X passed, Y failed — or "All passed" / "Skipped (framework: none)">
 
 ## Confirmed App Bugs
-- <user path, expected behavior, actual behavior — or "None">
+- <user path, expected, actual — or "None">
 
 ## Summary
 <one-line summary>
@@ -178,17 +151,17 @@ result: PASS | FAIL
 <comma-separated confirmed app bugs, or "none">
 ```
 
-Note: the machine-readable verdict lives in the `result:` frontmatter field at the top of the file. No separate `VERDICT:` line in the body.
+The machine-readable verdict is in `result:`. No `VERDICT:` line in the body.
 
 ## Verdict Rules
 
-- **PASS** if: no confirmed app bugs (uncertain failures do NOT block pass)
-- **FAIL** if: one or more confirmed app bugs
-- Uncertain failures are tracked in the state file for future rounds, not in the verdict
+- **PASS** if: no confirmed app bugs (uncertain failures do NOT block pass).
+- **FAIL** if: one or more confirmed app bugs.
+- Uncertain failures are tracked in the state file for future rounds, not in the verdict.
 
 ## Rules
 
 - You MAY write and fix journey test files. Do NOT touch implementation code.
 - **QA report**: confirmed app bugs only. Test bugs and uncertain failures go in the state file.
-- ALWAYS write the journey test state file before the QA report (in case something fails partway).
+- ALWAYS write the journey-test state file before the QA report (in case something fails partway).
 - ALWAYS write the QA report before returning.

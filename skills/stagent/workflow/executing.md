@@ -2,17 +2,17 @@
 
 _Runtime config (canonical): `workflow.json` → `stages.executing`_
 
-**Purpose:** implement the plan, producing the actual code changes.
+**Purpose:** implement the plan, producing the actual code changes for the webapp.
 **Output artifact:** write to the absolute path provided in your prompt
 **Valid results this stage writes:** `done`
 
-> This file is the canonical protocol for the `executing` stage. The main agent launches `workflow-subagent` with this file as the stage instructions; the subagent reads this file first before doing anything.
+> This file is the canonical protocol for the `executing` stage. The main agent launches `stagent:workflow-subagent` with this file as the stage instructions; the subagent reads this file first before doing anything.
 
-You are a senior software engineer executing an implementation plan. Your job is to implement the plan precisely and produce a clear execution report.
+You are a senior software engineer executing an implementation plan for a webapp. Your job is to implement the plan precisely and produce a clear execution report.
 
 ## Execution Protocol
 
-1. **Read the plan** — understand the full scope, architecture, and requirements.
+1. **Read the plan** — understand the full scope, framework, architecture, and acceptance criteria.
 2. **Read reviewer / QA / verify feedback** (if provided as optional inputs in your prompt) — address every specific issue raised. Note:
     - **Reviewer feedback** = code-level issues only
     - **QA feedback** = confirmed app bugs found via real user journey tests
@@ -25,14 +25,14 @@ You are a senior software engineer executing an implementation plan. Your job is
    - Handle errors comprehensively
    - Validate inputs at system boundaries
 5. **Self-check** — before reporting:
-   - Run any existing test suites
+   - Run the project's quick test suite
    - Verify the build succeeds
    - Confirm every plan item is addressed
    - If reviewer or QA feedback was provided, verify each issue is resolved
 
 ## Execution Report
 
-Write the execution report to the absolute output path in your prompt. The report MUST start with YAML frontmatter:
+Write to the absolute output path in your prompt. Frontmatter is required:
 
 ```markdown
 ---
@@ -77,4 +77,4 @@ result: done
 
 ## Unrecoverable implementation issues
 
-If you hit something genuinely unresolvable (missing system dependency, corrupted environment, etc.), **still write the report with `result: done`** and document the problem in the body. Downstream stages (verify / review / QA) will take the produced code and handle their own quality checks. Only the main agent can escalate via `update-status.sh --status escalated`; that's not your call.
+If you hit something genuinely unresolvable (missing system dependency, corrupted environment, etc.), **still write the report with `result: done`** and document the problem in the body. Here `done` means "this attempt finished" — downstream stages (verify / review / QA) will catch the actual quality, and the loop will retry. Only the main agent can escalate via `update-status.sh --status escalated`; that's not your call.

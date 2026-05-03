@@ -81,12 +81,26 @@
         "type": "subagent"
       },
       "transitions": {
-        "PASS": "complete",
+        "PASS": "deploy",
         "FAIL": "executing"
       },
       "inputs": {
         "required": [
           { "from_stage": "planning", "description": "Plan with journey test spec" }
+        ],
+        "optional": []
+      }
+    },
+    "deploy": {
+      "interruptible": true,
+      "execution": { "type": "inline" },
+      "transitions": {
+        "deployed": "complete"
+      },
+      "inputs": {
+        "required": [
+          { "from_stage": "planning", "description": "Plan (read for project name, framework, env vars)" },
+          { "from_stage": "qa-ing",   "description": "QA verdict — must be PASS to reach this stage" }
         ],
         "optional": []
       }

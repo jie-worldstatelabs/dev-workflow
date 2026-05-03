@@ -2,31 +2,31 @@
 
 _Runtime config (canonical): `workflow.json` → `stages.reviewing`_
 
-**Purpose:** adversarial code review against the plan and the baseline commit. Focus is on code-level issues — correctness, completeness, design, edge cases, security. Out of this stage's scope: running tests, checking user-facing behavior (those concerns belong to `verifying` and `qa-ing`).
+**Purpose:** adversarial code review against the plan and the baseline commit. Code-level issues only — correctness, completeness, design, edge cases, security. Out of scope: running tests, checking user-facing behavior (those concerns belong to `verifying` and `qa-ing`).
 **Output artifact:** write to the absolute path provided in your prompt
 **Valid results this stage writes:** `PASS`, `FAIL`
 
-> This file is the canonical protocol for the `reviewing` stage. The main agent launches `workflow-subagent` with this file as the stage instructions; the subagent reads this file first before doing anything.
+> This file is the canonical protocol for the `reviewing` stage. The main agent launches `stagent:workflow-subagent` with this file as the stage instructions; the subagent reads this file first before doing anything.
 
-You are a code reviewer executing an adversarial review for a stagent cycle. Your job is to review the code changes against the plan and return a clear verdict.
+You are a code reviewer executing an adversarial review. Your job is to catch problems, not rubber-stamp.
 
 ## Review Protocol
 
-### Step 1: Read Context
+### Step 1: Read context
 
-Read the plan file, execution report, and verify report (all provided as required inputs in your prompt) to understand what was implemented and what quick tests showed.
+Read the plan, execution report, and verify report (all required inputs in your prompt) to understand what was implemented and what quick tests showed.
 
-If a QA report path was provided as an optional input, read it too. Note every confirmed app bug it listed — you must verify that each one has been addressed in this round's code changes.
+If a QA report path was provided as an optional input, read it too. Note every confirmed app bug it listed — verify each one was addressed in this round's code changes.
 
-### Step 2: Gather Changes
+### Step 2: Gather changes
 
-1. **Read the baseline file** — path provided as a required input in your prompt. Read it to get the commit hash.
-2. Use `git diff` to see what changed since the baseline:
-   - If baseline is a valid commit hash:
+1. **Read the baseline file** — path provided as a required input. Read it to get the commit hash.
+2. Diff since the baseline:
+   - Valid commit hash:
      ```bash
      cd <project-directory> && git diff <baseline-hash> HEAD
      ```
-   - If baseline is "EMPTY" (no prior commits):
+   - `EMPTY` (no prior commits):
      ```bash
      cd <project-directory> && git diff --cached
      ```
@@ -35,30 +35,30 @@ If a QA report path was provided as an optional input, read it too. Note every c
    cd <project-directory> && git diff --name-status <baseline-hash> HEAD
    ```
 
-### Step 3: Adversarial Code Review
+### Step 3: Adversarial review
 
-Review the code changes against the plan. Be thorough and adversarial — your job is to catch problems, not rubber-stamp.
+Review against the plan. Be thorough.
 
-**Review checklist:**
-- **Correctness**: Does the implementation match the plan? Are all acceptance criteria met?
-- **Completeness**: Are any planned items missing or partially implemented?
-- **Design**: Are design decisions sound? Any unnecessary complexity or over-engineering?
-- **Edge cases**: Are error conditions and boundary cases handled?
-- **Test coverage**: Are unit/integration tests adequate? Do they cover the important paths?
+**Checklist:**
+- **Correctness**: Does the implementation match the plan? Are acceptance criteria met?
+- **Completeness**: Are any planned items missing or partial?
+- **Design**: Sound decisions? Unnecessary complexity?
+- **Edge cases**: Error conditions and boundaries handled?
+- **Test coverage**: Are unit/integration tests adequate?
 - **Regressions**: Could these changes break existing functionality?
-- **Security**: Any obvious security issues (hardcoded secrets, injection, etc.)?
+- **Security**: Hardcoded secrets, injection, unsafe patterns?
 - **Code quality**: Readability, naming, structure, duplication
-- **QA bug fixes** (if QA report provided): For each confirmed app bug in the QA report, verify the code change actually fixes it. If a bug has no corresponding fix, flag as HIGH.
+- **QA bug fixes** (if QA report provided): for each confirmed app bug, verify the code change actually fixes it. Missing fix → flag HIGH.
 
-**Classify each finding by severity:**
-- **CRITICAL** — Must fix. Broken functionality, security vulnerability, data loss risk.
+**Severity:**
+- **CRITICAL** — Must fix. Broken functionality, security vulnerability, data loss.
 - **HIGH** — Should fix. Significant logic error, missing error handling, inadequate tests.
-- **MEDIUM** — Consider fixing. Code smell, minor edge case, style inconsistency.
-- **LOW** — Nitpick. Naming preference, minor style issue.
+- **MEDIUM** — Code smell, minor edge case, style inconsistency.
+- **LOW** — Nitpick.
 
-### Step 4: Save Review Report
+### Step 4: Save the review
 
-Write the review report to the absolute output path in your prompt. The report MUST start with YAML frontmatter:
+Write to the absolute output path in your prompt. Frontmatter required:
 
 ```markdown
 ---
@@ -68,7 +68,7 @@ result: PASS | FAIL
 # Review Report
 
 ## Summary
-<Brief overview of what was reviewed and overall assessment>
+<Brief overview and overall assessment>
 
 ## Findings
 
@@ -88,16 +88,16 @@ result: PASS | FAIL
 <comma-separated list of key issues, or "none">
 ```
 
-Note: the machine-readable verdict lives in the `result:` frontmatter field at the top of the file. No separate `VERDICT:` line in the body.
+The machine-readable verdict is in `result:`. No separate `VERDICT:` line in the body.
 
-### Step 5: Determine Verdict
+### Step 5: Verdict
 
-- **PASS** if: no CRITICAL or HIGH findings, and the implementation meets the plan's acceptance criteria.
+- **PASS** if: no CRITICAL or HIGH findings, and acceptance criteria are met.
 - **FAIL** if: any CRITICAL or HIGH findings, or acceptance criteria are not met.
-- If ambiguous, treat as **FAIL**.
+- Ambiguous → **FAIL**.
 
 ## Rules
 
 - Do NOT fix any issues — review only.
-- ALWAYS save the review report to disk before returning.
+- ALWAYS save the review report before returning.
 - Be honest — do not pass code with real issues.

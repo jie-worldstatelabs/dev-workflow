@@ -22,7 +22,7 @@ Requires: [Claude Code](https://claude.ai/claude-code), `jq`, `curl`, `git` (clo
 Start a workflow — the default development workflow builds what you describe:
 
 ```
-/stagent:start "Build a journaling app with MBTI insights"
+/stagent:start --flow=cloud://demo "Build a journaling app with MBTI insights inferred from journal entries"
 ```
 
 The skill prints a live UI URL:
@@ -42,7 +42,7 @@ Or define your own workflow from a natural-language prompt — stagent scaffolds
 For a fully offline run, switch to local mode:
 
 ```
-/stagent:start --mode=local "Build a journaling app with MBTI insights"
+/stagent:start --mode=local "Build a journaling app with MBTI insights inferred from journal entries"
 ```
 
 ## The Default Workflow

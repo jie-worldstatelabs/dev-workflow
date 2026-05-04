@@ -29,13 +29,7 @@
 /stagent:start --flow=cloud://demo "Build a journaling app with MBTI insights inferred from journal entries"
 ```
 
-skill이 라이브 UI URL을 출력합니다:
-
-```
-UI: https://stagent.worldstatelabs.com/s/<session_id>
-```
-
-브라우저에 붙여넣으면 stage 타임라인, 렌더링된 artifact, `git diff baseline..HEAD`가 SSE로 실시간 업데이트되는 것을 볼 수 있습니다.
+skill 이 라이브 UI URL 을 출력합니다. 로그인하지 않은 상태에서는 이는 **익명, 공개적으로 볼 수 있는** session URL 이며 — 링크를 가진 누구나 상태 머신의 실행을 실시간으로 추적할 수 있고 (stage 타임라인, 렌더링된 artifact, `git diff baseline..HEAD` 가 SSE 로 라이브 업데이트), 소유자는 없습니다. session 의 ownership 을 claim 하고 지난 session 들을 `/me/sessions` 아래에서 관리하려면 `/stagent:start` 전에 `/stagent:login` 을 실행하세요.
 
 완전히 오프라인으로 실행하려면 local 모드로 전환:
 

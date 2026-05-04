@@ -29,13 +29,7 @@
 /stagent:start --flow=cloud://demo "Build a journaling app with MBTI insights inferred from journal entries"
 ```
 
-skill がライブ UI の URL を出力します：
-
-```
-UI: https://stagent.worldstatelabs.com/s/<session_id>
-```
-
-ブラウザに貼り付ければ、ステージタイムライン・レンダリング済み artifact・`git diff baseline..HEAD` が SSE 経由でリアルタイム更新されるのを見られます。
+skill がライブ UI の URL を出力します。サインインしていない場合、これは **匿名で誰でも閲覧できる** session URL となり、リンクを持つ誰もがステートマシンの実行をリアルタイムで追えます（ステージタイムライン、レンダリング済み artifact、`git diff baseline..HEAD` が SSE 経由でライブ更新）。所有者は存在しません。session の所有権を主張し、過去の session を `/me/sessions` にまとめて管理したい場合は、`/stagent:start` の前に `/stagent:login` を実行してください。
 
 完全オフラインで実行したい場合は local モードに切り替えてください：
 

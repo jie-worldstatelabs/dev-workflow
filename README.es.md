@@ -29,13 +29,7 @@ Inicia el workflow de desarrollo por defecto — construye lo que tú describas:
 /stagent:start --flow=cloud://demo "Build a journaling app with MBTI insights inferred from journal entries"
 ```
 
-El skill imprime una URL de UI en vivo:
-
-```
-UI: https://stagent.worldstatelabs.com/s/<session_id>
-```
-
-Pégala en un navegador para ver la línea de tiempo de los stages, los artifacts renderizados y `git diff baseline..HEAD` actualizándose en vivo vía SSE.
+El skill imprime una URL de UI en vivo. Sin iniciar sesión, esta es una sesión **anónima y públicamente visible** — cualquiera con el enlace puede ver la máquina de estados ejecutarse en tiempo real (línea de tiempo de stages, artifacts renderizados, `git diff baseline..HEAD` actualizándose en vivo vía SSE), y no tiene propietario. Para reclamar la propiedad de la sesión y mantener tus sesiones pasadas bajo `/me/sessions`, ejecuta `/stagent:login` antes de `/stagent:start`.
 
 Para una ejecución totalmente offline, cambia al modo local:
 

@@ -29,13 +29,7 @@ Start the default development workflow — it builds what you describe:
 /stagent:start --flow=cloud://demo "Build a journaling app with MBTI insights inferred from journal entries"
 ```
 
-The skill prints a live UI URL:
-
-```
-UI: https://stagent.worldstatelabs.com/s/<session_id>
-```
-
-Paste it in a browser to watch the stage timeline, rendered artifacts, and `git diff baseline..HEAD` update live via SSE.
+The skill prints a live UI URL: https://stagent.worldstatelabs.com/s/<session_id>. Paste it in a browser to watch the stage timeline, rendered artifacts, and `git diff baseline..HEAD` update live via SSE.
 
 For a fully offline run, switch to local mode:
 

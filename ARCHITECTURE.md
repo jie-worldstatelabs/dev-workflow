@@ -28,13 +28,16 @@ skills/
                            (workflow-agnostic)
     workflow/            ← bundled workflow package (local-mode fallback
                            when --flow is omitted; cloud mode fetches
-                           cloud://demo from the hub instead)
+                           cloud://demo from the hub instead — kept in
+                           sync with the demo template)
       workflow.json      ← state-machine shape
+      readme.md          ← workflow-level description (rendered on /hub)
       planning.md        ← per-stage instructions
       executing.md
       verifying.md
       reviewing.md
       qa-ing.md
+      deploy.md
       run_files_catalog.md
   create-workflow/
     SKILL.md             ← interviews the user, designs + writes workflow
@@ -96,6 +99,7 @@ scripts/
     verifying-report.md
     reviewing-report.md
     qa-ing-report.md
+    deploy-report.md
     journey-tests.md        ← cross-iteration QA state (optional)
   .archive/
     <timestamp>-<topic>/            ← natural-replace archive
@@ -116,6 +120,7 @@ The authoritative copy is the Postgres `sessions` + `artifacts` rows on the serv
     verifying-report.md        scratch dir out of the worktree
     reviewing-report.md
     qa-ing-report.md
+    deploy-report.md
     .workflow-cache/         ← fetched from hub or copied from local path
       workflow.json
       <stage>.md files
@@ -309,11 +314,11 @@ MAIN  ▶ update-status.sh --status reviewing    (PASS/SKIPPED)
                                                  optional "quick-test failures")
 ```
 
-### Stage 3 — reviewing (uninterruptible, subagent sonnet)
+### Stage 3 — reviewing (uninterruptible, subagent)
 
 ```
 MAIN  ► calls Agent tool → agent-guard fires → MAIN transcribes PROMPT TEMPLATE
-SUB   ▶ workflow-subagent (sonnet) runs:
+SUB   ▶ workflow-subagent runs:
         └─ reads required: planning-report, executing-report, verifying-report, baseline
         └─ diffs HEAD against baseline
         └─ writes reviewing-report.md (epoch: 4, result: PASS | FAIL)
@@ -322,18 +327,32 @@ MAIN  ▶ update-status.sh --status qa-ing   (PASS)
                                                  reviewing-report as optional feedback)
 ```
 
-### Stage 3.5 — qa-ing (uninterruptible, subagent sonnet)
+### Stage 3.5 — qa-ing (uninterruptible, subagent)
 
 ```
-SUB   ▶ workflow-subagent (sonnet) runs:
+SUB   ▶ workflow-subagent runs:
         └─ reads required: planning-report (journey test spec)
         └─ reads/updates journey-tests.md (cross-iteration QA state)
         └─ runs journey tests (Playwright / XcodeBuildMCP / …)
         └─ classifies failures (test bug vs app bug)
         └─ writes qa-ing-report.md (epoch: 5, result: PASS | FAIL)
-MAIN  ▶ update-status.sh --status complete   (PASS)
+MAIN  ▶ update-status.sh --status deploy   (PASS)
         or update-status.sh --status executing (FAIL → confirmed app bugs become
                                                  next iteration's optional QA feedback)
+```
+
+### Stage 4 — deploy (interruptible, inline)
+
+```
+MAIN  ► reads stages/deploy.md
+MAIN  ► verifies vercel CLI present + `vercel whoami` signed in
+MAIN  ⇄ may pause for user (vercel login in another terminal, env-var values,
+        first-run `vercel link`); stop hook does NOT block — interruptible
+MAIN  ▶ runs `vercel --prod --yes`
+MAIN  ▶ smoke-checks the production URL (curl HTTP status)
+MAIN  ✎ writes deploy-report.md (epoch: 6, result: deployed)
+        URL + scope + env-var names + smoke-check status recorded
+MAIN  ▶ update-status.sh --status complete
 ```
 
 ### Termination

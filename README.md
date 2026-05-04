@@ -31,7 +31,7 @@ The skill prints a live UI URL:
 UI: https://stagent.worldstatelabs.com/s/<session_id>
 ```
 
-Paste it in a browser to watch the stage timeline, rendered artifacts, and `git diff baseline..HEAD` update live via SSE. (The diff panel is populated only for workflows that declare `modifies_worktree: true` in `workflow.json` — read-only workflows leave it empty.) The project worktree stays clean — nothing under `.stagent/`.
+Paste it in a browser to watch the stage timeline, rendered artifacts, and `git diff baseline..HEAD` update live via SSE.
 
 Or define your own workflow from a natural-language prompt — stagent scaffolds the stages:
 

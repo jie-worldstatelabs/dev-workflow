@@ -5,7 +5,7 @@
 Un plugin de Claude Code que ejecuta **flujos de desarrollo dirigidos por configuración** como una máquina de estados. Declaras stages, transiciones y entradas en un único `workflow.json`; los hooks y scripts del plugin conducen el bucle.
 
 Dos modos:
-- **Cloud** (por defecto) — el estado se replica en una webapp alojada con visor en vivo en el navegador, reanudación entre máquinas y huella cero en el directorio del proyecto.
+- **Cloud** (por defecto) — el estado se replica en una [webapp alojada](https://stagent.worldstatelabs.com/) con visor en vivo en el navegador, reanudación entre máquinas y huella cero en el directorio del proyecto.
 - **Local** — el estado y los artifacts viven bajo `<project>/.stagent/`, sin red.
 
 ## Quick Start

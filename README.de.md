@@ -5,7 +5,7 @@
 Ein Claude-Code-Plugin, das **konfigurationsgetriebene Entwicklungsworkflows** als Zustandsmaschine ausführt. Stages, Übergänge und Eingaben deklarierst du in einer einzigen `workflow.json`; die Hooks und Skripte des Plugins treiben die Schleife.
 
 Zwei Modi:
-- **Cloud** (Standard) — Zustand wird in eine gehostete Webapp gespiegelt, mit Live-Browser-Viewer, maschinenübergreifender Wiederaufnahme und null Fußabdruck im Projektverzeichnis.
+- **Cloud** (Standard) — Zustand wird in eine [gehostete Webapp](https://stagent.worldstatelabs.com/) gespiegelt, mit Live-Browser-Viewer, maschinenübergreifender Wiederaufnahme und null Fußabdruck im Projektverzeichnis.
 - **Local** — Zustand und Artifacts liegen unter `<project>/.stagent/`, ohne Netzwerk.
 
 ## Quick Start

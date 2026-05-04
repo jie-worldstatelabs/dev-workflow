@@ -5,7 +5,7 @@
 A Claude Code plugin that runs **config-driven development workflows** as a state machine. You declare stages, transitions, and inputs in a single `workflow.json`; the plugin's hooks and scripts drive the loop.
 
 Two modes:
-- **Cloud** (default) — state mirrored to a hosted webapp with a live browser viewer, cross-machine resume, and zero project-dir footprint.
+- **Cloud** (default) — state mirrored to a [hosted webapp](https://stagent.worldstatelabs.com/) with a live browser viewer, cross-machine resume, and zero project-dir footprint.
 - **Local** — state and artifacts live under `<project>/.stagent/`, no network.
 
 ## Quick Start

@@ -5,7 +5,7 @@
 一个把**配置驱动的开发工作流**当作状态机来跑的 Claude Code 插件。你在一个 `workflow.json` 里声明 stage、转换和输入；插件的 hooks 和脚本负责驱动循环。
 
 两种模式：
-- **Cloud**（默认）—— 状态镜像到托管的 webapp，浏览器里能实时看，跨机器恢复，项目目录零落地。
+- **Cloud**（默认）—— 状态镜像到[托管的 webapp](https://stagent.worldstatelabs.com/)，浏览器里能实时看，跨机器恢复，项目目录零落地。
 - **Local** —— 状态和 artifact 落在 `<project>/.stagent/` 下，全程离线。
 
 ## Quick Start

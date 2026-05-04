@@ -29,7 +29,7 @@ Starte den Standard-Entwicklungsworkflow — er baut, was du beschreibst:
 /stagent:start --flow=cloud://demo "Build a journaling app with MBTI insights inferred from journal entries"
 ```
 
-Das Skill druckt eine Live-UI-URL. Ohne Anmeldung ist dies eine **anonyme, öffentlich einsehbare** Session — jeder mit dem Link kann die State Machine in Echtzeit verfolgen (Stage-Timeline, gerenderte Artifacts, `git diff baseline..HEAD` per SSE live aktualisiert), und es gibt keinen Besitzer. Um die Eigentümerschaft der Session zu beanspruchen und vergangene Sessions unter `/me/sessions` zu verwalten, führe `/stagent:login` vor `/stagent:start` aus.
+Das Skill druckt eine Live-UI-URL. Ohne Anmeldung ist dies eine **anonyme, öffentlich einsehbare** Session — jeder mit dem Link kann die State Machine in Echtzeit verfolgen (Stage-Timeline, gerenderte Artifacts, `git diff baseline..HEAD` per SSE live aktualisiert), und es gibt keinen Besitzer. Um die Eigentümerschaft der Session zu beanspruchen und deine vergangenen Sessions besser zu verwalten, führe `/stagent:login` vor `/stagent:start` aus.
 
 Für einen vollständig offline-Lauf in den Local-Modus wechseln:
 

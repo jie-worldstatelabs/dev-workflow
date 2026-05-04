@@ -29,7 +29,7 @@ Démarrez le workflow de développement par défaut — il construit ce que vous
 /stagent:start --flow=cloud://demo "Build a journaling app with MBTI insights inferred from journal entries"
 ```
 
-Le skill imprime une URL d'UI live. Sans connexion, c'est une session **anonyme et publiquement consultable** — quiconque a le lien peut suivre l'exécution de la machine à états en temps réel (timeline des stages, artifacts rendus, `git diff baseline..HEAD` mis à jour en direct via SSE), et il n'y a pas de propriétaire. Pour revendiquer la propriété de la session et retrouver tes sessions passées sous `/me/sessions`, exécute `/stagent:login` avant `/stagent:start`.
+Le skill imprime une URL d'UI live. Sans connexion, c'est une session **anonyme et publiquement consultable** — quiconque a le lien peut suivre l'exécution de la machine à états en temps réel (timeline des stages, artifacts rendus, `git diff baseline..HEAD` mis à jour en direct via SSE), et il n'y a pas de propriétaire. Pour revendiquer la propriété de la session et mieux gérer tes sessions passées, exécute `/stagent:login` avant `/stagent:start`.
 
 Pour une exécution entièrement hors ligne, basculez en mode local :
 

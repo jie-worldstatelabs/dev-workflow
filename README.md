@@ -29,7 +29,7 @@ Start the default development workflow — it builds what you describe:
 /stagent:start --flow=cloud://demo "Build a journaling app with MBTI insights inferred from journal entries"
 ```
 
-The skill prints a live UI URL. Without sign-in, this is an **anonymous, publicly viewable** session — anyone with the link can watch the state machine run in real time (stage timeline, rendered artifacts, `git diff baseline..HEAD` updating via SSE), and there is no owner. To claim ownership and have your past sessions show up under `/me/sessions`, run `/stagent:login` before `/stagent:start`.
+The skill prints a live UI URL. Without sign-in, this is an **anonymous, publicly viewable** session — anyone with the link can watch the state machine run in real time (stage timeline, rendered artifacts, `git diff baseline..HEAD` updating via SSE), and there is no owner. To claim ownership and better manage your past sessions, run `/stagent:login` before `/stagent:start`.
 
 For a fully offline run, switch to local mode:
 

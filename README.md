@@ -12,7 +12,7 @@ Two modes:
 
 ### Installation
 
-Run these slash commands **inside a Claude Code session**. Cloud mode is on by default — no config or keys required; anonymous sessions work for `/stagent:start` and `/stagent:continue`. An account (`/stagent:login`) is only needed to publish workflows to the hub or claim authenticated ownership.
+Run these slash commands **inside a Claude Code session**. 
 
 ```
 /plugin marketplace add jie-worldstatelabs/stagent
@@ -29,7 +29,7 @@ Start the default development workflow — it builds what you describe:
 /stagent:start --flow=cloud://demo "Build a journaling app with MBTI insights inferred from journal entries"
 ```
 
-The skill prints a live UI URL: https://stagent.worldstatelabs.com/s/<session_id>. Paste it in a browser to watch the stage timeline, rendered artifacts, and `git diff baseline..HEAD` update live via SSE.
+The skill prints a live UI URL. Paste it in a browser to watch the stage timeline, rendered artifacts, and `git diff baseline..HEAD` update live via SSE.
 
 For a fully offline run, switch to local mode:
 

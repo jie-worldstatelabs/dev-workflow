@@ -41,7 +41,7 @@ For a fully offline run, switch to local mode:
 /stagent:start --mode=local "Build a journaling app with MBTI insights inferred from journal entries"
 ```
 
-### Create a workflow
+### Create a workflow template
 
 Define your own workflow from a natural-language prompt — stagent scaffolds the stages:
 

@@ -51,6 +51,18 @@ UI: https://stagent.worldstatelabs.com/s/<session_id>
 /stagent:create "plan, implement, critique & score UX"
 ```
 
+このコマンドはデフォルトで **cloud** モードで動きます：planning + writing ステージが終わると、新しいテンプレートがあなたの hub アカウントに publish されます。まだサインインしていなければ先に：
+
+```
+/stagent:login
+```
+
+完全オフラインで動かしたい場合（テンプレートはローカルの `~/.config/stagent/workflows/<name>/` に置かれ、hub には push されません）、local モードに切り替え：
+
+```
+/stagent:create --mode=local "plan, implement, critique & score UX"
+```
+
 アイデアが欲しい？ [cookbook](https://stagent.worldstatelabs.com/cookbook) に、fork したり remix したりできる、実戦で鍛えられた 12 のワークフローテンプレートがあります。
 
 ## デフォルトのワークフロー

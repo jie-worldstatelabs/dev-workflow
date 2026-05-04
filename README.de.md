@@ -51,6 +51,18 @@ Definiere deinen Workflow aus einem natürlichsprachlichen Prompt — stagent ge
 /stagent:create "plan, implement, critique & score UX"
 ```
 
+Dieser Befehl läuft standardmäßig im **Cloud**-Modus: Die neue Vorlage wird nach den Planning- und Writing-Stages in deinen Hub-Account publisht. Falls noch nicht geschehen, vorher anmelden:
+
+```
+/stagent:login
+```
+
+Für einen komplett offline laufenden Durchgang (die Vorlage bleibt lokal unter `~/.config/stagent/workflows/<name>/`, nichts wird in den Hub gepusht) in den Local-Modus wechseln:
+
+```
+/stagent:create --mode=local "plan, implement, critique & score UX"
+```
+
 Brauchst du Inspiration? Stöber im [Cookbook](https://stagent.worldstatelabs.com/cookbook) nach zwölf praxiserprobten Workflow-Vorlagen, die du forken oder remixen kannst.
 
 ## Der Standard-Workflow

@@ -51,6 +51,18 @@ Define tu propio workflow desde un prompt en lenguaje natural — stagent arma l
 /stagent:create "plan, implement, critique & score UX"
 ```
 
+Este comando corre por defecto en modo **cloud**: la nueva plantilla se publica en tu cuenta del hub al terminar los stages de planning + writing. Inicia sesión primero si aún no lo hiciste:
+
+```
+/stagent:login
+```
+
+Para un run completamente offline (la plantilla queda en disco en `~/.config/stagent/workflows/<name>/`, nada se sube al hub), cambia a modo local:
+
+```
+/stagent:create --mode=local "plan, implement, critique & score UX"
+```
+
 ¿Necesitas inspiración? Echa un vistazo al [cookbook](https://stagent.worldstatelabs.com/cookbook) para encontrar doce plantillas de workflow probadas en batalla que puedes forkear o remezclar.
 
 ## El workflow por defecto

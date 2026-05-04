@@ -51,6 +51,18 @@ UI: https://stagent.worldstatelabs.com/s/<session_id>
 /stagent:create "plan, implement, critique & score UX"
 ```
 
+这条命令默认走 **cloud** 模式：planning + writing 阶段完成后，新模板会自动发布到你的 hub 账号。如果还没登录，先登录：
+
+```
+/stagent:login
+```
+
+完全离线跑（模板存到本地 `~/.config/stagent/workflows/<name>/`，不推到 hub）切换到 local 模式：
+
+```
+/stagent:create --mode=local "plan, implement, critique & score UX"
+```
+
 需要灵感？翻翻 [cookbook](https://stagent.worldstatelabs.com/cookbook)，里面有 12 个经过实战检验的 workflow 模板，可以直接 fork 或改造。
 
 ## 默认 workflow

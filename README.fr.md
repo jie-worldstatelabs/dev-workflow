@@ -51,6 +51,18 @@ Définissez votre workflow à partir d'un prompt en langage naturel — stagent 
 /stagent:create "plan, implement, critique & score UX"
 ```
 
+Cette commande tourne par défaut en mode **cloud** : le nouveau template est publié sur votre compte hub une fois les stages planning + writing terminés. Connectez-vous d'abord si ce n'est pas déjà fait :
+
+```
+/stagent:login
+```
+
+Pour un run entièrement hors-ligne (le template reste sur disque sous `~/.config/stagent/workflows/<name>/`, rien n'est poussé vers le hub), passez en mode local :
+
+```
+/stagent:create --mode=local "plan, implement, critique & score UX"
+```
+
 Besoin d'inspiration ? Parcourez le [cookbook](https://stagent.worldstatelabs.com/cookbook) pour douze templates de workflow éprouvés en conditions réelles, à forker ou remixer.
 
 ## Le workflow par défaut

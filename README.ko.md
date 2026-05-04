@@ -51,6 +51,18 @@ UI: https://stagent.worldstatelabs.com/s/<session_id>
 /stagent:create "plan, implement, critique & score UX"
 ```
 
+이 명령은 기본적으로 **cloud** 모드로 실행됩니다: planning + writing 스테이지가 끝나면 새 템플릿이 당신의 hub 계정에 publish 됩니다. 아직 로그인하지 않았다면 먼저:
+
+```
+/stagent:login
+```
+
+완전히 오프라인으로 실행하려면 (템플릿은 로컬 `~/.config/stagent/workflows/<name>/` 에 저장되고 hub 에 push 되지 않습니다) local 모드로 전환:
+
+```
+/stagent:create --mode=local "plan, implement, critique & score UX"
+```
+
 영감이 필요하신가요? [cookbook](https://stagent.worldstatelabs.com/cookbook)에서 fork하거나 remix할 수 있는 실전 검증된 12개의 워크플로우 템플릿을 살펴보세요.
 
 ## 기본 워크플로우

@@ -51,6 +51,18 @@ Define your own workflow from a natural-language prompt — stagent scaffolds th
 /stagent:create "plan, implement, critique & score UX"
 ```
 
+This defaults to **cloud** mode: the new template is published to your hub account after the planning + writing stages finish. Sign in first if you haven't already:
+
+```
+/stagent:login
+```
+
+For a fully offline run (template stays on disk under `~/.config/stagent/workflows/<name>/`, nothing pushed to the hub), switch to local mode:
+
+```
+/stagent:create --mode=local "plan, implement, critique & score UX"
+```
+
 Need inspiration? Browse the [cookbook](https://stagent.worldstatelabs.com/cookbook) for twelve battle-tested workflow templates you can fork or remix.
 
 ## The Default Workflow

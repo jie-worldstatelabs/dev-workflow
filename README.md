@@ -49,6 +49,8 @@ Define your own workflow from a natural-language prompt — stagent scaffolds th
 /stagent:create "plan, implement, critique & score UX"
 ```
 
+Need inspiration? Browse the [cookbook](https://stagent.worldstatelabs.com/cookbook) for twelve battle-tested workflow templates you can fork or remix.
+
 ## The Default Workflow
 
 With no `--flow` flag:

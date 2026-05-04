@@ -19,7 +19,9 @@ Requires: [Claude Code](https://claude.ai/claude-code), `jq`, `curl`, `git` (clo
 
 ## Quick Start
 
-Start a workflow — the default development workflow builds what you describe:
+### Run a workflow
+
+Start the default development workflow — it builds what you describe:
 
 ```
 /stagent:start --flow=cloud://demo "Build a journaling app with MBTI insights inferred from journal entries"
@@ -33,16 +35,18 @@ UI: https://stagent.worldstatelabs.com/s/<session_id>
 
 Paste it in a browser to watch the stage timeline, rendered artifacts, and `git diff baseline..HEAD` update live via SSE.
 
-Or define your own workflow from a natural-language prompt — stagent scaffolds the stages:
-
-```
-/stagent:create "plan, implement, critique & score UX"
-```
-
 For a fully offline run, switch to local mode:
 
 ```
 /stagent:start --mode=local "Build a journaling app with MBTI insights inferred from journal entries"
+```
+
+### Create a workflow
+
+Define your own workflow from a natural-language prompt — stagent scaffolds the stages:
+
+```
+/stagent:create "plan, implement, critique & score UX"
 ```
 
 ## The Default Workflow

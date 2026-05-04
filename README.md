@@ -6,7 +6,9 @@ Two modes:
 - **Cloud** (default) — state mirrored to a hosted webapp with a live browser viewer, cross-machine resume, and zero project-dir footprint.
 - **Local** — state and artifacts live under `<project>/.stagent/`, no network.
 
-## Installation
+## Quick Start
+
+### Installation
 
 Run these slash commands **inside a Claude Code session**. Cloud mode is on by default — no config or keys required; anonymous sessions work for `/stagent:start` and `/stagent:continue`. An account (`/stagent:login`) is only needed to publish workflows to the hub or claim authenticated ownership.
 
@@ -16,8 +18,6 @@ Run these slash commands **inside a Claude Code session**. Cloud mode is on by d
 ```
 
 Requires: [Claude Code](https://claude.ai/claude-code), `jq`, `curl`, `git` (cloud mode also relies on standard POSIX tools like `sha256sum` / `shasum`).
-
-## Quick Start
 
 ### Run a workflow
 

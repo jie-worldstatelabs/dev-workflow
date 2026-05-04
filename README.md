@@ -98,7 +98,6 @@ Need ideas for what to turn into a workflow? See the [cookbook](https://stagent.
 | Variable | Default | Effect |
 |---|---|---|
 | `STAGENT_DEFAULT_MODE` | `cloud` | Set to `local` to flip the default for every run in the shell |
-| `STAGENT_SERVER` | `https://stagent.worldstatelabs.com` | Point at a self-hosted or staging server |
 
 ## Local vs Cloud
 

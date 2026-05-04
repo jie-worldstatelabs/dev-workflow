@@ -73,7 +73,7 @@ The plugin is **generic** — any stage shape works as long as it follows the sc
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the `workflow.json` schema.
 
-Need ideas for what to turn into a workflow? See the [cookbook](https://stagent.worldstatelabs.com/cookbook) — seven common Claude Code misbehaviors (no-research coding, self-approved done, scope creep, symptom-only bug fixes, ignored TDD, skipped visual QA, forgotten constraints) with ready-to-run `/stagent:create` prompts for each.
+Need ideas for what to turn into a workflow? See the [cookbook](https://stagent.worldstatelabs.com/cookbook) — twelve ready-to-run workflows for common Claude Code failure modes (goal pursuit, research-first, end-to-end v1, scope lock-down, invariant guardrails, root-cause forced, real bug hunt, strict TDD, real-journey suite, visual QA gate, perf gate, compliance gate), each launchable with `/stagent:start --flow=cloud://...`.
 
 ## Commands
 
